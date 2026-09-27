@@ -1,0 +1,85 @@
+module Aura.Compiler.Main
+
+import { tokenize } from "./lexer"
+import { parseModule } from "./parser"
+import { generate } from "./codegen"
+
+// -----------------------------------------------------------------------------
+// DESIGN PATTERN: PIPELINE PATTERN (AURA SELF-HOSTED COMPILER)
+// -----------------------------------------------------------------------------
+
+/// Compiler pipeline context representing a compilation task with input source code.
+/// - `source`: The Aura source text string being processed.
+export type CompilerPipeline = {
+  source: String
+}
+
+/// Factory constructor creating a new CompilerPipeline for the specified source code.
+/// - `source`: UTF-8 Aura source string.
+/// - Returns: Initialized `CompilerPipeline` instance.
+export fn newPipeline(source: String): CompilerPipeline {
+  return { source: source };
+}
+
+/// Executes all stages of the self-hosted compilation pipeline:
+/// 1. Tokenization (`tokenize`)
+/// 2. Parsing (`parseModule`)
+/// 3. Code Generation (`generate`)
+/// - `pipeline`: The active compiler pipeline instance.
+/// - Returns: `Ok(String)` containing generated JavaScript code, or `Err(String)` on syntax error.
+export fn executePipeline(pipeline: CompilerPipeline): Result<String, String> {
+  let tokens = tokenize(pipeline.source)?;
+  let moduleNode = parseModule(tokens)?;
+  let jsCode = generate(moduleNode);
+  return Ok(jsCode);
+}
+
+/// Compiles Aura source code directly to ES6 JavaScript code.
+/// - `source`: UTF-8 Aura source code string.
+/// - Returns: `Ok(String)` with generated JavaScript code, or `Err(String)` on error.
+export fn compileAura(source: String): Result<String, String> {
+  let pipeline = newPipeline(source);
+  return executePipeline(pipeline);
+}
+
+/// CLI runner entrypoint that parses command-line arguments, validates input files,
+/// runs the self-hosted compiler, and writes output files to disk.
+export fn runCli(): () {
+  let args = process.argv;
+  if (args.length < 3) {
+    println("Aura Self-Hosted Compiler (v0.2.0)");
+    println("Usage: node aurac.mjs <file.aura> [-o <output.js>]");
+    return ();
+  }
+
+  let filename = args[2];
+  let mut outputFilename = "output.js";
+
+  if (args.length >= 5 && args[3] == "-o") {
+    outputFilename = args[4];
+  } else if (filename.endsWith(".aura")) {
+    outputFilename = filename.replace(".aura", ".js");
+  }
+
+  if (!fs.existsSync(filename)) {
+    println(`Error: File '${filename}' not found.`);
+    process.exit(1);
+    return ();
+  }
+
+  let source = fs.readFileSync(filename, "utf8");
+  let result = compileAura(source);
+
+  match result {
+    Ok(code) => {
+      fs.writeFileSync(outputFilename, code);
+      println(`✓ Successfully compiled '${filename}' -> '${outputFilename}'`);
+    },
+    Err(err) => {
+      println(`✕ Compilation error in '${filename}': ${err}`);
+      process.exit(1);
+    }
+  }
+}
+
+runCli();

@@ -1,0 +1,266 @@
+// =============================================================================
+// Microservicio 3: Telemetría IoT y Detección de Anomalías (Telemetry Service)
+// =============================================================================
+// Arquitectura Backend Golang-Style de Alto Rendimiento:
+// - Structs con Struct Tags JSON
+// - Worker Pools concurrentes con Go-style CSP Channels
+// - Sincronización con Mutex y Defer
+// - Servidor HTTP nativo net/http
+//
+// Compilar a binario ejecutable autónomo:
+//   aurac build examples/microservices/telemetry_service.aura -o telemetry-service
+//   ./telemetry-service
+//
+
+// --- 1. Definición de Modelos con Structs y Struct Tags ---
+
+struct SensorReading {
+    deviceId: String `json:"device_id"`,
+    sensorType: String `json:"sensor_type"`,
+    value: Float `json:"value"`,
+    unit: String `json:"unit"`,
+    timestamp: String `json:"timestamp"`
+};
+
+struct IngestBatchRequest {
+    batchId: String `json:"batch_id"`,
+    readings: List<SensorReading> `json:"readings"`
+};
+
+struct AnomalyAlert {
+    alertId: String `json:"alert_id"`,
+    deviceId: String `json:"device_id"`,
+    sensorType: String `json:"sensor_type"`,
+    severity: String `json:"severity"`,
+    threshold: Float `json:"threshold"`,
+    actualValue: Float `json:"actual_value"`,
+    timestamp: String `json:"timestamp"`
+};
+
+struct SensorAggregates {
+    sensorType: String `json:"sensor_type"`,
+    count: Int `json:"count"`,
+    min: Float `json:"min"`,
+    max: Float `json:"max"`,
+    average: Float `json:"average"`
+};
+
+struct ServiceHealth {
+    service: String `json:"service"`,
+    status: String `json:"status"`,
+    activeWorkers: Int `json:"active_workers"`,
+    totalProcessed: Int `json:"total_processed"`,
+    anomaliesCount: Int `json:"anomalies_count"`,
+    timestamp: String `json:"timestamp"`
+};
+
+// --- 2. Estado Global Thread-Safe y Canales Concurrencia ---
+
+let telemetryMutex = Mutex.new();
+let alertsMutex = Mutex.new();
+
+let mut totalProcessedCount = 0;
+let mut alertsDb: List<AnomalyAlert> = [];
+let mut temperatureSum = 0.0;
+let mut temperatureCount = 0;
+
+// Canales Go-style buffered
+let telemetryQueue: Channel<SensorReading> = Channel.make(1000);
+let alertsQueue: Channel<AnomalyAlert> = Channel.make(200);
+
+// --- 3. Concurrencia: Worker Pool de Procesamiento de Sensores ---
+
+// Worker Fiber 1: Procesamiento de lecturas
+spawn {
+    println("📡 [Telemetry-Worker-1] Fiber de ingestión iniciado.");
+    while (true) {
+        let msg = <-telemetryQueue;
+        match msg {
+            Some(reading) => {
+                telemetryMutex.lock();
+                totalProcessedCount = totalProcessedCount + 1;
+
+                if (reading.sensorType == "temperature") {
+                    temperatureSum = temperatureSum + reading.value;
+                    temperatureCount = temperatureCount + 1;
+                }
+                telemetryMutex.unlock();
+
+                // Regla de detección de anomalías: Temperatura > 75.0 °C
+                if (reading.sensorType == "temperature" && reading.value > 75.0) {
+                    let alert: AnomalyAlert = {
+                        alertId: `alt-${time.now()}`,
+                        deviceId: reading.deviceId,
+                        sensorType: reading.sensorType,
+                        severity: "CRITICAL",
+                        threshold: 75.0,
+                        actualValue: reading.value,
+                        timestamp: `${time.now()}`
+                    };
+                    alertsQueue <- alert;
+                }
+            },
+            None => ()
+        }
+    }
+};
+
+// Worker Fiber 2: Consumidor de alertas críticas
+spawn {
+    println("🚨 [Alert-Dispatcher] Fiber de alertas en tiempo real iniciado.");
+    while (true) {
+        let alertMsg = <-alertsQueue;
+        match alertMsg {
+            Some(alert) => {
+                alertsMutex.lock();
+                alertsDb.push(alert);
+                alertsMutex.unlock();
+                println(`🔥 [ALERTA] ${alert.severity}: Dispositivo ${alert.deviceId} reportó ${alert.sensorType}=${alert.actualValue} (Umbral: ${alert.threshold})`);
+            },
+            None => ()
+        }
+    }
+};
+
+// --- 4. Configuración del Servidor HTTP (net/http ServeMux) ---
+
+let mux = http.newServeMux();
+
+// Middleware: Telemetría de Peticiones y Latencia
+mux.use(fn(req: Any, res: Any, next: Any) => {
+    println(`[Telemetry-API] ${req.method} ${req.url}`);
+    res.setHeader("X-Service", "Telemetry-Microservice");
+    res.setHeader("X-Architecture", "Golang-CSP-Model");
+    next();
+});
+
+// GET /healthz - Monitoreo de Salud y Métricas del Worker Pool
+mux.get("/healthz", fn(req: Any, res: Any) => {
+    telemetryMutex.lock();
+    let processed = totalProcessedCount;
+    telemetryMutex.unlock();
+
+    alertsMutex.lock();
+    let totalAlerts = alertsDb.length;
+    alertsMutex.unlock();
+
+    let health: ServiceHealth = {
+        service: "telemetry-service",
+        status: "HEALTHY",
+        activeWorkers: 2,
+        totalProcessed: processed,
+        anomaliesCount: totalAlerts,
+        timestamp: `${time.now()}`
+    };
+
+    http.json(res, http.StatusOK, health);
+});
+
+// POST /api/telemetry/ingest - Ingesta individual de lectura de sensor
+mux.post("/api/telemetry/ingest", fn(req: Any, res: Any) => {
+    let body = req.body;
+    if (body == null) {
+        http.error(res, "El payload de telemetría es requerido", http.StatusBadRequest);
+        return ();
+    }
+
+    let deviceId = body.deviceId;
+    let sensorType = body.sensorType;
+    let value = body.value;
+    let unit = body.unit;
+
+    if (deviceId == null || sensorType == null || value == null) {
+        http.error(res, "Campos 'deviceId', 'sensorType' y 'value' son obligatorios", http.StatusBadRequest);
+        return ();
+    }
+
+    let reading: SensorReading = {
+        deviceId: deviceId,
+        sensorType: sensorType,
+        value: value,
+        unit: unit != null ? unit : "raw",
+        timestamp: `${time.now()}`
+    };
+
+    // Despacho no-bloqueante al worker pool a través del canal Go-style
+    telemetryQueue <- reading;
+
+    http.json(res, http.StatusAccepted, {
+        success: true,
+        queued: true,
+        deviceId: deviceId,
+        timestamp: reading.timestamp
+    });
+});
+
+// POST /api/telemetry/batch - Ingesta por lote de múltiples lecturas
+mux.post("/api/telemetry/batch", fn(req: Any, res: Any) => {
+    let body = req.body;
+    if (body == null || body.readings == null) {
+        http.error(res, "Lista de 'readings' requerida en el cuerpo JSON", http.StatusBadRequest);
+        return ();
+    }
+
+    let batchId = body.batchId != null ? body.batchId : `batch-${time.now()}`;
+    let items = body.readings;
+    let mut i = 0;
+
+    while (i < items.length) {
+        let item = items[i];
+        let reading: SensorReading = {
+            deviceId: item.deviceId,
+            sensorType: item.sensorType,
+            value: item.value,
+            unit: item.unit != null ? item.unit : "units",
+            timestamp: `${time.now()}`
+        };
+        telemetryQueue <- reading;
+        i = i + 1;
+    }
+
+    http.json(res, http.StatusAccepted, {
+        success: true,
+        batchId: batchId,
+        ingestedCount: items.length
+    });
+});
+
+// GET /api/telemetry/alerts - Historial de anomalías detectadas
+mux.get("/api/telemetry/alerts", fn(req: Any, res: Any) => {
+    alertsMutex.lock();
+    defer alertsMutex.unlock();
+
+    http.json(res, http.StatusOK, {
+        count: alertsDb.length,
+        alerts: alertsDb
+    });
+});
+
+// GET /api/telemetry/stats - Estadísticas y promedios en tiempo real
+mux.get("/api/telemetry/stats", fn(req: Any, res: Any) => {
+    telemetryMutex.lock();
+    defer telemetryMutex.unlock();
+
+    let avgTemp = temperatureCount > 0 ? temperatureSum / temperatureCount : 0.0;
+
+    let stats: SensorAggregates = {
+        sensorType: "temperature",
+        count: temperatureCount,
+        min: 0.0,
+        max: 100.0,
+        average: avgTemp
+    };
+
+    http.json(res, http.StatusOK, {
+        totalReadings: totalProcessedCount,
+        temperatureStats: stats
+    });
+});
+
+// --- 5. Inicialización del Servidor en el Puerto Designado ---
+
+let portEnv = os.env("PORT");
+let port = portEnv != "" ? portEnv : "8083";
+
+println(`🚀 Microservicio de Telemetría iniciado en http://localhost:${port}`);
+http.listenAndServe(`:${port}`, mux);

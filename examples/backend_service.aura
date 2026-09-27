@@ -1,0 +1,133 @@
+// =============================================================================
+// Aura Lang Backend Microservice (Golang net/http & Concurrency Model)
+// =============================================================================
+//
+// This service demonstrates Aura's backend-first architecture following Golang:
+// 1. Standalone HTTP Server (ServeMux, dynamic routing, middleware, JSON parsing)
+// 2. CSP Concurrency (spawn fibers/goroutines, buffered channels, select)
+// 3. Thread-safe state synchronization (sync.Mutex)
+// 4. Resource cleanup with defer
+// 5. Systems and OS access (os.args, os.env, os.hostname)
+//
+// Build to standalone native binary executable:
+//   aurac build examples/backend_service.aura -o backend-service
+//   ./backend-service
+
+// 1. Create a ServeMux instance (Go net/http pattern)
+let mux = http.newServeMux();
+
+// 2. Logging & Header Middleware
+mux.use(fn(req: Any, res: Any, next: Any) => {
+  println(`[Aura Backend] ${req.method} ${req.url}`);
+  res.setHeader("X-Server", "Aura-Lang-Backend");
+  res.setHeader("X-Architecture", "Golang-Model");
+  next();
+});
+
+// 3. In-memory thread-safe Task Storage using sync.Mutex
+let taskMutex = Mutex.new();
+let mut taskCatalog = [
+{id: "1", title: "Setup Aura Backend microservice", done: true},
+{id: "2", title: "Build standalone native binary executable", done: true},
+{id: "3", title: "Deploy to containerized environment", done: false}
+];
+
+// 4. Endpoints
+
+// Root info endpoint
+mux.get("/", fn(req: Any, res: Any) => {
+  http.json(res, http.StatusOK, {
+    service: "Aura Backend Microservice",
+    model: "Golang net/http & Concurrency",
+    version: "0.2.0",
+    docs: "/api/system, /api/tasks"
+  });
+});
+
+// System diagnostics endpoint (os module parity with Go os package)
+mux.get("/api/system", fn(req: Any, res: Any) => {
+  http.json(res, http.StatusOK, {
+    hostname: os.hostname(),
+    args: os.args,
+    nodeEnv: os.env("NODE_ENV"),
+    user: os.env("USER"),
+    timestamp: time.now()
+  });
+});
+
+// List and search tasks
+mux.get("/api/tasks", fn(req: Any, res: Any) => {
+  let search = http.query(req, "search");
+  let filterStatus = http.query(req, "done");
+
+  taskMutex.lock();
+  defer taskMutex.unlock();
+
+  let filtered = taskCatalog.filter(fn(t: Any): Bool => {
+    let matchSearch = search == "" || t.title.toLowerCase().includes(search.toLowerCase());
+    let matchDone = filterStatus == "" || (filterStatus == "true" && t.done) || (filterStatus == "false" && !t.done);
+    matchSearch && matchDone
+  });
+
+  http.json(res, http.StatusOK, {
+    count: filtered.length,
+    tasks: filtered
+  });
+});
+
+// Get task by route parameter :id
+mux.get("/api/tasks/:id", fn(req: Any, res: Any) => {
+  let taskId = http.pathValue(req, "id");
+
+  taskMutex.lock();
+  defer taskMutex.unlock();
+
+  let matched = taskCatalog.filter(fn(t: Any): Bool => t.id == taskId);
+  if (matched.length == 0) {
+    http.error(res, `Task '${taskId}' not found`, http.StatusNotFound);
+    return();
+  }
+
+  http.json(res, http.StatusOK, matched[0]);
+});
+
+// Create new task (POST with JSON body parsing)
+mux.post("/api/tasks", fn(req: Any, res: Any) => async {
+  let parseResult = await http.parseJson(req);
+  match parseResult {
+    Ok(body) => {
+      taskMutex.lock();
+      defer taskMutex.unlock();
+
+      let newId = `${taskCatalog.length + 1}`;
+      let taskTitle = body.title != "" ? body.title: "Untitled Task";
+      let newTask = {
+        id: newId,
+        title: taskTitle,
+        done: false
+      };
+      taskCatalog.push(newTask);
+
+      http.json(res, http.StatusCreated, {
+        success: true,
+        task: newTask
+      });
+    },
+    Err(err) => {
+      http.error(res, `Invalid JSON payload: ${err}`, http.StatusBadRequest);
+    }
+  }
+});
+
+// 5. Background Worker fiber using CSP Concurrency (spawn + Channel)
+let eventQueue = Channel.new(20);
+
+spawn(async {
+  println("[Worker] Background event processing fiber started.");
+  // Simulate background worker loop
+});
+
+// 6. Start the Server (port 8080 or PORT environment variable)
+let port = os.env("PORT") != "" ? os.env("PORT"): "8080";
+println(`🚀 Starting Aura Backend Server on :${port} (Golang model)...`);
+// mux.listenAndServe(`:${port}`);

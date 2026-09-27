@@ -1,0 +1,126 @@
+module Concurrency.CspPipeline
+
+// =============================================================================
+// Aura Go-Style CSP Concurrency Example
+// Features: `spawn`, typed `Channel<T>`, `<-` send/receive with `Option<T>`,
+// `select` multiplexing with `timeout` & `default`, and `WaitGroup` sync.
+// =============================================================================
+
+export type Job = {
+  id: Int,
+  payload: String,
+  costMs: Int
+}
+
+export type JobResult = {
+  jobId: Int,
+  output: String,
+  processedBy: String
+}
+
+// Recursive worker consumer: processes jobs until channel closes (`None`)
+export fn workerLoop(workerName: String, jobsCh: Channel<Job>, resultsCh: Channel<JobResult>, wg: WaitGroup): Task<Unit , String> => {
+  let item = <-jobsCh;
+  match item {
+    Some(job) => {
+      println(`[${workerName}] Processing Job #${job.id}: ${job.payload}`);
+      await sleep(job.costMs);
+      let res: JobResult = {
+        jobId: job.id,
+        output: `Processed [${job.payload}] successfully`,
+        processedBy: workerName
+      };
+      resultsCh <- res;
+      workerLoop(workerName, jobsCh, resultsCh, wg)
+    },
+    None => {
+      println(`[${workerName}] No more jobs in channel. Worker exiting.`);
+      wg.done();
+    }
+  }
+}
+
+// Spawns a worker fiber running `workerLoop`
+export fn startWorker(workerName: String, jobsCh: Channel<Job>, resultsCh: Channel<JobResult>, wg: WaitGroup): Task<Unit , String> => {
+  spawn {
+    workerLoop(workerName, jobsCh, resultsCh, wg);
+  };
+}
+
+// Recursive consumer: aggregates results until results channel is closed
+export fn collectResults(resultsCh: Channel<JobResult>, acc: Int = 0): Task<Int , String> => {
+  let msg = <-resultsCh;
+  match msg {
+    Some(r) => {
+      println(`[Consumer] Result: #${r.jobId} (${r.processedBy}) -> ${r.output}`);
+      collectResults(resultsCh, acc + 1)
+    },
+    None => {
+      println("[Consumer] All results collected.");
+      acc
+    }
+  }
+}
+
+// Multiplexed result monitor: uses `select` to handle incoming results,
+// cancellation / heartbeat channels, and timeout fallbacks.
+export fn monitorCollector(resultsCh: Channel<JobResult>, cancelCh: Channel<String>): Task<String , String> => {
+  select {
+    case res = <-resultsCh => match res {
+      Some(r) => `Received result for Job #${r.jobId} from ${r.processedBy}: ${r.output}`,
+      None => "Results channel closed."
+    },
+    case cancelMsg = <-cancelCh => match cancelMsg {
+      Some(reason) => `Pipeline cancelled: ${reason}`,
+      None => "Cancel channel closed"
+    },
+    case timeout(500) => "Collector timeout (no messages within 500ms)",
+    default => "No immediate messages ready in channels"
+  }
+}
+
+// Orchestrator: Launches a 3-worker pool, produces jobs, synchronizes with WaitGroup
+export fn runCspWorkerPool(): Task<Int , String> => {
+  println("--- Starting Aura CSP Concurrency Pipeline ---");
+
+  let jobsCh = Channel.make<Job>(10);
+  let resultsCh = Channel.make<JobResult>(10);
+  let cancelCh = Channel.make<String>();
+  let wg = WaitGroup.new();
+
+  // Launch 3 concurrent worker fibers
+  wg.add(3);
+  startWorker("Worker-Alpha", jobsCh, resultsCh, wg);
+  startWorker("Worker-Beta", jobsCh, resultsCh, wg);
+  startWorker("Worker-Gamma", jobsCh, resultsCh, wg);
+
+  // Producer Fiber: sends 6 jobs into buffered channel
+  spawn {
+    jobsCh <- {id: 1, payload: "Compute sha256 checksums", costMs: 20};
+    jobsCh <- {id: 2, payload: "Fetch remote telemetry", costMs: 30};
+    jobsCh <- {id: 3, payload: "Render UI canvas buffer", costMs: 15};
+    jobsCh <- {id: 4, payload: "Compress assets archive", costMs: 25};
+    jobsCh <- {id: 5, payload: "Transpile AST to JS", costMs: 10};
+    jobsCh <- {id: 6, payload: "Emit TypeScript definitions", costMs: 15};
+
+    Channel.close(jobsCh);
+    println("[Producer] All jobs submitted & jobs channel closed.");
+  };
+
+  // Supervisor Fiber: closes results channel once all workers finish
+  spawn {
+    await wg.wait();
+    Channel.close(resultsCh);
+    println("[Supervisor] All workers finished. Results channel closed.");
+  };
+
+  // Consumer: collect all 6 job results
+  let collectedCount = await collectResults(resultsCh, 0);
+
+  // Test select multiplexer with timeout & default
+  let statusMsg = await monitorCollector(resultsCh, cancelCh);
+  println(`[Monitor] Status: ${statusMsg}`);
+
+  println(`--- Aura CSP Pipeline Complete. Processed ${collectedCount} jobs. ---`);
+  collectedCount
+}

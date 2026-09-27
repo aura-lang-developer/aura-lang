@@ -1,0 +1,37 @@
+// Unit Test Suite for Math & Discount Operations (Go-test style in Aura)
+
+export fn add(a: Int, b: Int): Int => a + b
+
+export fn factorial(n: Int, acc: Int = 1): Int => {
+  if (n <= 1) {
+    return acc;
+  }
+  factorial(n - 1, acc * n)
+}
+
+export fn test_addition(t: TestingT) => {
+  let result = add(10, 25);
+  t.assertEqual(result, 35, "10 + 25 should equal 35");
+  t.assertNotEqual(result, 30, "result should not equal 30");
+}
+
+export fn test_factorial(t: TestingT) => {
+  t.assertEqual(factorial(5), 120, "5! must be 120");
+  t.assertEqual(factorial(0), 1, "0! must be 1");
+  t.assertTrue(factorial(4) > 20, "4! is 24 > 20");
+}
+
+export fn test_global_assertions() => {
+  let x = add(100, 200);
+  assert(x == 300, "x should be 300");
+  assertTrue(x > 250, "x > 250");
+  assertFalse(x < 100, "x < 100 is false");
+}
+
+export fn benchmark_addition(b: BenchmarkB) => {
+  add(10, 42)
+}
+
+export fn benchmark_factorial(b: BenchmarkB) => {
+  factorial(8, 1)
+}

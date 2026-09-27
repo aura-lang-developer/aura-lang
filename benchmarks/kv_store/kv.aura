@@ -1,0 +1,37 @@
+export async fn main(): Task<Unit, String> => {
+    let mu = Mutex.new();
+    let count = 50000;
+    let mut store = [];
+    let mut i = 0;
+    while i < 1000 {
+        store.push(i * 10);
+        i = i + 1;
+    };
+
+    let wg = WaitGroup.new();
+    wg.add(count);
+
+    let t0 = time.now();
+    let mut j = 0;
+    while j < count {
+        let opId = j;
+        spawn(async {
+            let key = opId % 1000;
+            mu.lock();
+            if opId % 3 == 0 {
+                store[key] = opId;
+            };
+            let readVal = store[key];
+            if readVal == 0 {
+                opId = opId + 1;
+            };
+            mu.unlock();
+            wg.done();
+        });
+        j = j + 1;
+    };
+
+    await wg.wait();
+    let dur = time.now() - t0;
+    println(`[AURA] KV Cache: ${count} concurrent ops completed in ${dur} ms`);
+}

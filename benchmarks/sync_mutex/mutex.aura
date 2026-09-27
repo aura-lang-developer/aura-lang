@@ -1,0 +1,23 @@
+export async fn main(): Task<Unit, String> => {
+    let mu = Mutex.new();
+    let count = 50000;
+    let mut counter = 0;
+    let wg = WaitGroup.new();
+    wg.add(count);
+
+    let t0 = time.now();
+    let mut i = 0;
+    while i < count {
+        spawn(async {
+            mu.lock();
+            counter = counter + 1;
+            mu.unlock();
+            wg.done();
+        });
+        i = i + 1;
+    };
+
+    await wg.wait();
+    let dur = time.now() - t0;
+    println(`[AURA] Synchronized counter: ${counter} in ${dur} ms`);
+}

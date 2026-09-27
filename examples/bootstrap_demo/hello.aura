@@ -1,0 +1,23 @@
+module HelloBootstrap
+
+fn add(a: Int, b: Int): Int {
+  return a + b;
+}
+
+export fn greet(name: String): String {
+  let msg = `Hello ${name} from Self-Hosted Aura Compiler!`;
+  return msg;
+}
+
+export fn computeSum(n: Int): Int {
+  let mut total = 0;
+  let mut i = 1;
+  while (i <= n) {
+    total = total + i;
+    i = i + 1;
+  }
+  return total;
+}
+
+println(greet("Developer"));
+println(`Sum of 1..100: ${computeSum(100)}`);

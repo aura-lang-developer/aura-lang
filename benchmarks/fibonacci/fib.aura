@@ -1,0 +1,15 @@
+fn fib(n: Int): Int => {
+    if n <= 1 {
+        n
+    } else {
+        fib(n - 1) + fib(n - 2)
+    }
+}
+
+export fn main(): Unit => {
+    let n = 38;
+    let t0 = time.now();
+    let res = fib(n);
+    let dur = time.now() - t0;
+    println(`[AURA] Fib(${n}) = ${res} | Time: ${dur} ms`);
+}

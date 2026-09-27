@@ -1,0 +1,84 @@
+// --- Aura Web Server (Golang net/http style) ---
+
+// 1. Create an isolated ServeMux instance
+let mux = http.newServeMux();
+
+// 2. Add custom middleware (Logging & Header setup)
+mux.use(fn(req: Any, res: Any, next: Any) => {
+    println(`[HTTP] ${req.method} ${req.url}`);
+    res.setHeader("X-Powered-By", "Aura-Lang");
+    next();
+});
+
+// 3. Define endpoints using HTTP verbs
+mux.get("/", fn(req: Any, res: Any) => {
+    http.html(res, http.StatusOK, "<h1>Welcome to Aura Golang-Style HTTP Server!</h1>");
+});
+
+mux.get("/api/health", fn(req: Any, res: Any) => {
+    http.json(res, http.StatusOK, {
+        status: "healthy",
+        uptime: process.uptime(),
+        runtime: "Aura-Lang / Node.js"
+    });
+});
+
+let users = [
+    { id: "1", name: "Alice", role: "Developer" },
+    { id: "2", name: "Bob", role: "Designer" },
+    { id: "3", name: "Charlie", role: "Developer" }
+];
+
+// 4. List and filter users with query parameters
+mux.get("/api/users", fn(req: Any, res: Any) => {
+    let roleFilter = http.query(req, "role");
+    let search = http.query(req, "search");
+
+    let filtered = users.filter(fn(u: Any): Bool => {
+        let matchRole = roleFilter == "" || u.role.toLowerCase() == roleFilter.toLowerCase();
+        let matchSearch = search == "" || u.name.toLowerCase().includes(search.toLowerCase());
+        matchRole && matchSearch
+    });
+
+    http.json(res, http.StatusOK, {
+        count: filtered.length,
+        data: filtered
+    });
+});
+
+// 5. Route parameters support (:id or {id}) using filter
+mux.get("/api/users/:id", fn(req: Any, res: Any) => {
+    let userId = http.pathValue(req, "id");
+    let matched = users.filter(fn(u: Any): Bool => u.id == userId);
+    
+    if (matched.length == 0) {
+        http.error(res, "User not found", http.StatusNotFound);
+        return ();
+    }
+
+    http.json(res, http.StatusOK, matched[0]);
+});
+
+// 6. POST handler with JSON body parsing
+mux.post("/api/users", fn(req: Any, res: Any) => async {
+    let parseResult = await http.parseJson(req);
+    match parseResult {
+        Ok(body) => {
+            http.json(res, http.StatusCreated, {
+                created: true,
+                user: body
+            });
+        },
+        Err(err) => {
+            http.error(res, `Invalid payload: ${err}`, http.StatusBadRequest);
+        }
+    }
+});
+
+// 7. Global fallback or standard route
+http.handleFunc("/version", fn(req: Any, res: Any) => {
+    http.text(res, http.StatusOK, "Aura HTTP Server v0.2.0");
+});
+
+println("Starting Golang-style HTTP Server on port 8080...");
+// mux.listenAndServe(":8080");

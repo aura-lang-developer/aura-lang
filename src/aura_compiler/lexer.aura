@@ -1,0 +1,254 @@
+module Aura.Compiler.Lexer
+
+import {
+  Token, TokenKind,
+  TFn, TLet, TMut, TType, TMatch, TWhen, TIf, TElse, TWhile, TFor, TIn,
+  TBreak, TContinue, TReturn, TModule, TExport, TImport, TFrom, TSpawn, TSelect,
+  TIdent, TInt, TFloat, TString, TBool, TPipe, TFatArrow, TArrow, TArrowLeft,
+  TEqual, TEqualEqual, TNotEqual, TLess, TLessEqual, TGreater, TGreaterEqual,
+  TPlus, TMinus, TStar, TSlash, TPercent, TAndAnd, TOrOr, TBang, TPipeOp,
+  TQuestion, TLParen, TRParen, TLBrace, TRBrace, TLBracket, TRBracket,
+  TColon, TComma, TSemicolon, TDot, TUnderscore, TEof
+} from "./ast"
+
+/// Tests whether the given single-character string is an ASCII whitespace character.
+/// - `ch`: Single character string to test.
+/// - Returns: `true` if `ch` is a space, tab, newline, or carriage return.
+fn isWhitespace(ch: String): Bool {
+  return ch == " " || ch == "\t" || ch == "\n" || ch == "\r";
+}
+
+/// Tests whether the given single-character string is an alphabetic ASCII letter or underscore.
+/// - `ch`: Single character string to test.
+/// - Returns: `true` if `ch` is `A-Z`, `a-z`, or `_`.
+fn isAlpha(ch: String): Bool {
+  let c = ch.charCodeAt(0);
+  return (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || ch == "_";
+}
+
+/// Tests whether the given single-character string is an ASCII decimal digit.
+/// - `ch`: Single character string to test.
+/// - Returns: `true` if `ch` is between `'0'` and `'9'`.
+fn isDigit(ch: String): Bool {
+  let c = ch.charCodeAt(0);
+  return c >= 48 && c <= 57;
+}
+
+/// Tests whether the given single-character string is alphanumeric or an underscore.
+/// - `ch`: Single character string to test.
+/// - Returns: `true` if `ch` is alphabetic, numeric, or `_`.
+fn isAlphaNum(ch: String): Bool {
+  return isAlpha(ch) || isDigit(ch);
+}
+
+/// Scans raw Aura source text and converts it into a list of strongly-typed lexical tokens.
+/// Tracks 1-indexed line and column positions for diagnostic reporting.
+/// - `source`: UTF-8 Aura source code string.
+/// - Returns: `Ok(List<Token>)` containing tokens including trailing `TEof`, or `Err(String)` on syntax error.
+export fn tokenize(source: String): Result<List<Token>, String> {
+  let mut tokens = [];
+  let mut i = 0;
+  let len = source.length;
+  let mut line = 1;
+  let mut col = 1;
+
+  while (i < len) {
+    let ch = source.charAt(i);
+
+    // 1. Whitespace & Newlines
+    if (ch == "\n") {
+      line = line + 1;
+      col = 1;
+      i = i + 1;
+      continue;
+    }
+
+    if (isWhitespace(ch)) {
+      col = col + 1;
+      i = i + 1;
+      continue;
+    }
+
+    // 2. Line Comments (// ...)
+    if (ch == "/" && i + 1 < len && source.charAt(i + 1) == "/") {
+      while (i < len && source.charAt(i) != "\n") {
+        i = i + 1;
+      }
+      continue;
+    }
+
+    // 3. String & Template Literals ("..." and `...`)
+    if (ch == "\"" || ch == "`") {
+      let quote = ch;
+      let mut s = "";
+      i = i + 1;
+      col = col + 1;
+      while (i < len && source.charAt(i) != quote) {
+        let sc = source.charAt(i);
+        if (sc == "\\" && i + 1 < len) {
+          i = i + 1;
+          let esc = source.charAt(i);
+          if (esc == "n") { s = s + "\n"; }
+          else if (esc == "t") { s = s + "\t"; }
+          else if (esc == quote) { s = s + quote; }
+          else if (esc == "\\") { s = s + "\\"; }
+          else { s = s + esc; }
+        } else {
+          s = s + sc;
+        }
+        i = i + 1;
+        col = col + 1;
+      }
+      i = i + 1; // consume closing quote
+      col = col + 1;
+      let _ = tokens.push({ kind: TString { value: s }, line: line, column: col });
+      continue;
+    }
+
+    // 4. Number Literals (Integers & Floats)
+    if (isDigit(ch)) {
+      let mut numStr = "";
+      let mut isFloat = false;
+      while (i < len && (isDigit(source.charAt(i)) || source.charAt(i) == ".")) {
+        let nc = source.charAt(i);
+        if (nc == ".") {
+          isFloat = true;
+        }
+        numStr = numStr + nc;
+        i = i + 1;
+        col = col + 1;
+      }
+      if (isFloat) {
+        let _ = tokens.push({ kind: TFloat { value: parseFloat(numStr) }, line: line, column: col });
+      } else {
+        let _ = tokens.push({ kind: TInt { value: parseInt(numStr) }, line: line, column: col });
+      }
+      continue;
+    }
+
+    // 5. Identifiers & Keywords
+    if (isAlpha(ch)) {
+      let mut ident = "";
+      while (i < len && isAlphaNum(source.charAt(i))) {
+        ident = ident + source.charAt(i);
+        i = i + 1;
+        col = col + 1;
+      }
+
+      let kind = match ident {
+        "fn" => TFn,
+        "let" => TLet,
+        "mut" => TMut,
+        "type" => TType,
+        "match" => TMatch,
+        "when" => TWhen,
+        "if" => TIf,
+        "else" => TElse,
+        "while" => TWhile,
+        "for" => TFor,
+        "in" => TIn,
+        "break" => TBreak,
+        "continue" => TContinue,
+        "return" => TReturn,
+        "module" => TModule,
+        "export" => TExport,
+        "import" => TImport,
+        "from" => TFrom,
+        "spawn" => TSpawn,
+        "routine" => TSpawn,
+        "go" => TSpawn,
+        "select" => TSelect,
+        "true" => TBool { value: true },
+        "false" => TBool { value: false },
+        "_" => TUnderscore,
+        _ => TIdent { value: ident }
+      };
+
+      let _ = tokens.push({ kind: kind, line: line, column: col });
+      continue;
+    }
+
+    // 6. Two-character Operators
+    if (i + 1 < len) {
+      let nextCh = source.charAt(i + 1);
+      if (ch == "|" && nextCh == ">") {
+        let _ = tokens.push({ kind: TPipe, line: line, column: col });
+        i = i + 2; col = col + 2; continue;
+      }
+      if (ch == "=" && nextCh == ">") {
+        let _ = tokens.push({ kind: TFatArrow, line: line, column: col });
+        i = i + 2; col = col + 2; continue;
+      }
+      if (ch == "-" && nextCh == ">") {
+        let _ = tokens.push({ kind: TArrow, line: line, column: col });
+        i = i + 2; col = col + 2; continue;
+      }
+      if (ch == "<" && nextCh == "-") {
+        let _ = tokens.push({ kind: TArrowLeft, line: line, column: col });
+        i = i + 2; col = col + 2; continue;
+      }
+      if (ch == "=" && nextCh == "=") {
+        let _ = tokens.push({ kind: TEqualEqual, line: line, column: col });
+        i = i + 2; col = col + 2; continue;
+      }
+      if (ch == "!" && nextCh == "=") {
+        let _ = tokens.push({ kind: TNotEqual, line: line, column: col });
+        i = i + 2; col = col + 2; continue;
+      }
+      if (ch == "<" && nextCh == "=") {
+        let _ = tokens.push({ kind: TLessEqual, line: line, column: col });
+        i = i + 2; col = col + 2; continue;
+      }
+      if (ch == ">" && nextCh == "=") {
+        let _ = tokens.push({ kind: TGreaterEqual, line: line, column: col });
+        i = i + 2; col = col + 2; continue;
+      }
+      if (ch == "&" && nextCh == "&") {
+        let _ = tokens.push({ kind: TAndAnd, line: line, column: col });
+        i = i + 2; col = col + 2; continue;
+      }
+      if (ch == "|" && nextCh == "|") {
+        let _ = tokens.push({ kind: TOrOr, line: line, column: col });
+        i = i + 2; col = col + 2; continue;
+      }
+    }
+
+    // 7. Single-character Operators & Delimiters
+    let singleKind = match ch {
+      "(" => TLParen,
+      ")" => TRParen,
+      "{" => TLBrace,
+      "}" => TRBrace,
+      "[" => TLBracket,
+      "]" => TRBracket,
+      ":" => TColon,
+      "," => TComma,
+      ";" => TSemicolon,
+      "." => TDot,
+      "?" => TQuestion,
+      "+" => TPlus,
+      "-" => TMinus,
+      "*" => TStar,
+      "/" => TSlash,
+      "%" => TPercent,
+      "!" => TBang,
+      "=" => TEqual,
+      "<" => TLess,
+      ">" => TGreater,
+      "|" => TPipeOp,
+      _ => TEof
+    };
+
+    if (singleKind != TEof) {
+      let _ = tokens.push({ kind: singleKind, line: line, column: col });
+      i = i + 1;
+      col = col + 1;
+      continue;
+    }
+
+    return Err(`Unexpected character '${ch}' at line ${line}, col ${col}`);
+  }
+
+  let _ = tokens.push({ kind: TEof, line: line, column: col });
+  return Ok(tokens);
+}

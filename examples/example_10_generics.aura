@@ -1,0 +1,52 @@
+// Example 10: Generic Programming in Aura
+// This example demonstrates how to use generic types, functions, and data structures.
+
+// 1. Generic Sum Types (Data Structures)
+
+type Box<TypeA> = BoxVal(TypeA)
+
+type Outcome<TypeS, TypeE> = Success(TypeS) | Failure(TypeE)
+
+// 2. Generic Functions
+fn wrap_in_box<TypeA>(value: TypeA) -> Box<TypeA> {
+    BoxVal(value)
+}
+
+fn unwrap_or_default<TypeS, TypeE>(outcome: Outcome<TypeS, TypeE>, default_val: TypeS) -> TypeS {
+    match outcome {
+        Success(val) => val,
+        Failure(err) => default_val
+    }
+}
+
+// 3. Generic Functions with Loops and Parameter Passing
+fn map_list<TypeA, TypeB>(items: List<TypeA>, transform: fn(TypeA) -> TypeB) -> List<TypeB> {
+    let mut result: List<TypeB> = [];
+    
+    for item in items {
+        let transformed = transform(item);
+    }
+    
+    result
+}
+
+// 4. Using Generics in Practice
+fn main() {
+    let string_box = wrap_in_box<String>("Aura Generics");
+    let int_box = wrap_in_box<Int>(42);
+    
+    let success: Outcome<String, Int> = Success("Operation completed!");
+    let failure: Outcome<String, Int> = Failure(500);
+
+    match string_box {
+        BoxVal(content) => {
+            let msg = "Box contains: " + content;
+        }
+    }
+
+    let out_success: Outcome<Int, String> = Success(100);
+    let out_error: Outcome<Int, String> = Failure("Not found");
+    
+    let val1 = unwrap_or_default<Int, String>(out_success, 0);
+    let val2 = unwrap_or_default<Int, String>(out_error, 0);
+}

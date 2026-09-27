@@ -1,0 +1,22 @@
+export fn main(): Unit => {
+    let count = 1000000;
+    let mut data = [];
+    let mut i = 0;
+    while i < count {
+        data.push(i);
+        i = i + 1;
+    };
+
+    let t0 = time.now();
+    let evens = data.filter(fn(x: Int): Bool => x % 2 == 0);
+    let mapped = evens.map(fn(x: Int): Int => x * 3);
+    let mut sum = 0;
+    let mut idx = 0;
+    while idx < mapped.length {
+        sum = sum + mapped[idx];
+        idx = idx + 1;
+    };
+    let dur = time.now() - t0;
+
+    println(`[AURA] Processed ${count} items | Sum: ${sum} | Time: ${dur} ms`);
+}

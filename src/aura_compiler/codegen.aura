@@ -1,0 +1,217 @@
+module Aura.Compiler.CodeGen
+
+import {
+  ModuleNode, ItemNode, StmtNode, ExprNode, LiteralValue,
+  BinOperator, UnOperator, ParamNode,
+  LitInt, LitFloat, LitString, LitBool, LitUnit,
+  OpAdd, OpSub, OpMul, OpDiv, OpMod, OpEq, OpNeq, OpLt, OpLte, OpGt, OpGte, OpAnd, OpOr,
+  OpNeg, OpNot,
+  ExprLit, ExprIdent, ExprBinary, ExprUnary, ExprPipe, ExprCall, ExprMember,
+  ExprIndex, ExprIf, ExprWhile, ExprForIn, ExprMatch, ExprBlock, ExprList,
+  ExprRecord, ExprTry, ExprReturn, ExprBreak, ExprContinue,
+  StmtLet, StmtExpr, StmtReturn, StmtAssign,
+  ItemFunction, ItemSumType, ItemTypeAlias, ItemImport, ItemStmt
+} from "./ast"
+
+/// Translates an Aura AST expression node into its equivalent JavaScript (ES6) source string.
+/// Handles literals, identifiers, binary/unary operators, function calls, field access,
+/// indexing, conditionals (`if`), loops (`while`, `for-in`), pipelines (`|>`), and try unwrapping (`?`).
+/// - `expr`: The AST expression node to translate.
+/// - Returns: String containing the valid JavaScript code for the expression.
+export fn exprToJs(expr: ExprNode): String {
+  match expr {
+    ExprLit { lit } => {
+      match lit {
+        LitInt { val } => `${val}`,
+        LitFloat { val } => `${val}`,
+        LitString { val } => if (val.includes("${")) { "`" + val + "`" } else { JSON.stringify(val) },
+        LitBool { val } => if (val) { "true" } else { "false" },
+        LitUnit => "undefined"
+      }
+    },
+    ExprIdent { name } => name,
+    ExprBinary { op, left, right } => {
+      let l = exprToJs(left);
+      let r = exprToJs(right);
+      let opStr = match op {
+        OpAdd => "+",
+        OpSub => "-",
+        OpMul => "*",
+        OpDiv => "/",
+        OpMod => "%",
+        OpEq => "===",
+        OpNeq => "!==",
+        OpLt => "<",
+        OpLte => "<=",
+        OpGt => ">",
+        OpGte => ">=",
+        OpAnd => "&&",
+        OpOr => "||"
+      };
+      `(${l} ${opStr} ${r})`
+    },
+    ExprUnary { op, expr: inner } => {
+      let e = exprToJs(inner);
+      match op {
+        OpNeg => `(-${e})`,
+        OpNot => `(!${e})`
+      }
+    },
+    ExprPipe { left, right } => {
+      let l = exprToJs(left);
+      let r = exprToJs(right);
+      `${r}(${l})`
+    },
+    ExprCall { callee, args } => {
+      let c = exprToJs(callee);
+      let mut argStrs = [];
+      for (a in args) {
+        let _ = argStrs.push(exprToJs(a));
+      }
+      `${c}(${argStrs.join(", ")})`
+    },
+    ExprMember { obj, field } => {
+      let o = exprToJs(obj);
+      `${o}.${field}`
+    },
+    ExprIndex { obj, index } => {
+      let o = exprToJs(obj);
+      let idx = exprToJs(index);
+      `${o}[${idx}]`
+    },
+    ExprIf { cond, thenBranch, elseBranch } => {
+      let c = exprToJs(cond);
+      let t = exprToJs(thenBranch);
+      match elseBranch {
+        Some(el) => `(${c} ? ${t} : ${exprToJs(el)})`,
+        None => `(${c} ? ${t} : undefined)`
+      }
+    },
+    ExprWhile { cond, body } => {
+      let c = exprToJs(cond);
+      let b = exprToJs(body);
+      `((() => { while (${c}) { ${b}; } })())`
+    },
+    ExprForIn { indexName, varName, iter, body } => {
+      let it = exprToJs(iter);
+      let b = exprToJs(body);
+      match indexName {
+        Some(idx) => `((() => { let ${idx} = 0; for (const ${varName} of ${it}) { ${b}; ${idx}++; } })())`,
+        None => `((() => { for (const ${varName} of ${it}) { ${b}; } })())`
+      }
+    },
+    ExprTry { inner } => {
+      `__aura_unwrap(${exprToJs(inner)})`
+    },
+    ExprBlock { stmts } => {
+      let mut bLines = [];
+      let _ = bLines.push("(() => {");
+      for (st in stmts) {
+        let _ = bLines.push(`  ${stmtToJs(st)}`);
+      }
+      let _ = bLines.push("})()");
+      bLines.join("\n")
+    },
+    ExprList { items } => {
+      let mut iStrs = [];
+      for (it in items) {
+        let _ = iStrs.push(exprToJs(it));
+      }
+      `[${iStrs.join(", ")}]`
+    },
+    ExprBreak => "break",
+    ExprContinue => "continue",
+    _ => "undefined"
+  }
+}
+
+/// Translates an Aura AST statement node into its JavaScript statement string representation.
+/// Handles variable declarations (`let` / `const`), expression statements, return statements, and reassignments.
+/// - `stmt`: The AST statement node to translate.
+/// - Returns: String containing the JavaScript statement ending with a semicolon.
+export fn stmtToJs(stmt: StmtNode): String {
+  match stmt {
+    StmtLet { name, isMut, val, .. } => {
+      let kw = if (isMut) { "let" } else { "const" };
+      `${kw} ${name} = ${exprToJs(val)};`
+    },
+    StmtExpr { expr } => {
+      `${exprToJs(expr)};`
+    },
+    StmtReturn { val } => {
+      match val {
+        Some(v) => `return ${exprToJs(v)};`,
+        None => "return;"
+      }
+    },
+    StmtAssign { target, val } => {
+      `${target} = ${exprToJs(val)};`
+    }
+  }
+}
+
+/// Generates runnable ES6 JavaScript code for an entire compiled Aura `ModuleNode`.
+/// Injects standard Aura runtime primitives (`Some`, `None`, `Ok`, `Err`, `__aura_unwrap`, `println`, `print`)
+/// and wraps functions with exception-based try-catch propagation for the `?` operator.
+/// - `moduleNode`: The root AST module node to compile.
+/// - Returns: String containing the complete JavaScript module code.
+export fn generate(moduleNode: ModuleNode): String {
+  let mut lines = [];
+
+  let _ = lines.push("// Generated by Aura Self-Hosted Compiler (Target: ES6 / Node.js)");
+  let _ = lines.push("// --- Aura Runtime Primitives ---");
+  let _ = lines.push("export const None = Object.freeze({ $: \"None\" });");
+  let _ = lines.push("export const Some = (val) => Object.freeze({ $: \"Some\", _0: val });");
+  let _ = lines.push("export const Ok = (val) => Object.freeze({ $: \"Ok\", value: val });");
+  let _ = lines.push("export const Err = (err) => Object.freeze({ $: \"Err\", error: err });");
+  let _ = lines.push("export const __aura_unwrap = (v) => {");
+  let _ = lines.push("  if (v && typeof v === \"object\") {");
+  let _ = lines.push("    if (v.$ === \"Err\" || v.$ === \"None\") throw { __aura_early_return: true, value: v };");
+  let _ = lines.push("    if (v.$ === \"Some\") return v._0;");
+  let _ = lines.push("    if (v.$ === \"Ok\") return v.value;");
+  let _ = lines.push("  }");
+  let _ = lines.push("  return v;");
+  let _ = lines.push("};");
+  let _ = lines.push("export const println = console.log;");
+  let _ = lines.push("export const print = (msg) => process.stdout.write(String(msg));");
+  let _ = lines.push("");
+
+  for (item in moduleNode.items) {
+    match item {
+      ItemFunction { name, isExported, params, body, .. } => {
+        let expKw = if (isExported) { "export " } else { "" };
+        let mut paramNames = [];
+        for (p in params) {
+          let _ = paramNames.push(p.name);
+        }
+        let paramsStr = paramNames.join(", ");
+        let _ = lines.push(`${expKw}function ${name}(${paramsStr}) {`);
+        let _ = lines.push("  try {");
+        match body {
+          ExprBlock { stmts } => {
+            for (st in stmts) {
+              let _ = lines.push(`    ${stmtToJs(st)}`);
+            }
+          },
+          other => {
+            let _ = lines.push(`    return ${exprToJs(other)};`);
+          }
+        };
+        let _ = lines.push("  } catch (_e) {");
+        let _ = lines.push("    if (_e && _e.__aura_early_return) return _e.value;");
+        let _ = lines.push("    throw _e;");
+        let _ = lines.push("  }");
+        let _ = lines.push("}\n");
+      },
+      ItemImport { source, items } => {
+        let _ = lines.push(`import { ${items.join(", ")} } from "${source}";`);
+      },
+      ItemStmt { stmt } => {
+        let _ = lines.push(stmtToJs(stmt));
+      },
+      _ => ()
+    }
+  }
+
+  return lines.join("\n");
+}

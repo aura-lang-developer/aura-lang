@@ -1,0 +1,63 @@
+// Integration Test Suite for E-Commerce Order Processing
+
+export type OrderStatus =
+  | Pending
+  | Processing { progress: Float }
+  | Shipped { trackingCode: String }
+  | Delivered
+
+export type Customer = {
+  id: String,
+  name: String,
+  isVip: Bool
+}
+
+export type OrderItem = {
+  productId: String,
+  quantity: Int,
+  unitPrice: Float
+}
+
+export fn calculateTotal(customer: Customer, items: List<OrderItem>): Float => {
+  let subtotal = 100.0;
+  if (customer.isVip) {
+    return subtotal * 0.8;
+  }
+  subtotal
+}
+
+export fn test_integration_order_discount(t: TestingT) => {
+  let vipCustomer = {
+    id: "CUST-1",
+    name: "Alice",
+    isVip: true
+  };
+
+  let regularCustomer = {
+    id: "CUST-2",
+    name: "Bob",
+    isVip: false
+  };
+
+  let items = [
+    { productId: "PROD-1", quantity: 2, unitPrice: 50.0 }
+  ];
+
+  let vipTotal = calculateTotal(vipCustomer, items);
+  t.assertEqual(vipTotal, 80.0, "VIP customers get 20% discount");
+
+  let regularTotal = calculateTotal(regularCustomer, items);
+  t.assertEqual(regularTotal, 100.0, "Regular customers pay full price");
+}
+
+export fn test_integration_pattern_matching_status(t: TestingT) => {
+  let status = OrderStatus.Processing({ progress: 0.75 });
+  let msg = match status {
+    Pending => "Pending",
+    Processing { progress } => `Progress ${progress * 100.0}%`,
+    Shipped { trackingCode } => `Shipped ${trackingCode}`,
+    Delivered => "Done"
+  };
+
+  t.assertEqual(msg, "Progress 75%", "Status should format correctly");
+}

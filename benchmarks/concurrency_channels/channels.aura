@@ -1,0 +1,36 @@
+export async fn main(): Task<Unit, String> => {
+    let rounds = 100000;
+    let chA = Channel.new(1);
+    let chB = Channel.new(1);
+    let wg = WaitGroup.new();
+    wg.add(2);
+
+    let t0 = time.now();
+
+    // Fiber 1 (Ping)
+    spawn(async {
+        let mut i = 0;
+        while i < rounds {
+            chA <- i;
+            let _ = <-chB;
+            i = i + 1;
+        };
+        wg.done();
+    });
+
+    // Fiber 2 (Pong)
+    spawn(async {
+        let mut j = 0;
+        while j < rounds {
+            let _ = <-chA;
+            chB <- j;
+            j = j + 1;
+        };
+        wg.done();
+    });
+
+    await wg.wait();
+    let dur = time.now() - t0;
+    let totalMessages = rounds * 2;
+    println(`[AURA] Channel Ping-Pong: ${totalMessages} msgs in ${dur} ms`);
+}

@@ -1,0 +1,32 @@
+// Labeled Loops & Break/Continue in Aura Lang (Golang / Rust style)
+
+export fn search2DGrid(): String => {
+    let grid = [
+        [10, 20, 30],
+        [40, 50, 60],
+        [70, 80, 90]
+    ];
+
+    let target = 50;
+    let mut foundLocation = "Not Found";
+
+    println("Searching for target 50 in 3x3 grid using labeled break...");
+
+    searchLoop: for (r, row) in grid {
+        for (c, val) in row {
+            println(`Checking cell (${r}, ${c}) = ${val}`);
+            if val == target {
+                foundLocation = `Found ${target} at row ${r}, col ${c}`;
+                println("Target found! Breaking out of outer loop immediately.");
+                break searchLoop;
+            }
+        }
+    }
+
+    return foundLocation;
+};
+
+export fn runLabeledLoopsDemo(): Unit => {
+    let result = search2DGrid();
+    println(`Result: ${result}`);
+};

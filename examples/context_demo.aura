@@ -1,0 +1,47 @@
+// Context & Structured Cancellation in Aura Lang (Golang style context.Context)
+
+fn expensiveWorker(ctx: Context, workerId: Int): Task<Unit, String> => {
+    println(`[Worker ${workerId}] Started processing...`);
+
+    // Worker listens to cancellation signal on ctx.done() or finishes work
+    let ch = Channel.make<String>(1);
+    spawn {
+        await sleep(50);
+        ch <- "Job Completed";
+    };
+
+    select {
+        case <-ctx.done() => {
+            let reason = ctx.err();
+            println(`[Worker ${workerId}] Aborted! Reason: ${reason}`);
+        }
+        case msg = <-ch => {
+            println(`[Worker ${workerId}] Success: ${msg}`);
+        }
+    };
+};
+
+export fn runContextDemo(): Task<Unit, String> => {
+    println("1. Setting up root context with trace metadata...");
+    let root = Context.background();
+    let reqCtx = Context.withValue(root, "requestId", "req-abc-987");
+
+    println("2. Launching worker with 20ms timeout (will deadline exceed)...");
+    let (timeoutCtx, cancelTimeout) = Context.withTimeout(reqCtx, 20);
+    defer cancelTimeout();
+
+    await expensiveWorker(timeoutCtx, 1);
+
+    println("3. Launching worker with manual cancellation...");
+    let (cancelCtx, cancelFn) = Context.withCancel(reqCtx);
+    
+    spawn {
+        await sleep(10);
+        println("Cancelling worker 2 manually!");
+        cancelFn();
+    };
+
+    await expensiveWorker(cancelCtx, 2);
+
+    println("Context demo finished!");
+};

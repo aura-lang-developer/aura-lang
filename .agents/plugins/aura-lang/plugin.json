@@ -1,0 +1,17 @@
+{
+  "name": "aura-lang",
+  "version": "0.1.0",
+  "description": "Aura Language pair programmer and developer workflow plugin for Google Antigravity IDE",
+  "author": {
+    "name": "Aura Language Team"
+  },
+  "keywords": [
+    "aura",
+    "compiler",
+    "lsp",
+    "concurrency",
+    "functional",
+    "type-safety",
+    "antigravity"
+  ]
+}

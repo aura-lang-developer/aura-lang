@@ -1,0 +1,15 @@
+export fn main(): Unit => {
+    println("Aura Native Cranelift + Runtime Demo");
+    let mut sum = 0;
+    let mut i = 1;
+    while (i <= 10) {
+        sum = sum + i;
+        i = i + 1;
+    }
+    println(sum);
+    spawn {
+        println("Green thread fiber executed successfully in background!");
+    };
+    yield();
+    println("Finished main fiber execution.");
+}

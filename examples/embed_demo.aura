@@ -1,0 +1,14 @@
+// Compile-Time Static Asset Inlining in Aura Lang (Golang go:embed style)
+
+export fn loadEmbeddedGreeting(): String => {
+    // Inlines the contents of examples/greeting.txt at compile time!
+    let content: String = embed("examples/greeting.txt");
+    return content;
+};
+
+export fn runEmbedDemo(): Unit => {
+    println("--- Loading Embedded Asset ---");
+    let text = loadEmbeddedGreeting();
+    println(text);
+    println("--- Asset Loaded with 0 runtime file read latency! ---");
+};

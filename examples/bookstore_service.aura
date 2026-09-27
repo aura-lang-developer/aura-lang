@@ -1,0 +1,1436 @@
+// ==============================================================================
+// Bookstore & Content Management REST API Service
+// Escrito en Aura Lang (Servicio del lado del Servidor)
+// ==============================================================================
+
+// --- Tipos del Dominio ---
+
+export type Author = {
+  id: String,
+  name: String,
+  email: String,
+  nationality: String,
+  biography: String,
+  birthYear: Int
+}
+
+export type Editorial = {
+  id: String,
+  name: String,
+  country: String,
+  foundedYear: Int,
+  website: String
+}
+
+export type Book = {
+  id: String,
+  title: String,
+  isbn: String,
+  authorId: String,
+  editorialId: String,
+  price: Float,
+  stock: Int,
+  genre: String,
+  publishedYear: Int
+}
+
+export type Article = {
+  id: String,
+  title: String,
+  summary: String,
+  content: String,
+  authorId: String,
+  topic: String,
+  publishedAt: String
+}
+
+export type SaleRecord = {
+  id: String,
+  bookId: String,
+  bookTitle: String,
+  authorName: String,
+  quantity: Int,
+  unitPrice: Float,
+  subtotal: Float,
+  discountPercent: Float,
+  discountAmount: Float,
+  taxPercent: Float,
+  taxAmount: Float,
+  total: Float,
+  customerName: String,
+  customerEmail: String,
+  paymentMethod: String,
+  timestamp: String,
+  status: String
+}
+
+// --- Base de Datos en Memoria y Semillas Iniciales (Seed Data) ---
+
+let mut authors: List<Any> = [
+{
+  id: "aut-1",
+  name: "Gabriel García Márquez",
+  email: "gabo@literatura.lat",
+  nationality: "Colombiana",
+  biography: "Premio Nobel de Literatura en 1982 y figura central del realismo mágico.",
+  birthYear: 1927
+},
+{
+  id: "aut-2",
+  name: "Jorge Luis Borges",
+  email: "borges@literatura.lat",
+  nationality: "Argentina",
+  biography: "Maestro del cuento fantástico, la erudición filosófica y la poesía.",
+  birthYear: 1899
+},
+{
+  id: "aut-3",
+  name: "Isabel Allende",
+  email: "isabel@literatura.lat",
+  nationality: "Chilena",
+  biography: "Destacada escritora contemporánea de proyección internacional.",
+  birthYear: 1942
+},
+{
+  id: "aut-4",
+  name: "Mario Vargas Llosa",
+  email: "mvll@literatura.lat",
+  nationality: "Peruana",
+  biography: "Premio Nobel de Literatura 2010 y novelista prolífico hispanoamericano.",
+  birthYear: 1936
+}
+];
+
+let mut editorials: List<Any> = [
+{
+  id: "edt-1",
+  name: "Editorial Sudamericana",
+  country: "Argentina",
+  foundedYear: 1939,
+  website: "https://www.penguinrandomhouse.com/imprints/sudamericana"
+},
+{
+  id: "edt-2",
+  name: "Penguin Random House",
+  country: "España",
+  foundedYear: 2013,
+  website: "https://www.penguinrandomhouse.com"
+},
+{
+  id: "edt-3",
+  name: "Editorial Alfaguara",
+  country: "España",
+  foundedYear: 1964,
+  website: "https://www.alfaguara.com"
+}
+];
+
+let mut books: List<Any> = [
+{
+  id: "bk-1",
+  title: "Cien años de soledad",
+  isbn: "978-0307474728",
+  authorId: "aut-1",
+  editorialId: "edt-1",
+  price: 24.99,
+  stock: 30,
+  genre: "Realismo Mágico",
+  publishedYear: 1967
+},
+{
+  id: "bk-2",
+  title: "El amor en los tiempos del cólera",
+  isbn: "978-0307389732",
+  authorId: "aut-1",
+  editorialId: "edt-2",
+  price: 19.50,
+  stock: 15,
+  genre: "Novela Romántica",
+  publishedYear: 1985
+},
+{
+  id: "bk-3",
+  title: "Ficciones",
+  isbn: "978-8420633121",
+  authorId: "aut-2",
+  editorialId: "edt-3",
+  price: 18.00,
+  stock: 20,
+  genre: "Ficción / Filosofía",
+  publishedYear: 1944
+},
+{
+  id: "bk-4",
+  title: "El Aleph",
+  isbn: "978-8420658421",
+  authorId: "aut-2",
+  editorialId: "edt-3",
+  price: 17.50,
+  stock: 12,
+  genre: "Cuentos Fantásticos",
+  publishedYear: 1949
+},
+{
+  id: "bk-5",
+  title: "La casa de los espíritus",
+  isbn: "978-1501117015",
+  authorId: "aut-3",
+  editorialId: "edt-1",
+  price: 21.00,
+  stock: 25,
+  genre: "Realismo Mágico",
+  publishedYear: 1982
+},
+{
+  id: "bk-6",
+  title: "La ciudad y los perros",
+  isbn: "978-8420471839",
+  authorId: "aut-4",
+  editorialId: "edt-3",
+  price: 22.50,
+  stock: 10,
+  genre: "Novela",
+  publishedYear: 1963
+}
+];
+
+let mut articles: List<Any> = [
+{
+  id: "art-1",
+  title: "La alquimia del tiempo en Macondo",
+  summary: "Ensayo sobre la concepción cíclica del tiempo en la obra de García Márquez.",
+  content: "El tiempo en Macondo no avanza de forma estrictamente lineal, sino en espirales concéntricas...",
+  authorId: "aut-1",
+  topic: "Crítica Literaria",
+  publishedAt: "2024-03-15"
+},
+{
+  id: "art-2",
+  title: "Los laberintos del infinito y el espejo",
+  summary: "Reflexiones sobre la paradoja de Zenón y la geometría borgeana.",
+  content: "Borges construye en sus páginas laberintos no de piedra, sino de conceptos...",
+  authorId: "aut-2",
+  topic: "Filosofía y Metafísica",
+  publishedAt: "2024-05-20"
+},
+{
+  id: "art-3",
+  title: "Memoria femenina e historia en América Latina",
+  summary: "El rol protagónico de las mujeres en las sagas familiares de Isabel Allende.",
+  content: "A través de personajes como Clara del Valle, se teje una historia alternativa de resistencia...",
+  authorId: "aut-3",
+  topic: "Estudios Culturales",
+  publishedAt: "2024-07-10"
+}
+];
+
+let mut sales: List<Any> = [
+{
+  id: "sale-1001",
+  bookId: "bk-1",
+  bookTitle: "Cien años de soledad",
+  authorName: "Gabriel García Márquez",
+  quantity: 1,
+  unitPrice: 24.99,
+  subtotal: 24.99,
+  discountPercent: 0.0,
+  discountAmount: 0.0,
+  taxPercent: 19.0,
+  taxAmount: 4.7481,
+  total: 29.7381,
+  customerName: "Carlos Mendoza",
+  customerEmail: "carlos@correo.com",
+  paymentMethod: "CREDIT_CARD",
+  timestamp: "2026-09-01T14:30:00Z",
+  status: "COMPLETED"
+}
+];
+
+// Contadores para IDs automáticos
+let mut nextAuthorId: Int = 10;
+let mut nextEditorialId: Int = 10;
+let mut nextBookId: Int = 10;
+let mut nextArticleId: Int = 10;
+let mut nextSaleId: Int = 1002;
+
+// --- Funciones de Búsqueda y Validación Auxiliares ---
+
+fn findAuthor(id: String): Any => {
+  let matched = authors.filter(fn(a: Any): Bool => a.id == id);
+  if (matched.length > 0) {
+    matched[0]
+  } else {
+    ()
+  }
+}
+
+fn findEditorial(id: String): Any => {
+  let matched = editorials.filter(fn(e: Any): Bool => e.id == id);
+  if (matched.length > 0) {
+    matched[0]
+  } else {
+    ()
+  }
+}
+
+fn findBook(id: String): Any => {
+  let matched = books.filter(fn(b: Any): Bool => b.id == id);
+  if (matched.length > 0) {
+    matched[0]
+  } else {
+    ()
+  }
+}
+
+fn findArticle(id: String): Any => {
+  let matched = articles.filter(fn(a: Any): Bool => a.id == id);
+  if (matched.length > 0) {
+    matched[0]
+  } else {
+    ()
+  }
+}
+
+fn findSale(id: String): Any => {
+  let matched = sales.filter(fn(s: Any): Bool => s.id == id);
+  if (matched.length > 0) {
+    matched[0]
+  } else {
+    ()
+  }
+}
+
+fn getBooksByAuthor(authorId: String): List<Any> => {
+  books.filter(fn(b: Any): Bool => b.authorId == authorId)
+}
+
+fn getArticlesByAuthor(authorId: String): List<Any> => {
+  articles.filter(fn(a: Any): Bool => a.authorId == authorId)
+}
+
+fn getBooksByEditorial(editorialId: String): List<Any> => {
+  books.filter(fn(b: Any): Bool => b.editorialId == editorialId)
+}
+
+fn enrichBook(b: Any): Any => {
+  let author = findAuthor(b.authorId);
+  let editorial = findEditorial(b.editorialId);
+  let authorName = if (author != ()) {author.name}else {"Autor Desconocido"};
+  let editorialName = if (editorial != ()) {editorial.name}else {"Editorial Desconocida"};
+
+  {
+    id: b.id,
+    title: b.title,
+    isbn: b.isbn,
+    authorId: b.authorId,
+    authorName: authorName,
+    editorialId: b.editorialId,
+    editorialName: editorialName,
+    price: b.price,
+    stock: b.stock,
+    genre: b.genre,
+    publishedYear: b.publishedYear
+  }
+}
+
+// --- Creación del Mux y Middlewares ---
+
+let mux = http.newServeMux();
+
+// 1. Middleware de Logging & Headers CORS
+mux.use(fn(req: Any, res: Any, next: Any) => {
+  println(`[HTTP] ${req.method} ${req.url}`);
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("X-Powered-By", "Aura-Lang REST Engine");
+
+  if (req.method == "OPTIONS") {
+    res.writeHead(http.StatusNoContent);
+    res.end();
+    return();
+  }
+
+  next();
+});
+
+// ==============================================================================
+// 1. ENDPOINTS GENERALES / DOCUMENTACIÓN / HEALTH CHECK
+// ==============================================================================
+
+mux.get("/", fn(req: Any, res: Any) => {
+  http.json(res, http.StatusOK, {
+    service: "Aura Bookstore & Publishing REST API",
+    version: "1.0.0",
+    runtime: "Aura Lang Native Server",
+    description: "Servicio backend completo para gestión de libros, autores, editoriales, artículos y venta de libros.",
+    endpoints: {
+      health: "GET /api/health",
+      authors: {
+        list: "GET /api/authors",
+        getById: "GET /api/authors/:id",
+        create: "POST /api/authors",
+        update: "PUT /api/authors/:id",
+        delete: "DELETE /api/authors/:id"
+      },
+      editorials: {
+        list: "GET /api/editorials",
+        getById: "GET /api/editorials/:id",
+        create: "POST /api/editorials",
+        update: "PUT /api/editorials/:id",
+        delete: "DELETE /api/editorials/:id"
+      },
+      books: {
+        list: "GET /api/books (filtros: ?genre= &authorId= &editorialId= &search= &inStock=)",
+        getById: "GET /api/books/:id",
+        create: "POST /api/books",
+        update: "PUT /api/books/:id",
+        delete: "DELETE /api/books/:id",
+        sellDirect: "POST /api/books/:id/sell"
+      },
+      articles: {
+        list: "GET /api/articles (filtros: ?topic= &authorId= &search=)",
+        getById: "GET /api/articles/:id",
+        create: "POST /api/articles",
+        update: "PUT /api/articles/:id",
+        delete: "DELETE /api/articles/:id"
+      },
+      sales: {
+        list: "GET /api/sales",
+        getById: "GET /api/sales/:id",
+        create: "POST /api/sales",
+        summary: "GET /api/sales/summary"
+      }
+    }
+  });
+});
+
+mux.get("/api/health", fn(req: Any, res: Any) => {
+  http.json(res, http.StatusOK, {
+    status: "healthy",
+    uptimeSeconds: process.uptime(),
+    timestamp: "2026-09-04T23:15:00Z",
+    database: "in-memory (Aura State)",
+    counts: {
+      authors: authors.length,
+      editorials: editorials.length,
+      books: books.length,
+      articles: articles.length,
+      sales: sales.length
+    }
+  });
+});
+
+// ==============================================================================
+// 2. GESTIÓN DE AUTORES (/api/authors)
+// ==============================================================================
+
+mux.get("/api/authors", fn(req: Any, res: Any) => {
+  let nationalityFilter = http.query(req, "nationality");
+  let search = http.query(req, "search");
+
+  let filtered = authors.filter(fn(a: Any): Bool => {
+    let matchNationality = nationalityFilter == "" || a.nationality.toLowerCase() == nationalityFilter.toLowerCase();
+    let matchSearch = search == "" || a.name.toLowerCase().includes(search.toLowerCase());
+    matchNationality && matchSearch
+  });
+
+  http.json(res, http.StatusOK, {
+    success: true,
+    count: filtered.length,
+    data: filtered
+  });
+});
+
+mux.get("/api/authors/:id", fn(req: Any, res: Any) => {
+  let authorId = http.pathValue(req, "id");
+  let author = findAuthor(authorId);
+
+  if (author == ()) {
+    http.json(res, http.StatusNotFound, {
+      success: false,
+      error: `Autor con id '${authorId}' no encontrado`
+    });
+    return();
+  }
+
+  let authorBooks = getBooksByAuthor(authorId);
+  let authorArticles = getArticlesByAuthor(authorId);
+
+  http.json(res, http.StatusOK, {
+    success: true,
+    data: {
+      author: author,
+      bibliography: {
+        booksCount: authorBooks.length,
+        books: authorBooks,
+        articlesCount: authorArticles.length,
+        articles: authorArticles
+      }
+    }
+  });
+});
+
+mux.post("/api/authors", fn(req: Any, res: Any) => async {
+  let parseRes = await http.parseJson(req);
+  match parseRes {
+    Ok(body) => {
+      if (body.name == () || body.name == "") {
+        http.json(res, http.StatusBadRequest, {
+          success: false,
+          error: "El campo 'name' es obligatorio"
+        });
+        return();
+      }
+      if (body.email == () || body.email == "") {
+        http.json(res, http.StatusBadRequest, {
+          success: false,
+          error: "El campo 'email' es obligatorio"
+        });
+        return();
+      }
+
+      nextAuthorId = nextAuthorId + 1;
+      let newId = `aut-${nextAuthorId}`;
+      let newAuthor = {
+        id: newId,
+        name: body.name,
+        email: body.email,
+        nationality: if (body.nationality != ()) {body.nationality}else {"Desconocida"},
+        biography: if (body.biography != ()) {body.biography}else {""},
+        birthYear: if (body.birthYear != ()) {body.birthYear}else {0}
+      };
+
+      authors.push(newAuthor);
+
+      http.json(res, http.StatusCreated, {
+        success: true,
+        message: "Autor registrado exitosamente",
+        data: newAuthor
+      });
+    },
+    Err(err) => {
+      http.json(res, http.StatusBadRequest, {
+        success: false,
+        error: `Payload JSON inválido: ${err}`
+      });
+    }
+  }
+});
+
+mux.put("/api/authors/:id", fn(req: Any, res: Any) => async {
+  let authorId = http.pathValue(req, "id");
+  let author = findAuthor(authorId);
+
+  if (author == ()) {
+    http.json(res, http.StatusNotFound, {
+      success: false,
+      error: `Autor con id '${authorId}' no encontrado`
+    });
+    return();
+  }
+
+  let parseRes = await http.parseJson(req);
+  match parseRes {
+    Ok(body) => {
+      if (body.name != ()) {author.name = body.name; }
+      if (body.email != ()) {author.email = body.email; }
+      if (body.nationality != ()) {author.nationality = body.nationality; }
+      if (body.biography != ()) {author.biography = body.biography; }
+      if (body.birthYear != ()) {author.birthYear = body.birthYear; }
+
+      http.json(res, http.StatusOK, {
+        success: true,
+        message: "Autor actualizado con éxito",
+        data: author
+      });
+    },
+    Err(err) => {
+      http.json(res, http.StatusBadRequest, {
+        success: false,
+        error: `Payload JSON inválido: ${err}`
+      });
+    }
+  }
+});
+
+mux.delete("/api/authors/:id", fn(req: Any, res: Any) => {
+  let authorId = http.pathValue(req, "id");
+  let author = findAuthor(authorId);
+
+  if (author == ()) {
+    http.json(res, http.StatusNotFound, {
+      success: false,
+      error: `Autor con id '${authorId}' no encontrado`
+    });
+    return();
+  }
+
+  // Validación de integridad: no borrar autor con libros o artículos registrados
+  let authorBooks = getBooksByAuthor(authorId);
+  if (authorBooks.length>0) {
+    http.json(res, http.StatusBadRequest, {
+      success: false,
+      error: `No se puede eliminar el autor: tiene ${authorBooks.length} libro(s) asociado(s) en el catálogo.`
+    });
+    return();
+  }
+
+  let mut newAuthors: List<Any> = [];
+  for a in authors {
+    if (a.id != authorId) {
+      newAuthors.push(a);
+    }
+  }
+  authors = newAuthors;
+
+  http.json(res, http.StatusOK, {
+    success: true,
+    message: `Autor '${author.name}' (ID: ${authorId}) eliminado correctamente.`
+  });
+});
+
+// ==============================================================================
+// 3. GESTIÓN DE EDITORIALES (/api/editorials)
+// ==============================================================================
+
+mux.get("/api/editorials", fn(req: Any, res: Any) => {
+  let countryFilter = http.query(req, "country");
+  let search = http.query(req, "search");
+
+  let filtered = editorials.filter(fn(e: Any): Bool => {
+    let matchCountry = countryFilter == "" || e.country.toLowerCase() == countryFilter.toLowerCase();
+    let matchSearch = search == "" || e.name.toLowerCase().includes(search.toLowerCase());
+    matchCountry && matchSearch
+  });
+
+  http.json(res, http.StatusOK, {
+    success: true,
+    count: filtered.length,
+    data: filtered
+  });
+});
+
+mux.get("/api/editorials/:id", fn(req: Any, res: Any) => {
+  let editorialId = http.pathValue(req, "id");
+  let editorial = findEditorial(editorialId);
+
+  if (editorial == ()) {
+    http.json(res, http.StatusNotFound, {
+      success: false,
+      error: `Editorial con id '${editorialId}' no encontrada`
+    });
+    return();
+  }
+
+  let publishedBooks = getBooksByEditorial(editorialId);
+
+  http.json(res, http.StatusOK, {
+    success: true,
+    data: {
+      editorial: editorial,
+      catalog: {
+        totalBooks: publishedBooks.length,
+        books: publishedBooks
+      }
+    }
+  });
+});
+
+mux.post("/api/editorials", fn(req: Any, res: Any) => async {
+  let parseRes = await http.parseJson(req);
+  match parseRes {
+    Ok(body) => {
+      if (body.name == () || body.name == "") {
+        http.json(res, http.StatusBadRequest, {
+          success: false,
+          error: "El campo 'name' es obligatorio"
+        });
+        return();
+      }
+      if (body.country == () || body.country == "") {
+        http.json(res, http.StatusBadRequest, {
+          success: false,
+          error: "El campo 'country' es obligatorio"
+        });
+        return();
+      }
+
+      nextEditorialId = nextEditorialId + 1;
+      let newId = `edt-${nextEditorialId}`;
+      let newEditorial = {
+        id: newId,
+        name: body.name,
+        country: body.country,
+        foundedYear: if (body.foundedYear != ()) {body.foundedYear}else {0},
+        website: if (body.website != ()) {body.website}else {""}
+      };
+
+      editorials.push(newEditorial);
+
+      http.json(res, http.StatusCreated, {
+        success: true,
+        message: "Editorial registrada exitosamente",
+        data: newEditorial
+      });
+    },
+    Err(err) => {
+      http.json(res, http.StatusBadRequest, {
+        success: false,
+        error: `Payload JSON inválido: ${err}`
+      });
+    }
+  }
+});
+
+mux.put("/api/editorials/:id", fn(req: Any, res: Any) => async {
+  let editorialId = http.pathValue(req, "id");
+  let editorial = findEditorial(editorialId);
+
+  if (editorial == ()) {
+    http.json(res, http.StatusNotFound, {
+      success: false,
+      error: `Editorial con id '${editorialId}' no encontrada`
+    });
+    return();
+  }
+
+  let parseRes = await http.parseJson(req);
+  match parseRes {
+    Ok(body) => {
+      if (body.name != ()) {editorial.name = body.name; }
+      if (body.country != ()) {editorial.country = body.country; }
+      if (body.foundedYear != ()) {editorial.foundedYear = body.foundedYear; }
+      if (body.website != ()) {editorial.website = body.website; }
+
+      http.json(res, http.StatusOK, {
+        success: true,
+        message: "Editorial actualizada con éxito",
+        data: editorial
+      });
+    },
+    Err(err) => {
+      http.json(res, http.StatusBadRequest, {
+        success: false,
+        error: `Payload JSON inválido: ${err}`
+      });
+    }
+  }
+});
+
+mux.delete("/api/editorials/:id", fn(req: Any, res: Any) => {
+  let editorialId = http.pathValue(req, "id");
+  let editorial = findEditorial(editorialId);
+
+  if (editorial == ()) {
+    http.json(res, http.StatusNotFound, {
+      success: false,
+      error: `Editorial con id '${editorialId}' no encontrada`
+    });
+    return();
+  }
+
+  // Validación de integridad: no borrar editorial con libros asignados
+  let publishedBooks = getBooksByEditorial(editorialId);
+  if (publishedBooks.length>0) {
+    http.json(res, http.StatusBadRequest, {
+      success: false,
+      error: `No se puede eliminar la editorial: tiene ${publishedBooks.length} libro(s) asociado(s) en el catálogo.`
+    });
+    return();
+  }
+
+  let mut newEditorials: List<Any> = [];
+  for e in editorials {
+    if (e.id != editorialId) {
+      newEditorials.push(e);
+    }
+  }
+  editorials = newEditorials;
+
+  http.json(res, http.StatusOK, {
+    success: true,
+    message: `Editorial '${editorial.name}' (ID: ${editorialId}) eliminada correctamente.`
+  });
+});
+
+// ==============================================================================
+// 4. GESTIÓN DE LIBROS (/api/books)
+// ==============================================================================
+
+mux.get("/api/books", fn(req: Any, res: Any) => {
+  let genreFilter = http.query(req, "genre");
+  let authorFilter = http.query(req, "authorId");
+  let editorialFilter = http.query(req, "editorialId");
+  let search = http.query(req, "search");
+  let inStockFilter = http.query(req, "inStock");
+
+  let filtered = books
+    .filter(fn(b: Any): Bool => {
+      let matchGenre = genreFilter == "" || b.genre.toLowerCase() == genreFilter.toLowerCase();
+      let matchAuthor = authorFilter == "" || b.authorId == authorFilter;
+      let matchEditorial = editorialFilter == "" || b.editorialId == editorialFilter;
+      let matchStock = inStockFilter != "true" || b.stock > 0;
+      let matchSearch = if (search != "") {
+        let term = search.toLowerCase();
+        b.title.toLowerCase().includes(term) || b.isbn.toLowerCase().includes(term)
+      } else {
+        true
+      };
+      matchGenre && matchAuthor && matchEditorial && matchStock && matchSearch
+    })
+    .map(fn(b: Any): Any => enrichBook(b));
+
+  http.json(res, http.StatusOK, {
+    success: true,
+    count: filtered.length,
+    data: filtered
+  });
+});
+
+mux.get("/api/books/:id", fn(req: Any, res: Any) => {
+  let bookId = http.pathValue(req, "id");
+  let book = findBook(bookId);
+
+  if (book == ()) {
+    http.json(res, http.StatusNotFound, {
+      success: false,
+      error: `Libro con id '${bookId}' no encontrado`
+    });
+    return();
+  }
+
+  let author = findAuthor(book.authorId);
+  let editorial = findEditorial(book.editorialId);
+
+  http.json(res, http.StatusOK, {
+    success: true,
+    data: {
+      id: book.id,
+      title: book.title,
+      isbn: book.isbn,
+      price: book.price,
+      stock: book.stock,
+      genre: book.genre,
+      publishedYear: book.publishedYear,
+      author: author,
+      editorial: editorial
+    }
+  });
+});
+
+mux.post("/api/books", fn(req: Any, res: Any) => async {
+  let parseRes = await http.parseJson(req);
+  match parseRes {
+    Ok(body) => {
+      // Validaciones requeridas
+      if (body.title == () || body.title == "") {
+        http.json(res, http.StatusBadRequest, {
+          success: false,
+          error: "El campo 'title' es obligatorio"
+        });
+        return();
+      }
+      if (body.isbn == () || body.isbn == "") {
+        http.json(res, http.StatusBadRequest, {
+          success: false,
+          error: "El campo 'isbn' es obligatorio"
+        });
+        return();
+      }
+      if (body.authorId == () || body.authorId == "") {
+        http.json(res, http.StatusBadRequest, {
+          success: false,
+          error: "El campo 'authorId' es obligatorio"
+        });
+        return();
+      }
+      if (body.editorialId == () || body.editorialId == "") {
+        http.json(res, http.StatusBadRequest, {
+          success: false,
+          error: "El campo 'editorialId' es obligatorio"
+        });
+        return();
+      }
+
+      // Verificar que autor exista
+      let author = findAuthor(body.authorId);
+      if (author == ()) {
+        http.json(res, http.StatusBadRequest, {
+          success: false,
+          error: `El autor con id '${body.authorId}' no existe en el sistema`
+        });
+        return();
+      }
+
+      // Verificar que editorial exista
+      let editorial = findEditorial(body.editorialId);
+      if (editorial == ()) {
+        http.json(res, http.StatusBadRequest, {
+          success: false,
+          error: `La editorial con id '${body.editorialId}' no existe en el sistema`
+        });
+        return();
+      }
+
+      let price = if (body.price != ()) {body.price}else {0.0};
+      if (price<0.0) {
+        http .json (res , http .StatusBadRequest , {
+          success : false ,
+          error : "El precio del libro no puede ser negativo"
+        } );
+        return();
+      }
+
+      let stock=if (body .stock != ()) {body .stock } else {0} ;
+      if (stock <0) {
+        http .json (res , http .StatusBadRequest , {
+          success : false ,
+          error : "El stock no puede ser negativo"
+        } );
+        return();
+      }
+
+      nextBookId=nextBookId + 1;
+      let newId=`bk-${nextBookId}`;
+      let newBook= {
+        id : newId ,
+        title : body .title ,
+        isbn : body .isbn ,
+        authorId : body .authorId ,
+        editorialId : body .editorialId ,
+        price : price ,
+        stock : stock ,
+        genre : if (body .genre != ()) {body .genre } else {"General" } ,
+        publishedYear : if (body .publishedYear != ()) {body .publishedYear } else {2026}
+      } ;
+
+      books .push (newBook );
+
+      http .json (res , http .StatusCreated , {
+        success : true ,
+        message : "Libro registrado exitosamente" ,
+        data : enrichBook (newBook )
+      } );
+    } ,
+    Err (err ) => {
+      http .json (res , http .StatusBadRequest , {
+        success : false ,
+        error : `Payload JSON inválido: ${err}`
+      } );
+    }
+  }
+} );
+
+mux .put ("/api/books/:id" , fn(req : Any , res : Any ) => async {
+  let bookId=http .pathValue (req , "id" );
+  let book=findBook (bookId );
+
+  if (book == ()) {
+    http .json (res , http .StatusNotFound , {
+      success : false ,
+      error : `Libro con id '${bookId}' no encontrado`
+    } );
+    return();
+  }
+
+  let parseRes=await http .parseJson (req );
+  match parseRes {
+    Ok (body ) => {
+      if (body .title != ()) {book .title=body .title ; }
+      if (body .isbn != ()) {book .isbn=body .isbn ; }
+      if (body .price != ()) {
+        if (body .price <0.0) {
+          http .json (res , http .StatusBadRequest , {success : false , error : "El precio no puede ser negativo" } );
+          return();
+        }
+        book .price=body .price ;
+      }
+      if (body .stock != ()) {
+        if (body .stock <0) {
+          http .json (res , http .StatusBadRequest , {success : false , error : "El stock no puede ser negativo" } );
+          return();
+        }
+        book .stock=body .stock ;
+      }
+      if (body .genre != ()) {book .genre=body .genre ; }
+      if (body .publishedYear != ()) {book .publishedYear=body .publishedYear ; }
+      if (body .authorId != ()) {
+        let author=findAuthor (body .authorId );
+        if (author == ()) {
+          http .json (res , http .StatusBadRequest , {success : false , error : `Autor '${body.authorId}' no existe`} );
+          return();
+        }
+        book .authorId=body .authorId ;
+      }
+      if (body .editorialId != ()) {
+        let editorial=findEditorial (body .editorialId );
+        if (editorial == ()) {
+          http .json (res , http .StatusBadRequest , {success : false , error : `Editorial '${body.editorialId}' no existe`} );
+          return();
+        }
+        book .editorialId=body .editorialId ;
+      }
+
+      http .json (res , http .StatusOK , {
+        success : true ,
+        message : "Libro actualizado con éxito" ,
+        data : enrichBook (book )
+      } );
+    } ,
+    Err (err ) => {
+      http .json (res , http .StatusBadRequest , {
+        success : false ,
+        error : `Payload JSON inválido: ${err}`
+      } );
+    }
+  }
+} );
+
+mux .delete ("/api/books/:id" , fn(req : Any , res : Any ) => {
+  let bookId=http .pathValue (req , "id" );
+  let book=findBook (bookId );
+
+  if (book == ()) {
+    http .json (res , http .StatusNotFound , {
+      success : false ,
+      error : `Libro con id '${bookId}' no encontrado`
+    } );
+    return();
+  }
+
+  let mut newBooks : List <Any> = [];
+  for b in books {
+    if (b.id != bookId) {
+      newBooks.push(b);
+    }
+  }
+  books = newBooks;
+
+  http.json(res, http.StatusOK, {
+    success: true,
+    message: `Libro '${book.title}' (ID: ${bookId}) eliminado correctamente del catálogo.`
+  });
+});
+
+// ==============================================================================
+// 5. GESTIÓN DE ARTÍCULOS (/api/articles)
+// ==============================================================================
+
+mux.get("/api/articles", fn(req: Any, res: Any) => {
+  let topicFilter = http.query(req, "topic");
+  let authorFilter = http.query(req, "authorId");
+  let search = http.query(req, "search");
+
+  let filtered = articles
+    .filter(fn(a: Any): Bool => {
+      let matchTopic = topicFilter == "" || a.topic.toLowerCase() == topicFilter.toLowerCase();
+      let matchAuthor = authorFilter == "" || a.authorId == authorFilter;
+      let matchSearch = if (search != "") {
+        let term = search.toLowerCase();
+        a.title.toLowerCase().includes(term) || a.summary.toLowerCase().includes(term)
+      } else {
+        true
+      };
+      matchTopic && matchAuthor && matchSearch
+    })
+    .map(fn(a: Any): Any => {
+      let author = findAuthor(a.authorId);
+      let authorName = if (author != ()) {author.name} else {"Desconocido"};
+      {
+        id: a.id,
+        title: a.title,
+        summary: a.summary,
+        content: a.content,
+        authorId: a.authorId,
+        authorName: authorName,
+        topic: a.topic,
+        publishedAt: a.publishedAt
+      }
+    });
+
+  http.json(res, http.StatusOK, {
+    success: true,
+    count: filtered.length,
+    data: filtered
+  });
+});
+
+mux.get("/api/articles/:id", fn(req: Any, res: Any) => {
+  let articleId = http.pathValue(req, "id");
+  let article = findArticle(articleId);
+
+  if (article == ()) {
+    http.json(res, http.StatusNotFound, {
+      success: false,
+      error: `Artículo con id '${articleId}' no encontrado`
+    });
+    return();
+  }
+
+  let author = findAuthor(article.authorId);
+
+  http.json(res, http.StatusOK, {
+    success: true,
+    data: {
+      article: article,
+      author: author
+    }
+  });
+});
+
+mux.post("/api/articles", fn(req: Any, res: Any) => async {
+  let parseRes = await http.parseJson(req);
+  match parseRes {
+    Ok(body) => {
+      if (body.title == () || body.title == "") {
+        http.json(res, http.StatusBadRequest, {
+          success: false,
+          error: "El campo 'title' es obligatorio"
+        });
+        return();
+      }
+      if (body.content == () || body.content == "") {
+        http.json(res, http.StatusBadRequest, {
+          success: false,
+          error: "El campo 'content' es obligatorio"
+        });
+        return();
+      }
+      if (body.authorId == () || body.authorId == "") {
+        http.json(res, http.StatusBadRequest, {
+          success: false,
+          error: "El campo 'authorId' es obligatorio"
+        });
+        return();
+      }
+
+      let author = findAuthor(body.authorId);
+      if (author == ()) {
+        http.json(res, http.StatusBadRequest, {
+          success: false,
+          error: `El autor con id '${body.authorId}' no existe en el sistema`
+        });
+        return();
+      }
+
+      nextArticleId = nextArticleId + 1;
+      let newId = `art-${nextArticleId}`;
+      let newArticle = {
+        id: newId,
+        title: body.title,
+        summary: if (body.summary != ()) {body.summary}else {""},
+        content: body.content,
+        authorId: body.authorId,
+        topic: if (body.topic != ()) {body.topic}else {"General"},
+        publishedAt: if (body.publishedAt != ()) {body.publishedAt}else {"2026-09-04"}
+      };
+
+      articles.push(newArticle);
+
+      http.json(res, http.StatusCreated, {
+        success: true,
+        message: "Artículo publicado exitosamente",
+        data: newArticle
+      });
+    },
+    Err(err) => {
+      http.json(res, http.StatusBadRequest, {
+        success: false,
+        error: `Payload JSON inválido: ${err}`
+      });
+    }
+  }
+});
+
+mux.put("/api/articles/:id", fn(req: Any, res: Any) => async {
+  let articleId = http.pathValue(req, "id");
+  let article = findArticle(articleId);
+
+  if (article == ()) {
+    http.json(res, http.StatusNotFound, {
+      success: false,
+      error: `Artículo con id '${articleId}' no encontrado`
+    });
+    return();
+  }
+
+  let parseRes = await http.parseJson(req);
+  match parseRes {
+    Ok(body) => {
+      if (body.title != ()) {article.title = body.title; }
+      if (body.summary != ()) {article.summary = body.summary; }
+      if (body.content != ()) {article.content = body.content; }
+      if (body.topic != ()) {article.topic = body.topic; }
+      if (body.authorId != ()) {
+        let author = findAuthor(body.authorId);
+        if (author == ()) {
+          http.json(res, http.StatusBadRequest, {success: false, error: `Autor '${body.authorId}' no existe`});
+          return();
+        }
+        article.authorId = body.authorId;
+      }
+
+      http.json(res, http.StatusOK, {
+        success: true,
+        message: "Artículo actualizado con éxito",
+        data: article
+      });
+    },
+    Err(err) => {
+      http.json(res, http.StatusBadRequest, {
+        success: false,
+        error: `Payload JSON inválido: ${err}`
+      });
+    }
+  }
+});
+
+mux.delete("/api/articles/:id", fn(req: Any, res: Any) => {
+  let articleId = http.pathValue(req, "id");
+  let article = findArticle(articleId);
+
+  if (article == ()) {
+    http.json(res, http.StatusNotFound, {
+      success: false,
+      error: `Artículo con id '${articleId}' no encontrado`
+    });
+    return();
+  }
+
+  let mut newArticles: List<Any> = [];
+  for a in articles {
+    if (a.id != articleId) {
+      newArticles.push(a);
+    }
+  }
+  articles = newArticles;
+
+  http.json(res, http.StatusOK, {
+    success: true,
+    message: `Artículo '${article.title}' (ID: ${articleId}) eliminado correctamente.`
+  });
+});
+
+// ==============================================================================
+// 6. ENDPOINTS DE VENTA DE LIBROS (/api/books/:id/sell & /api/sales)
+// ==============================================================================
+
+// Función centralizada para ejecutar la venta de un libro
+fn executeBookSale(bookId: String, body: Any, res: Any) => {
+  let book = findBook(bookId);
+
+  if (book == ()) {
+    http.json(res, http.StatusNotFound, {
+      success: false,
+      error: `No se puede realizar la venta: el libro con ID '${bookId}' no existe`
+    });
+    return();
+  }
+
+  let quantity = if (body.quantity != ()) {body.quantity}else {1};
+  if (quantity <= 0) {
+    http.json(res, http.StatusBadRequest, {
+      success: false,
+      error: "La cantidad a comprar debe ser un entero positivo mayor a 0"
+    });
+    return();
+  }
+
+  if (book.stock<quantity ) {
+    http .json (res , http .StatusBadRequest , {
+      success : false ,
+      error : `Stock insuficiente para '${book.title}'. Stock disponible: ${book.stock}, cantidad solicitada: ${quantity}`
+    } );
+    return();
+  }
+
+  let customerName=if (body .customerName != ()) {body .customerName } else {"Cliente Ocasional" } ;
+  let customerEmail=if (body .customerEmail != ()) {body .customerEmail } else {"cliente@ventas.lat" } ;
+  let paymentMethod=if (body .paymentMethod != ()) {body .paymentMethod } else {"CASH" } ;
+  let discountPercent=if (body .discountPercent != ()) {body .discountPercent } else {0.0} ;
+
+  // Cálculo financiero de la venta
+  let unitPrice=book .price ;
+  let subtotal=unitPrice * quantity ;
+  let discountAmount=subtotal * (discountPercent / 100.0);
+  let taxableAmount=subtotal - discountAmount ;
+  let taxPercent=19.0;// 19% IVA estándar
+  let taxAmount=taxableAmount * (taxPercent / 100.0);
+  let total=taxableAmount + taxAmount ;
+
+  // Descontar inventario atómicamente
+  book .stock=book .stock - quantity ;
+
+  let author=findAuthor (book .authorId );
+  let authorName=if (author != ()) {author .name } else {"Autor Desconocido" } ;
+
+  nextSaleId=nextSaleId + 1;
+  let saleId=`sale-${nextSaleId}`;
+
+  let receipt= {
+    id : saleId ,
+    bookId : book .id ,
+    bookTitle : book .title ,
+    authorName : authorName ,
+    quantity : quantity ,
+    unitPrice : unitPrice ,
+    subtotal : subtotal ,
+    discountPercent : discountPercent ,
+    discountAmount : discountAmount ,
+    taxPercent : taxPercent ,
+    taxAmount : taxAmount ,
+    total : total ,
+    customerName : customerName ,
+    customerEmail : customerEmail ,
+    paymentMethod : paymentMethod ,
+    timestamp : "2026-09-04T23:20:00Z" ,
+    status : "COMPLETED"
+  } ;
+
+  sales .push (receipt );
+
+  println (`[VENTA] Libro '${book.title}' x${quantity} vendido a '${customerName}' ($${total}). Stock restante: ${book.stock}`);
+
+  http .json (res , http .StatusCreated , {
+    success : true ,
+    message : `Venta #${saleId} procesada exitosamente`,
+    receipt : receipt ,
+    inventory : {
+      bookId : book .id ,
+      bookTitle : book .title ,
+      remainingStock : book .stock
+    }
+  } );
+}
+
+// Endpoint específico: Vender un libro por su ID en la URL
+mux .post ("/api/books/:id/sell" , fn(req : Any , res : Any ) => async {
+  let bookId=http .pathValue (req , "id" );
+  let parseRes=await http .parseJson (req );
+  match parseRes {
+    Ok (body ) => {
+      executeBookSale (bookId , body , res );
+    } ,
+    Err (_ ) => {
+      // Permitir venta sin body (compra por defecto de 1 unidad al contado)
+      executeBookSale (bookId , {} , res );
+    }
+  }
+} );
+
+// Endpoint general: Crear venta indicando el bookId en el body
+mux .post ("/api/sales" , fn(req : Any , res : Any ) => async {
+  let parseRes=await http .parseJson (req );
+  match parseRes {
+    Ok (body ) => {
+      if (body .bookId == () || body .bookId == "" ) {
+        http .json (res , http .StatusBadRequest , {
+          success : false ,
+          error : "El campo 'bookId' es obligatorio en el cuerpo de la solicitud"
+        } );
+        return();
+      }
+      executeBookSale (body .bookId , body , res );
+    } ,
+    Err (err ) => {
+      http .json (res , http .StatusBadRequest , {
+        success : false ,
+        error : `Payload JSON inválido: ${err}`
+      } );
+    }
+  }
+} );
+
+// Listar todas las transacciones de venta
+mux .get ("/api/sales" , fn(req : Any , res : Any ) => {
+  let bookFilter=http .query (req , "bookId" );
+  let customerFilter=http .query (req , "customerEmail" );
+
+  let filtered = sales.filter(fn(s: Any): Bool => {
+    let matchBook = bookFilter == "" || s.bookId == bookFilter;
+    let matchCustomer = customerFilter == "" || s.customerEmail == customerFilter;
+    matchBook && matchCustomer
+  });
+
+  http.json(res, http.StatusOK, {
+    success: true,
+    count: filtered.length,
+    data: filtered
+  });
+});
+
+// Resumen / Dashboard de métricas de ventas
+mux.get("/api/sales/summary", fn(req: Any, res: Any) => {
+  let mut totalSold = 0;
+  let mut totalRevenue = 0.0;
+  let mut totalTax = 0.0;
+  let mut totalDiscounts = 0.0;
+
+  for s in sales {
+    totalSold = totalSold + s.quantity;
+    totalRevenue = totalRevenue + s.total;
+    totalTax = totalTax + s.taxAmount;
+    totalDiscounts = totalDiscounts + s.discountAmount;
+  }
+
+  let averageTicket = if (sales.length>0) {
+    totalRevenue / sales.length
+  }else {
+    0.0
+  };
+
+  http.json(res, http.StatusOK, {
+    success: true,
+    summary: {
+      totalTransactions: sales.length,
+      totalBooksSoldUnits: totalSold,
+      totalGrossRevenue: totalRevenue,
+      totalTaxCollected: totalTax,
+      totalDiscountsGiven: totalDiscounts,
+      averageTicketValue: averageTicket,
+      currency: "USD"
+    }
+  });
+});
+
+// Obtener comprobante de venta por ID
+mux.get("/api/sales/:id", fn(req: Any, res: Any) => {
+  let saleId = http.pathValue(req, "id");
+  let sale = findSale(saleId);
+
+  if (sale == ()) {
+    http.json(res, http.StatusNotFound, {
+      success: false,
+      error: `Comprobante de venta con id '${saleId}' no encontrado`
+    });
+    return();
+  }
+
+  http.json(res, http.StatusOK, {
+    success: true,
+    data: sale
+  });
+});
+
+// ==============================================================================
+// 7. INICIALIZACIÓN Y ARRANQUE DEL SERVIDOR
+// ==============================================================================
+
+let port: String = ":8080";
+println("==========================================================");
+println("🚀 AURA LANG REST API SERVER - LIBRERÍA & EDITORIAL");
+println("==========================================================");
+println(`Servidor HTTP iniciado exitosamente en http://localhost${port}`);
+println("Endpoints disponibles:");
+println("  - Documentación:       GET  /");
+println("  - Estado de salud:     GET  /api/health");
+println("  - Autores:             GET, POST /api/authors | GET, PUT, DELETE /api/authors/:id");
+println("  - Editoriales:         GET, POST /api/editorials | GET, PUT, DELETE /api/editorials/:id");
+println("  - Libros:              GET, POST /api/books | GET, PUT, DELETE /api/books/:id");
+println("  - Vender Libro:        POST /api/books/:id/sell");
+println("  - Artículos:           GET, POST /api/articles | GET, PUT, DELETE /api/articles/:id");
+println("  - Ventas:              GET, POST /api/sales | GET /api/sales/:id | GET /api/sales/summary");
+println("==========================================================");
+
+mux.listenAndServe(port);

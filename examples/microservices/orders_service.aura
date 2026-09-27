@@ -1,0 +1,278 @@
+// =============================================================================
+// Microservicio 1: Gestión de Órdenes y Ventas (Orders Microservice)
+// =============================================================================
+// Arquitectura Backend Golang-Style con Structs, Mutex y Concurrencia CSP.
+//
+// Compilar a binario ejecutable autónomo:
+//   aurac build examples/microservices/orders_service.aura -o orders-service
+//   ./orders-service
+
+// --- Definición de Modelos con Structs y Struct Tags ---
+
+struct CustomerInfo {
+    name: String `json:"name"`,
+    email: String `json:"email" validate:"required"`,
+    address: String `json:"address"`
+};
+
+struct OrderItem {
+    productId: String `json:"product_id"`,
+    title: String `json:"title"`,
+    quantity: Int `json:"quantity"`,
+    unitPrice: Float `json:"unit_price"`
+};
+
+struct Order {
+    id: String `json:"id"`,
+    customer: CustomerInfo `json:"customer"`,
+    items: List<OrderItem> `json:"items"`,
+    subtotal: Float `json:"subtotal"`,
+    taxAmount: Float `json:"tax_amount"`,
+    total: Float `json:"total"`,
+    status: String `json:"status"`,
+    createdAt: String `json:"created_at"`
+};
+
+struct OrderMetrics {
+    totalOrders: Int `json:"total_orders"`,
+    completedOrders: Int `json:"completed_orders"`,
+    totalRevenue: Float `json:"total_revenue"`,
+    currency: String `json:"currency"`
+};
+
+// --- Estado Global Thread-Safe ---
+
+let ordersMutex = Mutex.new();
+let mut ordersDb: List<Order> = [
+    {
+        id: "ord-101",
+        customer: {
+            name: "Sofia Vergara",
+            email: "sofia@correo.dev",
+            address: "Av. Providencia 1234, Santiago"
+        },
+        items: [
+            { productId: "prod-1", title: "Microservicios en Go y Aura", quantity: 2, unitPrice: 35.50 },
+            { productId: "prod-2", title: "Teclado Mecánico RGB", quantity: 1, unitPrice: 120.00 }
+        ],
+        subtotal: 191.00,
+        taxAmount: 36.29,
+        total: 227.29,
+        status: "PAID",
+        createdAt: "2026-09-10T14:30:00Z"
+    }
+];
+
+// Canal para procesar eventos de facturación y despacho asíncrono
+let fulfillmentQueue: Channel<Order> = Channel.make(100);
+
+// Background Worker Fiber: consume órdenes y emite logs de despacho
+spawn {
+    println("⚡ [Fulfillment-Worker] Fiber de despacho en segundo plano iniciado.");
+    while (true) {
+        let ordOpt = <-fulfillmentQueue;
+        match ordOpt {
+            Some(ord) => {
+                println(`📦 [Fulfillment] Procesando despacho para orden #${ord.id}...`);
+                await sleep(50);
+                println(`✓ [Fulfillment] Orden #${ord.id} lista para despacho a ${ord.customer.address}.`);
+            },
+            None => ()
+        }
+    }
+};
+
+// --- Configuración del Servidor HTTP (net/http style) ---
+
+let mux = http.newServeMux();
+
+// Middleware: Logging & Tracing
+mux.use(fn(req: Any, res: Any, next: Any) => {
+    println(`[Orders-API] ${req.method} ${req.url}`);
+    res.setHeader("X-Service", "Orders-Microservice");
+    res.setHeader("X-Runtime", "Aura-Golang-Engine");
+    next();
+});
+
+// 1. Health Check
+mux.get("/api/health", fn(req: Any, res: Any) => {
+    http.json(res, http.StatusOK, {
+        service: "Orders Microservice",
+        status: "HEALTHY",
+        uptimeSeconds: process.uptime(),
+        hostname: os.hostname(),
+        serverTime: time.now()
+    });
+});
+
+// 2. Listar Órdenes con filtros (status, search)
+mux.get("/api/orders", fn(req: Any, res: Any) => {
+    let statusFilter = http.query(req, "status");
+    let customerFilter = http.query(req, "email");
+
+    ordersMutex.lock();
+    defer ordersMutex.unlock();
+
+    let filtered = ordersDb.filter(fn(o: Any): Bool => {
+        let matchStatus = statusFilter == "" || o.status == statusFilter;
+        let matchEmail = customerFilter == "" || o.customer.email.toLowerCase().includes(customerFilter.toLowerCase());
+        matchStatus && matchEmail
+    });
+
+    http.json(res, http.StatusOK, {
+        count: filtered.length,
+        orders: filtered
+    });
+});
+
+// 3. Obtener Detalle de Orden por ID
+mux.get("/api/orders/:id", fn(req: Any, res: Any) => {
+    let orderId = http.pathValue(req, "id");
+
+    ordersMutex.lock();
+    defer ordersMutex.unlock();
+
+    let matched = ordersDb.filter(fn(o: Any): Bool => o.id == orderId);
+    if (matched.length == 0) {
+        http.error(res, `Orden '${orderId}' no encontrada`, http.StatusNotFound);
+        return ();
+    }
+
+    http.json(res, http.StatusOK, matched[0]);
+});
+
+// 4. Crear Nueva Orden (POST)
+mux.post("/api/orders", fn(req: Any, res: Any) => async {
+    let parseRes = await http.parseJson(req);
+    match parseRes {
+        Ok(body) => {
+            // Validaciones básicas del payload
+            if (body.customer == null || body.items == null) {
+                http.error(res, "Faltan campos obligatorios: 'customer' e 'items'", http.StatusBadRequest);
+                return ();
+            }
+
+            let customer: CustomerInfo = {
+                name: body.customer.name != "" ? body.customer.name : "Anónimo",
+                email: body.customer.email != "" ? body.customer.email : "sin-correo@aura.dev",
+                address: body.customer.address != "" ? body.customer.address : "Retiro en tienda"
+            };
+
+            let rawItems = body.items;
+            let mut subtotal = 0.0;
+            let mut validatedItems: List<OrderItem> = [];
+
+            let mut i = 0;
+            while (i < rawItems.length) {
+                let it = rawItems[i];
+                let qty: Int = it.quantity > 0 ? it.quantity : 1;
+                let price: Float = it.unitPrice > 0.0 ? it.unitPrice : 10.0;
+                subtotal = subtotal + (price * parseFloat(`${qty}`));
+
+                validatedItems.push({
+                    productId: it.productId != "" ? it.productId : `prod-${i + 1}`,
+                    title: it.title != "" ? it.title : "Artículo sin nombre",
+                    quantity: qty,
+                    unitPrice: price
+                });
+                i = i + 1;
+            }
+
+            let taxRate = 0.19; // 19% IVA
+            let tax = subtotal * taxRate;
+            let grandTotal = subtotal + tax;
+
+            ordersMutex.lock();
+            let newId = `ord-${ordersDb.length + 101}`;
+            let newOrder: Order = {
+                id: newId,
+                customer: customer,
+                items: validatedItems,
+                subtotal: subtotal,
+                taxAmount: tax,
+                total: grandTotal,
+                status: "CONFIRMED",
+                createdAt: `${time.now()}`
+            };
+
+            ordersDb.push(newOrder);
+            ordersMutex.unlock();
+
+            // Enviar asíncronamente al worker de fulfillment
+            fulfillmentQueue <- newOrder;
+
+            http.json(res, http.StatusCreated, {
+                success: true,
+                message: `Orden #${newId} creada con éxito`,
+                order: newOrder
+            });
+        },
+        Err(err) => {
+            http.error(res, `Payload JSON inválido: ${err}`, http.StatusBadRequest);
+        }
+    }
+});
+
+// 5. Cancelar una Orden (PUT /api/orders/:id/cancel)
+mux.put("/api/orders/:id/cancel", fn(req: Any, res: Any) => {
+    let orderId = http.pathValue(req, "id");
+
+    ordersMutex.lock();
+    defer ordersMutex.unlock();
+
+    let mut found = false;
+    let mut i = 0;
+    while (i < ordersDb.length) {
+        if (ordersDb[i].id == orderId) {
+            ordersDb[i].status = "CANCELLED";
+            found = true;
+            break;
+        }
+        i = i + 1;
+    }
+
+    if (!found) {
+        http.error(res, `No se encontró la orden '${orderId}' para cancelar`, http.StatusNotFound);
+        return ();
+    }
+
+    http.json(res, http.StatusOK, {
+        success: true,
+        message: `Orden '${orderId}' ha sido cancelada exitosamente`
+    });
+});
+
+// 6. Métricas y KPIs de Ventas
+mux.get("/api/orders/metrics", fn(req: Any, res: Any) => {
+    ordersMutex.lock();
+    defer ordersMutex.unlock();
+
+    let mut revenue = 0.0;
+    let mut completedCount = 0;
+
+    let mut i = 0;
+    while (i < ordersDb.length) {
+        let ord = ordersDb[i];
+        if (ord.status != "CANCELLED") {
+            revenue = revenue + ord.total;
+        }
+        if (ord.status == "PAID" || ord.status == "CONFIRMED") {
+            completedCount = completedCount + 1;
+        }
+        i = i + 1;
+    }
+
+    let metrics: OrderMetrics = {
+        totalOrders: ordersDb.length,
+        completedOrders: completedCount,
+        totalRevenue: revenue,
+        currency: "USD"
+    };
+
+    http.json(res, http.StatusOK, metrics);
+});
+
+// Arrancar el microservicio
+let port = os.env("PORT") != "" ? os.env("PORT") : "8081";
+println(`🚀 Microservicio de Órdenes iniciado en http://localhost:${port}`);
+mux.listenAndServe(`:${port}`);

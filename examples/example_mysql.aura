@@ -1,0 +1,119 @@
+// ==========================================
+// Aura Lang MySQL Database Integration Demo
+// ==========================================
+
+println("⚡ Aura Lang Native MySQL Database Demo")
+
+// 1. Configure MySQL Connection Pool
+let config: MysqlConfig = {
+  host: "localhost",
+  port: 3306,
+  user: "root",
+  password: "secret_password",
+  database: "aura_demo_db",
+  uri: "",
+  connectionLimit: 10
+}
+
+// 2. Initialize Database Pool
+let db: MysqlPool = mysql.createPool(config)
+
+// 3. Define Async Service Function
+async fn initializeDatabase(): Task<(), String>{
+  println("--- Creating Table ---")
+  let ddl = "CREATE TABLE IF NOT EXISTS users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        email VARCHAR(100) UNIQUE NOT NULL,
+        balance INT DEFAULT 0
+    )"
+
+  let createRes = await db.execute(ddl, [])
+  match createRes {
+    Ok(info) => println(`✓ Table ready. Affected rows: ${info.affectedRows}`),
+    Err(err) => println(`✕ Failed to create table: ${err}`)
+  }
+
+  println("--- Inserting Sample Users ---")
+  let insertAlice = await db.execute(
+  "INSERT INTO users (name, email, balance) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE name=name",
+  ["Alice", "alice@aura-lang.org", 500]
+  )
+  match insertAlice {
+    Ok(res) => println(`✓ Inserted Alice (InsertId: ${res.insertId})`),
+    Err(err) => println(`✕ Insert error: ${err}`)
+  }
+
+  let insertBob = await db.execute(
+  "INSERT INTO users (name, email, balance) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE name=name",
+  ["Bob", "bob@aura-lang.org", 300]
+  )
+  match insertBob {
+    Ok(res) => println(`✓ Inserted Bob (InsertId: ${res.insertId})`),
+    Err(err) => println(`✕ Insert error: ${err}`)
+  }
+}
+
+async fn queryUsers(): Task<(), String>{
+  println("--- Querying Users ---")
+  let result = await db.query("SELECT id, name, email, balance FROM users ORDER BY id ASC", [])
+  match result {
+    Ok(rows) => {
+      println(`✓ Found ${rows.length} users:`)
+      for u in rows {
+        println(`  - [ID: ${u.id}] ${u.name} <${u.email}> | Balance: $${u.balance}`)
+      }
+    },
+    Err(err) => println(`✕ Query failed: ${err}`)
+  }
+
+  println("--- Query Single User (queryRow) ---")
+  let singleResult = await db.queryRow("SELECT * FROM users WHERE email = ?", ["alice@aura-lang.org"])
+  match singleResult {
+    Ok(opt) => {
+      match opt {
+        Some(user) => println(`✓ Found user: ${user.name} (Balance: $${user.balance})`),
+        None => println("✕ User not found")
+      }
+    },
+    Err(err) => println(`✕ Query error: ${err}`)
+  }
+}
+
+async fn transferFunds(fromEmail: String, toEmail: String, amount: Int): Task<Bool , String>{
+  println(`--- Transferring $${amount} from ${fromEmail} to ${toEmail} ---`)
+  let txRes = await db.transaction(async fn(tx: MysqlTransaction): Task<(), String>{
+    let deduct = await tx.execute("UPDATE users SET balance = balance - ? WHERE email = ?", [amount, fromEmail])
+    let add = await tx.execute("UPDATE users SET balance = balance + ? WHERE email = ?", [amount, toEmail])
+  })
+
+  match txRes {
+    Ok(_) => {
+      println("✓ Transaction committed successfully!")
+      true
+    },
+    Err(err) => {
+      println(`✕ Transaction rolled back: ${err}`)
+      false
+    }
+  }
+}
+
+// 4. Run Demonstration Flow
+async fn main(): Task<(), String>{
+  // Utility helpers
+  let escaped = mysql.escape("Alice'; DROP TABLE users; --")
+  println(`Safe SQL Escaped: ${escaped}`)
+
+  let formatted = mysql.format("SELECT * FROM users WHERE balance >= ? AND name = ?", [100, "Alice"])
+  println(`Safe Parameter Formatted: ${formatted}`)
+
+  await initializeDatabase()
+  await queryUsers()
+  await transferFunds("alice@aura-lang.org", "bob@aura-lang.org", 50)
+  await queryUsers()
+  await db.close()
+  println("✓ Database pool closed gracefully.")
+}
+
+main()

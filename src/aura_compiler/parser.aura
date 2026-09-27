@@ -1,0 +1,442 @@
+module Aura.Compiler.Parser
+
+import {
+  Token, TokenKind, ModuleNode, ItemNode, ParamNode,
+  TypeNode, ExprNode, StmtNode, VariantNode,
+  LiteralValue, BinOperator, UnOperator, MatchArmNode, PatternNode,
+  TFn, TLet, TMut, TType, TMatch, TWhen, TIf, TElse, TWhile, TFor, TIn,
+  TBreak, TContinue, TReturn, TModule, TExport, TImport, TFrom, TSpawn, TSelect,
+  TIdent, TInt, TFloat, TString, TBool, TPipe, TFatArrow, TArrow, TArrowLeft,
+  TEqual, TEqualEqual, TNotEqual, TLess, TLessEqual, TGreater, TGreaterEqual,
+  TPlus, TMinus, TStar, TSlash, TPercent, TAndAnd, TOrOr, TBang, TPipeOp,
+  TQuestion, TLParen, TRParen, TLBrace, TRBrace, TLBracket, TRBracket,
+  TColon, TComma, TSemicolon, TDot, TUnderscore, TEof,
+  TyNamed, TyFunction, TyRecord, TyTuple, TyUnit,
+  LitInt, LitFloat, LitString, LitBool, LitUnit,
+  OpAdd, OpSub, OpMul, OpDiv, OpMod, OpEq, OpNeq, OpLt, OpLte, OpGt, OpGte, OpAnd, OpOr,
+  OpNeg, OpNot,
+  PatWildcard, PatVariable, PatLiteral, PatConstructor, PatList, PatRecord,
+  ExprLit, ExprIdent, ExprBinary, ExprUnary, ExprPipe, ExprCall, ExprMember,
+  ExprIndex, ExprIf, ExprWhile, ExprForIn, ExprMatch, ExprBlock, ExprList,
+  ExprRecord, ExprTry, ExprReturn, ExprBreak, ExprContinue,
+  StmtLet, StmtExpr, StmtReturn, StmtAssign,
+  ItemFunction, ItemSumType, ItemTypeAlias, ItemImport, ItemStmt
+} from "./ast"
+
+/// Recursive descent parser state maintaining token stream and current cursor offset.
+/// - `tokens`: Ordered list of lexical tokens to parse.
+/// - `pos`: Current index within `tokens`.
+export type Parser = {
+  tokens: List<Token>,
+  pos: Int
+}
+
+/// Constructs a new Parser instance positioned at the beginning of the token list.
+/// - `tokens`: List of tokens produced by the lexer.
+/// - Returns: Initialized `Parser` state record.
+export fn createParser(tokens: List<Token>): Parser {
+  return { tokens: tokens, pos: 0 };
+}
+
+/// Looks ahead at the current token kind without advancing parser position.
+/// - `p`: Parser instance.
+/// - Returns: `TokenKind` of the current token or `TEof` if end-of-file reached.
+fn peek(p: Parser): TokenKind {
+  if (p.pos < p.tokens.length) {
+    return p.tokens[p.pos].kind;
+  }
+  return TEof;
+}
+
+/// Consumes and returns the current token kind, advancing parser position by 1.
+/// - `p`: Parser instance.
+/// - Returns: `TokenKind` consumed or `TEof`.
+fn advance(p: Parser): TokenKind {
+  if (p.pos < p.tokens.length) {
+    let k = p.tokens[p.pos].kind;
+    p.pos = p.pos + 1;
+    return k;
+  }
+  return TEof;
+}
+
+/// Checks if current token matches `kind`. If matched, consumes it and returns `true`.
+/// - `p`: Parser instance.
+/// - `kind`: TokenKind to test for.
+/// - Returns: `true` if matched and consumed, `false` otherwise.
+fn matchToken(p: Parser, kind: TokenKind): Bool {
+  let cur = peek(p);
+  if (cur == kind) {
+    advance(p);
+    return true;
+  }
+  return false;
+}
+
+/// Consumes an expected identifier token and returns its string name.
+/// - `p`: Parser instance.
+/// - Returns: `Ok(String)` containing identifier name, or `Err` if not an identifier.
+fn expectIdent(p: Parser): Result<String, String> {
+  let tok = advance(p);
+  match tok {
+    TIdent { value } => Ok(value),
+    _ => Err("Expected identifier")
+  }
+}
+
+/// Parses a type annotation expression (e.g. `Int`, `List<String>`).
+/// - `p`: Parser instance.
+/// - Returns: `Ok(TypeNode)` representing the parsed type, or `Err` on syntax error.
+export fn parseType(p: Parser): Result<TypeNode, String> {
+  let name = expectIdent(p)?;
+  if (matchToken(p, TLess)) {
+    let mut args = [];
+    while (peek(p) != TGreater && peek(p) != TEof) {
+      let t = parseType(p)?;
+      args.push(t);
+      if (!matchToken(p, TComma)) {
+        break;
+      }
+    }
+    matchToken(p, TGreater);
+    return Ok(TyNamed { name: name, args: args });
+  }
+  return Ok(TyNamed { name: name, args: [] });
+}
+
+/// Parses primary atomic expressions (literals, identifiers, parenthesized expressions, lists, blocks, if/while/for).
+/// - `p`: Parser instance.
+/// - Returns: `Ok(ExprNode)` representing the primary expression, or `Err` on syntax error.
+export fn parsePrimaryExpr(p: Parser): Result<ExprNode, String> {
+  let tok = peek(p);
+  match tok {
+    TInt { value } => {
+      advance(p);
+      Ok(ExprLit { lit: LitInt { val: value } })
+    },
+    TFloat { value } => {
+      advance(p);
+      Ok(ExprLit { lit: LitFloat { val: value } })
+    },
+    TString { value } => {
+      advance(p);
+      Ok(ExprLit { lit: LitString { val: value } })
+    },
+    TBool { value } => {
+      advance(p);
+      Ok(ExprLit { lit: LitBool { val: value } })
+    },
+    TIdent { value } => {
+      advance(p);
+      Ok(ExprIdent { name: value })
+    },
+    TLParen => {
+      advance(p);
+      if (matchToken(p, TRParen)) {
+        return Ok(ExprLit { lit: LitUnit });
+      }
+      let expr = parseExpr(p)?;
+      matchToken(p, TRParen);
+      Ok(expr)
+    },
+    TLBracket => {
+      advance(p);
+      let mut items = [];
+      while (peek(p) != TRBracket && peek(p) != TEof) {
+        let it = parseExpr(p)?;
+        items.push(it);
+        if (!matchToken(p, TComma)) {
+          break;
+        }
+      }
+      matchToken(p, TRBracket);
+      Ok(ExprList { items: items })
+    },
+    TLBrace => {
+      parseBlockExpr(p)
+    },
+    TIf => {
+      advance(p); // if
+      matchToken(p, TLParen);
+      let cond = parseExpr(p)?;
+      matchToken(p, TRParen);
+      let thenBranch = parseBlockExpr(p)?;
+      let mut elseBranch = None;
+      if (matchToken(p, TElse)) {
+        let el = parseBlockExpr(p)?;
+        elseBranch = Some(el);
+      }
+      Ok(ExprIf { cond: cond, thenBranch: thenBranch, elseBranch: elseBranch })
+    },
+    TWhile => {
+      advance(p);
+      matchToken(p, TLParen);
+      let cond = parseExpr(p)?;
+      matchToken(p, TRParen);
+      let body = parseBlockExpr(p)?;
+      Ok(ExprWhile { cond: cond, body: body })
+    },
+    TFor => {
+      advance(p);
+      matchToken(p, TLParen);
+      let mut indexName = None;
+      let mut varName = expectIdent(p)?;
+      if (matchToken(p, TComma)) {
+        indexName = Some(varName);
+        varName = expectIdent(p)?;
+      }
+      matchToken(p, TIn);
+      let iter = parseExpr(p)?;
+      matchToken(p, TRParen);
+      let body = parseBlockExpr(p)?;
+      Ok(ExprForIn { indexName: indexName, varName: varName, iter: iter, body: body })
+    },
+    TBreak => {
+      advance(p);
+      Ok(ExprBreak)
+    },
+    TContinue => {
+      advance(p);
+      Ok(ExprContinue)
+    },
+    _ => {
+      Err("Unexpected token in expression")
+    }
+  }
+}
+
+/// Parses postfix operations chained on an expression (calls `()`, field access `.`, indexing `[]`, try `?`).
+/// - `p`: Parser instance.
+/// - Returns: `Ok(ExprNode)` representing the combined postfix expression, or `Err` on syntax error.
+export fn parsePostfixExpr(p: Parser): Result<ExprNode, String> {
+  let mut expr = parsePrimaryExpr(p)?;
+
+  while (true) {
+    if (matchToken(p, TLParen)) {
+      let mut args = [];
+      while (peek(p) != TRParen && peek(p) != TEof) {
+        let a = parseExpr(p)?;
+        args.push(a);
+        if (!matchToken(p, TComma)) {
+          break;
+        }
+      }
+      matchToken(p, TRParen);
+      expr = ExprCall { callee: expr, args: args };
+    } else if (matchToken(p, TDot)) {
+      let member = expectIdent(p)?;
+      expr = ExprMember { obj: expr, field: member };
+    } else if (matchToken(p, TLBracket)) {
+      let idx = parseExpr(p)?;
+      matchToken(p, TRBracket);
+      expr = ExprIndex { obj: expr, index: idx };
+    } else if (matchToken(p, TQuestion)) {
+      expr = ExprTry { inner: expr };
+    } else {
+      break;
+    }
+  }
+
+  return Ok(expr);
+}
+
+/// Parses binary additive expressions (`+` and `-`).
+/// - `p`: Parser instance.
+/// - Returns: `Ok(ExprNode)` representing the binary addition/subtraction tree, or `Err` on error.
+export fn parseAdditiveExpr(p: Parser): Result<ExprNode, String> {
+  let mut left = parsePostfixExpr(p)?;
+  while (peek(p) == TPlus || peek(p) == TMinus) {
+    let opTok = advance(p);
+    let right = parsePostfixExpr(p)?;
+    let op = if (opTok == TPlus) { OpAdd } else { OpSub };
+    left = ExprBinary { op: op, left: left, right: right };
+  }
+  return Ok(left);
+}
+
+/// Parses comparison expressions (`==`, `!=`, `<`, `<=`, `>`, `>=`).
+/// - `p`: Parser instance.
+/// - Returns: `Ok(ExprNode)` representing the comparison expression tree.
+export fn parseComparisonExpr(p: Parser): Result<ExprNode, String> {
+  let mut left = parseAdditiveExpr(p)?;
+  while (peek(p) == TEqualEqual || peek(p) == TNotEqual || peek(p) == TLess || peek(p) == TLessEqual || peek(p) == TGreater || peek(p) == TGreaterEqual) {
+    let opTok = advance(p);
+    let right = parseAdditiveExpr(p)?;
+    let op = match opTok {
+      TEqualEqual => OpEq,
+      TNotEqual => OpNeq,
+      TLess => OpLt,
+      TLessEqual => OpLte,
+      TGreater => OpGt,
+      _ => OpGte
+    };
+    left = ExprBinary { op: op, left: left, right: right };
+  }
+  return Ok(left);
+}
+
+/// Parses pipeline chaining expressions (`|>`).
+/// - `p`: Parser instance.
+/// - Returns: `Ok(ExprNode)` representing the chained pipeline expression.
+export fn parsePipeExpr(p: Parser): Result<ExprNode, String> {
+  let mut left = parseComparisonExpr(p)?;
+  while (matchToken(p, TPipe)) {
+    let right = parseComparisonExpr(p)?;
+    left = ExprPipe { left: left, right: right };
+  }
+  return Ok(left);
+}
+
+/// Parses a top-level expression starting at the pipeline precedence level.
+/// - `p`: Parser instance.
+/// - Returns: `Ok(ExprNode)` representing the parsed expression tree.
+export fn parseExpr(p: Parser): Result<ExprNode, String> {
+  return parsePipeExpr(p);
+}
+
+/// Parses a block expression enclosed in `{}` containing sequential statements.
+/// - `p`: Parser instance.
+/// - Returns: `Ok(ExprNode)` representing `ExprBlock`.
+export fn parseBlockExpr(p: Parser): Result<ExprNode, String> {
+  matchToken(p, TLBrace);
+  let mut stmts = [];
+  while (peek(p) != TRBrace && peek(p) != TEof) {
+    let st = parseStatement(p)?;
+    stmts.push(st);
+  }
+  matchToken(p, TRBrace);
+  return Ok(ExprBlock { stmts: stmts });
+}
+
+/// Parses a single sequential statement (`let`, `return`, assignment, or expression).
+/// - `p`: Parser instance.
+/// - Returns: `Ok(StmtNode)` representing the parsed statement.
+export fn parseStatement(p: Parser): Result<StmtNode, String> {
+  if (matchToken(p, TLet)) {
+    let isMut = matchToken(p, TMut);
+    let name = expectIdent(p)?;
+    let mut annot = None;
+    if (matchToken(p, TColon)) {
+      let t = parseType(p)?;
+      annot = Some(t);
+    }
+    matchToken(p, TEqual);
+    let val = parseExpr(p)?;
+    matchToken(p, TSemicolon);
+    return Ok(StmtLet { name: name, isMut: isMut, annot: annot, val: val });
+  }
+
+  if (matchToken(p, TReturn)) {
+    if (peek(p) != TSemicolon && peek(p) != TRBrace) {
+      let v = parseExpr(p)?;
+      matchToken(p, TSemicolon);
+      return Ok(StmtReturn { val: Some(v) });
+    }
+    matchToken(p, TSemicolon);
+    return Ok(StmtReturn { val: None });
+  }
+
+  let expr = parseExpr(p)?;
+  if (matchToken(p, TEqual)) {
+    let val = parseExpr(p)?;
+    let _ = matchToken(p, TSemicolon);
+    let targetName = match expr {
+      ExprIdent { name } => name,
+      _ => "target"
+    };
+    return Ok(StmtAssign { target: targetName, val: val });
+  }
+  let _ = matchToken(p, TSemicolon);
+  return Ok(StmtExpr { expr: expr });
+}
+
+/// Parses a function declaration item including parameter list, return type annotation, and body.
+/// - `p`: Parser instance.
+/// - `isExported`: Boolean flag indicating if the function was declared with `export`.
+/// - Returns: `Ok(ItemNode)` representing `ItemFunction`.
+export fn parseFunction(p: Parser, isExported: Bool): Result<ItemNode, String> {
+  advance(p); // fn
+  let name = expectIdent(p)?;
+  matchToken(p, TLParen);
+  let mut params = [];
+  while (peek(p) != TRParen && peek(p) != TEof) {
+    let pname = expectIdent(p)?;
+    let mut pannot = None;
+    if (matchToken(p, TColon)) {
+      let pt = parseType(p)?;
+      pannot = Some(pt);
+    }
+    params.push({ name: pname, annot: pannot, defaultVal: None });
+    if (!matchToken(p, TComma)) {
+      break;
+    }
+  }
+  matchToken(p, TRParen);
+
+  let mut returnType = None;
+  if (matchToken(p, TColon) || matchToken(p, TArrow)) {
+    let rt = parseType(p)?;
+    returnType = Some(rt);
+  }
+
+  let body = if (matchToken(p, TFatArrow)) {
+    parseExpr(p)?
+  } else {
+    parseBlockExpr(p)?
+  };
+
+  return Ok(ItemFunction {
+    name: name,
+    isExported: isExported,
+    isAsync: false,
+    params: params,
+    returnType: returnType,
+    body: body
+  });
+}
+
+/// Parses an entire stream of tokens into a complete root `ModuleNode`.
+/// - `tokens`: Complete token sequence from `tokenize()`.
+/// - Returns: `Ok(ModuleNode)` representing the parsed compilation unit.
+export fn parseModule(tokens: List<Token>): Result<ModuleNode, String> {
+  let p = createParser(tokens);
+  let mut items = [];
+  let mut modName = None;
+
+  if (matchToken(p, TModule)) {
+    let mn = expectIdent(p)?;
+    modName = Some(mn);
+  }
+
+  while (peek(p) != TEof) {
+    let isExported = matchToken(p, TExport);
+    if (peek(p) == TFn) {
+      let f = parseFunction(p, isExported)?;
+      items.push(f);
+    } else if (peek(p) == TImport) {
+      advance(p); // import
+      matchToken(p, TLBrace);
+      let mut impItems = [];
+      while (peek(p) != TRBrace && peek(p) != TEof) {
+        let iname = expectIdent(p)?;
+        impItems.push(iname);
+        if (!matchToken(p, TComma)) {
+          break;
+        }
+      }
+      matchToken(p, TRBrace);
+      matchToken(p, TFrom);
+      let srcTok = advance(p);
+      let srcStr = match srcTok {
+        TString { value } => value,
+        _ => ""
+      };
+      items.push(ItemImport { source: srcStr, items: impItems });
+    } else {
+      let st = parseStatement(p)?;
+      items.push(ItemStmt { stmt: st });
+    }
+  }
+
+  return Ok({ name: modName, items: items });
+}

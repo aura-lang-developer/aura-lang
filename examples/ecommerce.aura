@@ -1,0 +1,76 @@
+module Commerce.OrderProcessor
+
+export type OrderStatus =
+| Pending
+| Processing {progress: Float}
+| Shipped {trackingCode: String, estimatedDelivery: String}
+| Delivered
+| Cancelled {reason: String}
+
+export type Customer = {
+  id: String,
+  name: String,
+  loyaltyYears: Int,
+  isVip: Bool
+}
+
+export type OrderItem = {
+  productId: String,
+  quantity: Int,
+  unitPrice: Float
+}
+
+export type Order = {
+  orderId: String,
+  customer: Customer,
+  items: List<OrderItem>,
+  subtotal: Float,
+  status: OrderStatus
+}
+
+// Pure Functional calculation with Pattern Matching
+export fn calculateDiscount(customer: Customer, subtotal: Float): Float => {
+  if (customer.isVip) {
+    return subtotal * 0.25;
+  }
+
+  if (customer.loyaltyYears >= 5) {
+    return subtotal * 0.15;
+  }
+
+  if (customer.loyaltyYears >= 2) {
+    return subtotal * 0.05;
+  }
+
+  0.0
+}
+
+// Tail-Call Optimized (TCO) list summation
+export fn calculateSubtotal(items: List<OrderItem>, acc: Float = 0.0): Float =>
+match items {
+  [] => acc,
+  [head, ...tail] => calculateSubtotal(tail, acc + (head.unitPrice * head.quantity))
+}
+
+export fn getStatusMessage(status: OrderStatus): String =>
+match status {
+  Pending => "Order received and pending confirmation.",
+  Processing {progress} => `Order in progress: ${progress * 100}% completed.`,
+  Shipped {trackingCode, estimatedDelivery} => `Shipped with code ${trackingCode}. ETA: ${estimatedDelivery}.`,
+  Delivered => "Package has been delivered successfully.",
+  Cancelled {reason} => `Order was cancelled. Reason: ${reason}`
+}
+
+export fn checkout(customer: Customer, items: List<OrderItem>): Order => {
+  let subtotal = calculateSubtotal(items, 0.0);
+  let discount = calculateDiscount(customer, subtotal);
+  let finalAmount = subtotal - discount;
+
+  {
+    orderId: "ORD-98234",
+    customer: customer,
+    items: items,
+    subtotal: finalAmount,
+    status: OrderStatus.Pending
+  }
+}

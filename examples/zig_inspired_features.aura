@@ -1,0 +1,112 @@
+// Zig-Inspired Features in Aura Lang
+// 1. errdefer: Conditional scope cleanup executed ONLY when returning an error or panicking
+// 2. packed struct: Compact, zero-padding binary layouts for low-level & network programming
+// 3. extern "C": Direct C foreign function declarations
+// 4. Cross-compilation: Build for target triples via `aurac build --target <triple>`
+
+// --- 1. Packed Structs (Bit-Level / Zero Padding Layout) ---
+export packed struct IPv4Header {
+    version_and_ihl: Uint8,
+    type_of_service: Uint8,
+    total_length: Uint16,
+    packet_id: Uint16,
+    flags_fragment_offset: Uint16,
+    time_to_live: Uint8,
+    protocol: Uint8,
+    header_checksum: Uint16,
+    src_ip: Uint32,
+    dst_ip: Uint32,
+};
+
+export type ArpHeader = packed struct {
+    hardware_type: Uint16,
+    protocol_type: Uint16,
+    hardware_size: Uint8,
+    protocol_size: Uint8,
+    opcode: Uint16,
+};
+
+// --- 2. errdefer: Transactional Rollback Semantics ---
+fn executeTransaction(shouldFail: Bool): Result<String, String> => {
+    println("  [Tx] 1. Acquiring database connection...");
+    defer println("  [Defer] Releasing database connection (always executed)");
+
+    println("  [Tx] 2. Beginning transaction...");
+    errdefer println("  [ErrDefer] Transaction rolled back! Reverting changes");
+
+    println("  [Tx] 3. Modifying user balance...");
+    if shouldFail {
+        println("  [Tx] Error encountered: insufficient funds!");
+        return Err("insufficient_funds");
+    }
+
+    println("  [Tx] 4. Committing transaction successfully...");
+    Ok("transfer_completed")
+}
+
+// Chained pipeline with '?' unwrapping and errdefer
+fn allocateAndProcess(step1Fail: Bool, step2Fail: Bool): Result<Int, String> => {
+    println("  [Pipeline] Allocating temporary buffer...");
+    defer println("  [Defer] Buffer deallocated");
+
+    errdefer println("  [ErrDefer] Pipeline failed: cleaning up intermediate state");
+
+    if step1Fail {
+        return Err("step 1 failed");
+    }
+
+    println("  [Pipeline] Step 1 passed, continuing...");
+
+    if step2Fail {
+        return Err("step 2 failed");
+    }
+
+    Ok(100)
+}
+
+// --- 3. Extern "C" Foreign Function Declarations ---
+extern "C" {
+    fn abs(n: Int): Int;
+}
+
+// --- Main Entrypoint ---
+export fn main(): Unit => {
+    println("=== Aura Lang: Zig-Inspired Features Demo ===");
+
+    // 1. Packed Struct demonstration
+    println("\n--- 1. Packed Structs ---");
+    let packet: ArpHeader = {
+        hardware_type: 1,
+        protocol_type: 2048,
+        hardware_size: 6,
+        protocol_size: 4,
+        opcode: 1,
+    };
+    println(`ARP Hardware Type: ${packet.hardware_type}, Opcode: ${packet.opcode}`);
+
+    // 2. Successful execution: errdefer is skipped, defer runs
+    println("\n--- 2. errdefer (Success Case: errdefer is skipped) ---");
+    let resSuccess = executeTransaction(false);
+    match resSuccess {
+        Ok(msg) => println(`Result: Success (${msg})`),
+        Err(e) => println(`Result: Error (${e})`),
+    };
+
+    // 3. Failing execution: errdefer is triggered, defer also runs in LIFO order
+    println("\n--- 3. errdefer (Failure Case: errdefer triggers rollback) ---");
+    let resFail = executeTransaction(true);
+    match resFail {
+        Ok(msg) => println(`Result: Success (${msg})`),
+        Err(e) => println(`Result: Handled error (${e})`),
+    };
+
+    // 4. Pipeline with '?' operator
+    println("\n--- 4. errdefer with '?' unwrap failure ---");
+    let pipeFail = allocateAndProcess(false, true);
+    match pipeFail {
+        Ok(val) => println(`Pipeline result: ${val}`),
+        Err(err) => println(`Pipeline error caught: ${err}`),
+    };
+
+    println("\n=== Demo completed successfully ===");
+};

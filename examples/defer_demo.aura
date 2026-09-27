@@ -1,0 +1,34 @@
+// Defer Statement in Aura Lang (Golang style LIFO cleanup)
+
+export fn simulateDatabaseQuery(): String => {
+  println("1. Connecting to database pool...");
+  defer println("4. Database connection released (defer 1 - LIFO last)");
+
+  println("2. Beginning transaction...");
+  defer println("3. Transaction committed / closed (defer 2 - LIFO first)");
+
+  println(">> Executing SQL: SELECT * FROM users");
+  return "Query executed successfully";
+};
+
+export fn runDeferWithEarlyReturn(shouldFail: Bool): String => {
+  println("Acquiring lock...");
+  defer println("Lock released automatically (defer executed even on return)");
+
+  if shouldFail {
+    println("Early exit condition hit!");
+    return "Early exit";
+  }
+
+  println("Normal execution path");
+  return "Normal exit";
+};
+
+export fn main(): Unit => {
+  println("--- Starting Defer Demo ---");
+  let res1 = simulateDatabaseQuery();
+  println(`Result 1: ${res1}`);
+
+  let res2 = runDeferWithEarlyReturn(false);
+  println(`Result 2: ${res2}`);
+};

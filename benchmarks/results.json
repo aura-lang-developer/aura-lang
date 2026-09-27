@@ -1,0 +1,237 @@
+{
+  "system_info": "Darwin arm64 (go version go1.27.1 darwin/arm64)",
+  "generated_at": "2026-09-25T12:38:27-03:00",
+  "binary_sizes": [
+    {
+      "name": "1. Fibonacci Recursivo (Fib 38 - CPU \u0026 Call Stack)",
+      "go_size_mb": 2.3175830841064453,
+      "go_stripped_size_mb": 1.5141620635986328,
+      "aura_size_mb": 1.7673568725585938,
+      "ratio_aura_to_go": 0.7625861979571732
+    },
+    {
+      "name": "2. Criba de Eratóstenes (2,000,000 Primos - Memoria y Bucles)",
+      "go_size_mb": 2.317598342895508,
+      "go_stripped_size_mb": 1.5141620635986328,
+      "aura_size_mb": 1.7675094604492188,
+      "ratio_aura_to_go": 0.7626470159798994
+    },
+    {
+      "name": "3. Pipeline de Datos Funcional (1,000,000 Elementos: Filter + Map + Sum)",
+      "go_size_mb": 2.317567825317383,
+      "go_stripped_size_mb": 1.5141620635986328,
+      "aura_size_mb": 1.7675018310546875,
+      "ratio_aura_to_go": 0.7626537664815201
+    },
+    {
+      "name": "4. Concurrencia CSP: Channel Ping-Pong (200,000 Mensajes)",
+      "go_size_mb": 2.334047317504883,
+      "go_stripped_size_mb": 1.5300312042236328,
+      "aura_size_mb": 5.064470291137695,
+      "ratio_aura_to_go": 2.1698233164148784
+    },
+    {
+      "name": "5. Spawn Masivo de Tareas (50,000 Fibers vs Goroutines)",
+      "go_size_mb": 2.333864212036133,
+      "go_stripped_size_mb": 1.5300159454345703,
+      "aura_size_mb": 5.064393997192383,
+      "ratio_aura_to_go": 2.169960861936374
+    },
+    {
+      "name": "6. Latencia Cold-Start (Inicio de Proceso a Salida)",
+      "go_size_mb": 2.3171558380126953,
+      "go_stripped_size_mb": 1.5141620635986328,
+      "aura_size_mb": 1.7671661376953125,
+      "ratio_aura_to_go": 0.7626444923147333
+    },
+    {
+      "name": "7. Sincronización Mutex (50,000 Operaciones Atómicas)",
+      "go_size_mb": 2.3338794708251953,
+      "go_stripped_size_mb": 1.5300312042236328,
+      "aura_size_mb": 5.064455032348633,
+      "ratio_aura_to_go": 2.1699728266421494
+    },
+    {
+      "name": "8. Almacenamiento KV Cache (50,000 Consultas Concurrentes)",
+      "go_size_mb": 2.3339099884033203,
+      "go_stripped_size_mb": 1.5300617218017578,
+      "aura_size_mb": 5.064470291137695,
+      "ratio_aura_to_go": 2.1699509905274503
+    },
+    {
+      "name": "9. Servidor HTTP / Microservicio REST",
+      "go_size_mb": 8.844987869262695,
+      "go_stripped_size_mb": 5.960969924926758,
+      "aura_size_mb": 1.7675552368164062,
+      "ratio_aura_to_go": 0.1998369317112186
+    }
+  ],
+  "build_times": [
+    {
+      "name": "1. Fibonacci Recursivo (Fib 38 - CPU \u0026 Call Stack)",
+      "aurac_check_ms": 434.641,
+      "aurac_compile_ms": 158.403,
+      "aurac_build_ms": 37.778,
+      "go_build_ms": 33.122
+    },
+    {
+      "name": "2. Criba de Eratóstenes (2,000,000 Primos - Memoria y Bucles)",
+      "aurac_check_ms": 6.391,
+      "aurac_compile_ms": 40.552,
+      "aurac_build_ms": 36.972,
+      "go_build_ms": 34.52
+    },
+    {
+      "name": "3. Pipeline de Datos Funcional (1,000,000 Elementos: Filter + Map + Sum)",
+      "aurac_check_ms": 4.944,
+      "aurac_compile_ms": 38.625,
+      "aurac_build_ms": 36.092,
+      "go_build_ms": 34.69
+    },
+    {
+      "name": "4. Concurrencia CSP: Channel Ping-Pong (200,000 Mensajes)",
+      "aurac_check_ms": 5.994,
+      "aurac_compile_ms": 413.15,
+      "aurac_build_ms": 71.765,
+      "go_build_ms": 34.535
+    },
+    {
+      "name": "5. Spawn Masivo de Tareas (50,000 Fibers vs Goroutines)",
+      "aurac_check_ms": 4.759,
+      "aurac_compile_ms": 194.802,
+      "aurac_build_ms": 71.984,
+      "go_build_ms": 33.375
+    },
+    {
+      "name": "6. Latencia Cold-Start (Inicio de Proceso a Salida)",
+      "aurac_check_ms": 4.265,
+      "aurac_compile_ms": 39.666,
+      "aurac_build_ms": 39.258,
+      "go_build_ms": 35.935
+    },
+    {
+      "name": "7. Sincronización Mutex (50,000 Operaciones Atómicas)",
+      "aurac_check_ms": 4.782,
+      "aurac_compile_ms": 159.575,
+      "aurac_build_ms": 69.994,
+      "go_build_ms": 36.369
+    },
+    {
+      "name": "8. Almacenamiento KV Cache (50,000 Consultas Concurrentes)",
+      "aurac_check_ms": 5.618,
+      "aurac_compile_ms": 165.678,
+      "aurac_build_ms": 74.703,
+      "go_build_ms": 35.825
+    }
+  ],
+  "benchmarks": [
+    {
+      "name": "1. Fibonacci Recursivo (Fib 38 - CPU \u0026 Call Stack)",
+      "category": "CPU / Recursión",
+      "aura_time_ms": 127.414,
+      "go_time_ms": 91.498,
+      "aura_rss_mb": 2.84375,
+      "go_rss_mb": 3.96875,
+      "speedup_go": 1.3925331701239372,
+      "notes": ""
+    },
+    {
+      "name": "2. Criba de Eratóstenes (2,000,000 Primos - Memoria y Bucles)",
+      "category": "Cálculo Numérico / Arrays",
+      "aura_time_ms": 13.681,
+      "go_time_ms": 5.862,
+      "aura_rss_mb": 20.234375,
+      "go_rss_mb": 6.03125,
+      "speedup_go": 2.3338451040600474,
+      "notes": ""
+    },
+    {
+      "name": "3. Pipeline de Datos Funcional (1,000,000 Elementos: Filter + Map + Sum)",
+      "category": "Procesamiento de Colecciones",
+      "aura_time_ms": 8.206,
+      "go_time_ms": 4.132,
+      "aura_rss_mb": 20.234375,
+      "go_rss_mb": 20.046875,
+      "speedup_go": 1.9859632139399808,
+      "notes": ""
+    },
+    {
+      "name": "4. Concurrencia CSP: Channel Ping-Pong (200,000 Mensajes)",
+      "category": "Concurrencia CSP / Canales",
+      "aura_time_ms": 24.838,
+      "go_time_ms": 21.285,
+      "aura_rss_mb": 10.796875,
+      "go_rss_mb": 3.984375,
+      "speedup_go": 1.1669250645994833,
+      "notes": ""
+    },
+    {
+      "name": "5. Spawn Masivo de Tareas (50,000 Fibers vs Goroutines)",
+      "category": "Concurrencia / Dispatch",
+      "aura_time_ms": 12.405,
+      "go_time_ms": 10.745,
+      "aura_rss_mb": 11.65625,
+      "go_rss_mb": 6.421875,
+      "speedup_go": 1.1544904606793858,
+      "notes": ""
+    },
+    {
+      "name": "6. Latencia Cold-Start (Inicio de Proceso a Salida)",
+      "category": "Tiempo de Arranque (CLI)",
+      "aura_time_ms": 2.675,
+      "go_time_ms": 2.246,
+      "aura_rss_mb": 2.78125,
+      "go_rss_mb": 3.890625,
+      "speedup_go": 1.1910062333036509,
+      "notes": ""
+    },
+    {
+      "name": "7. Sincronización Mutex (50,000 Operaciones Atómicas)",
+      "category": "Sincronización / Mutex",
+      "aura_time_ms": 18.228,
+      "go_time_ms": 14.981,
+      "aura_rss_mb": 13.65625,
+      "go_rss_mb": 8.046875,
+      "speedup_go": 1.216741205527001,
+      "notes": ""
+    },
+    {
+      "name": "8. Almacenamiento KV Cache (50,000 Consultas Concurrentes)",
+      "category": "Estructuras de Datos / Cache",
+      "aura_time_ms": 17.261,
+      "go_time_ms": 15.649,
+      "aura_rss_mb": 15.515625,
+      "go_rss_mb": 9.921875,
+      "speedup_go": 1.1030097769825549,
+      "notes": ""
+    }
+  ],
+  "http_benchmark": [
+    {
+      "target": "Aura Standalone Server (:8091)",
+      "total_reqs": 10000,
+      "concurrency": 50,
+      "duration_sec": 0.081650542,
+      "req_per_sec": 122473.16129267089,
+      "latency_mean_ms": 0.3718751000000002,
+      "latency_p50_ms": 0.293,
+      "latency_p90_ms": 0.706,
+      "latency_p95_ms": 0.902,
+      "latency_p99_ms": 1.901,
+      "memory_rss_mb": 0
+    },
+    {
+      "target": "Go Native Server (:8092)",
+      "total_reqs": 10000,
+      "concurrency": 50,
+      "duration_sec": 0.128423333,
+      "req_per_sec": 77867.46976890873,
+      "latency_mean_ms": 0.6163681000000019,
+      "latency_p50_ms": 0.575,
+      "latency_p90_ms": 0.996,
+      "latency_p95_ms": 1.192,
+      "latency_p99_ms": 1.582,
+      "memory_rss_mb": 0
+    }
+  ]
+}

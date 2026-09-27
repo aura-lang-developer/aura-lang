@@ -1,0 +1,47 @@
+// Concurrencia con Aura Routines y Canales CSP (Go-Style)
+
+export async fn worker(id: Int, jobsCh: RecvChannel<String>, resultsCh: SendChannel<String>, wg: WaitGroup): Task<Unit, String> => {
+    routine {
+        for job in jobsCh {
+            println(`[Aura Routine #${id}] Procesando: ${job}`);
+            resultsCh <- `Resultado de ${job} (procesado por rutina #${id})`;
+        };
+        wg.done();
+    };
+};
+
+export async fn main(): Task<Unit, String> => {
+    println("--- Iniciando Concurrencia con Aura Routines ---");
+
+    let jobsCh = Channel.make<String>(10);
+    let resultsCh = Channel.make<String>(10);
+    let wg = WaitGroup.new();
+
+    // Lanzar 3 Aura Routines consumidoras
+    wg.add(3);
+    await worker(1, jobsCh, resultsCh, wg);
+    await worker(2, jobsCh, resultsCh, wg);
+    await worker(3, jobsCh, resultsCh, wg);
+
+    // Aura Routine productora
+    routine {
+        jobsCh <- "Tarea A: Analisis de datos";
+        jobsCh <- "Tarea B: Indexacion vectorial";
+        jobsCh <- "Tarea C: Calculo matricial";
+        jobsCh <- "Tarea D: Sincronizacion de red";
+        Channel.close(jobsCh);
+    };
+
+    // Aura Routine supervisora para cerrar resultados al completar los workers
+    routine {
+        await wg.wait();
+        Channel.close(resultsCh);
+    };
+
+    // Consumir los resultados en el hilo principal
+    for res in resultsCh {
+        println(`[Consumidor] Recibido: ${res}`);
+    };
+
+    println("--- Aura Routines completadas con éxito ---");
+};

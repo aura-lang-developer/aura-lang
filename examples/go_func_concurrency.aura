@@ -1,0 +1,102 @@
+// =============================================================================
+// Ejemplo de Concurrencia al estilo 'go func()' en Aura Language
+// =============================================================================
+// Aura soporta el modelo de concurrencia CSP (Communicating Sequential Processes)
+// inspirado directamente en Golang.
+//
+// En Go:
+//   go func() { ... }()
+//   go func(id int) { ... }(i)
+//
+// En Aura:
+//   go (fn() => { ... })()
+//   go (fn(id: Int) => { ... })(i)
+//   go { ... }  // Sintaxis ergonómica directa de Aura
+// =============================================================================
+
+export async fn main(): Task<Unit, String> => {
+  println("==========================================================");
+  println("  Aura CSP Concurrency: Formato 'go func()' (Goroutines)  ");
+  println("==========================================================");
+
+  let jobsCh = Channel.make<String>(5);
+  let resultsCh = Channel.make<String>(5);
+  let wg = WaitGroup.new();
+
+  // -------------------------------------------------------------------------
+  // 1. Goroutine Anónima Básica: estilo exacto 'go func() { ... }()'
+  // -------------------------------------------------------------------------
+  wg.add(1);
+  go(fn() => {
+    println("[go func #1] Goroutine anónima ejecutándose en background.");
+    jobsCh <- "Tarea Alfa";
+    jobsCh <- "Tarea Beta";
+    jobsCh <- "Tarea Gamma";
+    Channel.close(jobsCh);
+    wg.done();
+  })();
+
+  // -------------------------------------------------------------------------
+  // 2. Goroutine Anónima con Argumentos: estilo 'go func(id int) { ... }(i)'
+  //    (Paso de parámetros por valor para evitar problemas de captura)
+  // -------------------------------------------------------------------------
+  let workersCount = 2;
+  wg.add(workersCount);
+
+  for workerId in[1, 2] {
+    go(fn(id: Int) => {
+      println(`[go func worker #${id}] Iniciado y escuchando canal...`);
+      for job in jobsCh {
+        println(`[go func worker #${id}] Procesando: ${job}`);
+        resultsCh <- `OK: [${job}] completado por worker #${id}`;
+      };
+      println(`[go func worker #${id}] Finalizado.`);
+      wg.done();
+    })(workerId);
+  };
+
+  // -------------------------------------------------------------------------
+  // 3. Goroutine Supervisora con bloque 'go { ... }'
+  //    Espera a que todos los workers terminen y cierra el canal de resultados
+  // -------------------------------------------------------------------------
+  go {
+    await wg.wait();
+    Channel.close(resultsCh);
+    println("[Supervisor] Todos los workers terminaron. Canal cerrado.");
+  };
+
+  // -------------------------------------------------------------------------
+  // 4. Consumo de Resultados en el Hilo Principal
+  // -------------------------------------------------------------------------
+  for res in resultsCh {
+    println(`[Resultado Recibido] -> ${res}`);
+  };
+
+  // -------------------------------------------------------------------------
+  // 5. Multiplexación no bloqueante con 'select' y 'timeout'
+  // -------------------------------------------------------------------------
+  let alertCh = Channel.make<String>(1);
+
+  go(fn() => {
+    alertCh <- "Notificación del sistema recibida";
+  })();
+
+  select {
+    case msg = <-alertCh => {
+      match msg {
+        Some(txt) => println(`[Select] ${txt}`),
+        None => println("[Select] Canal de alertas cerrado"),
+      }
+    },
+    case timeout(500) => {
+      println("[Select] Timeout: No hubo respuesta en 500ms");
+    },
+    default => {
+      println("[Select] Ningún evento disponible inmediatamente");
+    }
+  };
+
+  println("==========================================================");
+  println("  Pipeline de concurrencia finalizado exitosamente        ");
+  println("==========================================================");
+};

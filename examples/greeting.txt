@@ -1,0 +1,2 @@
+Hello! This is a compile-time static template asset inlined by Aura Lang.
+Aura compiles static assets with zero runtime disk I/O overhead.

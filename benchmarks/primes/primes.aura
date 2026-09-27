@@ -1,0 +1,39 @@
+fn countPrimes(limit: Int): Int => {
+    let mut isPrime = [];
+    let mut i = 0;
+    while i <= limit {
+        isPrime.push(true);
+        i = i + 1;
+    };
+    
+    let mut count = 0;
+    let mut p = 2;
+    while p * p <= limit {
+        if isPrime[p] {
+            let mut multiple = p * p;
+            while multiple <= limit {
+                isPrime[multiple] = false;
+                multiple = multiple + p;
+            };
+        };
+        p = p + 1;
+    };
+
+    let mut k = 2;
+    while k <= limit {
+        if isPrime[k] {
+            count = count + 1;
+        };
+        k = k + 1;
+    };
+
+    count
+}
+
+export fn main(): Unit => {
+    let limit = 2000000;
+    let t0 = time.now();
+    let total = countPrimes(limit);
+    let dur = time.now() - t0;
+    println(`[AURA] Primes up to ${limit} = ${total} | Time: ${dur} ms`);
+}

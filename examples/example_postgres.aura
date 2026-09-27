@@ -1,0 +1,122 @@
+// ===============================================
+// Aura Lang PostgreSQL Database Integration Demo
+// ===============================================
+
+println("⚡ Aura Lang Native PostgreSQL Database Demo")
+
+// 1. Configure PostgreSQL Connection Pool
+let config: PgConfig = {
+  host: "localhost",
+  port: 5432,
+  user: "postgres",
+  password: "secret_password",
+  database: "aura_demo_db",
+  uri: "",
+  connectionLimit: 10
+}
+
+// 2. Initialize Database Pool (available via 'postgres' or 'pg')
+let db: PgPool = postgres.createPool(config)
+
+// 3. Define Async Database Operations
+async fn initializeDatabase(): Task<(), String> {
+  println("--- Creating Table ---")
+  let ddl = "CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        email VARCHAR(100) UNIQUE NOT NULL,
+        balance INT DEFAULT 0
+    )"
+
+  let createRes = await db.execute(ddl, [])
+  match createRes {
+    Ok(info) => println(`✓ Table ready. Command: ${info.command}`),
+    Err(err) => println(`✕ Failed to create table: ${err}`)
+  }
+
+  println("--- Inserting Sample Users with RETURNING id ---")
+  let insertAlice = await db.execute(
+    "INSERT INTO users (name, email, balance) VALUES ($1, $2, $3) ON CONFLICT (email) DO NOTHING RETURNING id",
+    ["Alice", "alice@aura-lang.org", 500]
+  )
+  match insertAlice {
+    Ok(res) => println(`✓ Inserted Alice (InsertId / RowCount: ${res.rowCount})`),
+    Err(err) => println(`✕ Insert error: ${err}`)
+  }
+
+  let insertBob = await db.execute(
+    "INSERT INTO users (name, email, balance) VALUES ($1, $2, $3) ON CONFLICT (email) DO NOTHING RETURNING id",
+    ["Bob", "bob@aura-lang.org", 300]
+  )
+  match insertBob {
+    Ok(res) => println(`✓ Inserted Bob (InsertId / RowCount: ${res.rowCount})`),
+    Err(err) => println(`✕ Insert error: ${err}`)
+  }
+}
+
+async fn queryUsers(): Task<(), String> {
+  println("--- Querying Users ---")
+  let result = await db.query("SELECT id, name, email, balance FROM users ORDER BY id ASC", [])
+  match result {
+    Ok(rows) => {
+      println(`✓ Found ${rows.length} users:`)
+      for u in rows {
+        println(`  - [ID: ${u.id}] ${u.name} <${u.email}> | Balance: $${u.balance}`)
+      }
+    },
+    Err(err) => println(`✕ Query failed: ${err}`)
+  }
+
+  println("--- Query Single User (queryRow) ---")
+  let singleResult = await db.queryRow("SELECT * FROM users WHERE email = $1", ["alice@aura-lang.org"])
+  match singleResult {
+    Ok(opt) => {
+      match opt {
+        Some(user) => println(`✓ Found user: ${user.name} (Balance: $${user.balance})`),
+        None => println("✕ User not found")
+      }
+    },
+    Err(err) => println(`✕ Query error: ${err}`)
+  }
+}
+
+async fn transferFunds(fromEmail: String, toEmail: String, amount: Int): Task<Bool, String> {
+  println(`--- Transferring $${amount} from ${fromEmail} to ${toEmail} ---`)
+  let txRes = await db.transaction(async fn(tx: PgTransaction): Task<(), String> {
+    let deduct = await tx.execute("UPDATE users SET balance = balance - $1 WHERE email = $2", [amount, fromEmail])
+    let add = await tx.execute("UPDATE users SET balance = balance + $1 WHERE email = $2", [amount, toEmail])
+  })
+
+  match txRes {
+    Ok(_) => {
+      println("✓ Transaction committed successfully!")
+      true
+    },
+    Err(err) => {
+      println(`✕ Transaction rolled back: ${err}`)
+      false
+    }
+  }
+}
+
+// 4. Run Demonstration Flow
+async fn main(): Task<(), String> {
+  // Utility helpers
+  let safeIdentifier = pg.escapeIdentifier("user_accounts")
+  println(`Safe SQL Identifier: ${safeIdentifier}`)
+
+  let escaped = pg.escapeLiteral("Alice'; DROP TABLE users; --")
+  println(`Safe SQL Escaped Literal: ${escaped}`)
+
+  let formatted = pg.format("SELECT * FROM users WHERE balance >= $1 AND name = $2", [100, "Alice"])
+  println(`Safe Parameter Formatted: ${formatted}`)
+
+  await initializeDatabase()
+  await queryUsers()
+  await transferFunds("alice@aura-lang.org", "bob@aura-lang.org", 50)
+  await queryUsers()
+  await db.close()
+  println("✓ PostgreSQL pool closed gracefully.")
+}
+
+main()

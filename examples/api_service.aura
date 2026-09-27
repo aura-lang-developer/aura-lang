@@ -1,0 +1,36 @@
+module Api.Service
+
+export type ServiceError =
+| NotFound {id: String}
+| Unauthorized
+| NetworkFailure {message: String}
+
+export type Session = {
+  token: String,
+  userId: String,
+  userName: String
+}
+
+export fn sanitizeName(name: String): String =>
+`User: ${name}`
+
+export fn authenticateUser(userId: String): Task<Result <Session , ServiceError>, ServiceError> => async {
+  let token = generateAuthToken(userId);
+  let response = await httpGet(`/api/v1/users/${userId}`);
+
+  let result = match response.status {
+    200 => {
+      let session = {
+        token: token,
+        userId: response.data.id,
+        userName: sanitizeName(response.data.name)
+      };
+      Ok(session)
+    },
+    401 => Err(Unauthorized),
+    404 => Err(NotFound {id: userId}),
+    _ => Err(NetworkFailure {message: response.statusText})
+  };
+
+  result
+}

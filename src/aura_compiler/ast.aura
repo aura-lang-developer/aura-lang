@@ -1,0 +1,281 @@
+module Aura.Compiler.Ast
+
+// -----------------------------------------------------------------------------
+// TOKENS & LEXICAL GRAMMAR
+// -----------------------------------------------------------------------------
+
+/// Enumeration representing all lexical token kinds recognized by the Aura Lexer.
+export type TokenKind =
+  | TFn
+  | TLet
+  | TMut
+  | TType
+  | TMatch
+  | TWhen
+  | TIf
+  | TElse
+  | TWhile
+  | TFor
+  | TIn
+  | TBreak
+  | TContinue
+  | TReturn
+  | TModule
+  | TExport
+  | TImport
+  | TFrom
+  | TSpawn
+  | TSelect
+  | TIdent { value: String }
+  | TInt { value: Int }
+  | TFloat { value: Float }
+  | TString { value: String }
+  | TBool { value: Bool }
+  | TPipe
+  | TFatArrow
+  | TArrow
+  | TArrowLeft
+  | TEqual
+  | TEqualEqual
+  | TNotEqual
+  | TLess
+  | TLessEqual
+  | TGreater
+  | TGreaterEqual
+  | TPlus
+  | TMinus
+  | TStar
+  | TSlash
+  | TPercent
+  | TAndAnd
+  | TOrOr
+  | TBang
+  | TPipeOp
+  | TQuestion
+  | TLParen
+  | TRParen
+  | TLBrace
+  | TRBrace
+  | TLBracket
+  | TRBracket
+  | TColon
+  | TComma
+  | TSemicolon
+  | TDot
+  | TUnderscore
+  | TEof
+
+/// Lexical token with source location coordinates for diagnostic reporting.
+/// - `kind`: The parsed token category and payload.
+/// - `line`: 1-indexed source line number.
+/// - `column`: 1-indexed source column position.
+export type Token = {
+  kind: TokenKind,
+  line: Int,
+  column: Int
+}
+
+// -----------------------------------------------------------------------------
+// AST TYPE EXPRESSIONS
+// -----------------------------------------------------------------------------
+
+/// Type representation nodes within type annotations and declarations.
+/// - `TyNamed`: Named type reference with optional generic arguments (e.g. `List<Int>`).
+/// - `TyFunction`: First-class function type signature with parameter types and return type.
+/// - `TyRecord`: Anonymous structural record type with key-type mappings.
+/// - `TyTuple`: Heterogeneous tuple type expression.
+/// - `TyUnit`: Unit type `()` indicating absence of value.
+export type TypeNode =
+  | TyNamed { name: String, args: List<TypeNode> }
+  | TyFunction { params: List<TypeNode>, returnType: TypeNode }
+  | TyRecord { fields: List<{ key: String, value: TypeNode }> }
+  | TyTuple { items: List<TypeNode> }
+  | TyUnit
+
+// -----------------------------------------------------------------------------
+// AST LITERAL VALUES & OPERATORS
+// -----------------------------------------------------------------------------
+
+/// Primitive literal constants represented in AST expressions.
+/// - `LitInt`: 64-bit integer literal (e.g. `42`).
+/// - `LitFloat`: 64-bit floating point literal (e.g. `3.14`).
+/// - `LitString`: UTF-8 string literal with optional template interpolation.
+/// - `LitBool`: Boolean literal value (`true` or `false`).
+/// - `LitUnit`: Unit literal `()`.
+export type LiteralValue =
+  | LitInt { val: Int }
+  | LitFloat { val: Float }
+  | LitString { val: String }
+  | LitBool { val: Bool }
+  | LitUnit
+
+/// Binary arithmetic, logical, relational, and equality operators.
+export type BinOperator =
+  | OpAdd
+  | OpSub
+  | OpMul
+  | OpDiv
+  | OpMod
+  | OpEq
+  | OpNeq
+  | OpLt
+  | OpLte
+  | OpGt
+  | OpGte
+  | OpAnd
+  | OpOr
+
+/// Unary prefix operators (negation and logical NOT).
+export type UnOperator =
+  | OpNeg
+  | OpNot
+
+// -----------------------------------------------------------------------------
+// PATTERN MATCHING NODES
+// -----------------------------------------------------------------------------
+
+/// Pattern matching targets destructured in `match` expressions.
+/// - `PatWildcard`: Wildcard pattern `_` matching any value without binding.
+/// - `PatVariable`: Variable binding pattern capturing value by name.
+/// - `PatLiteral`: Constant literal pattern matching exact primitive value.
+/// - `PatConstructor`: Variant constructor pattern with payload sub-patterns (e.g. `Some(x)`).
+/// - `PatList`: List destructuring pattern with optional rest parameter `[head, ...tail]`.
+/// - `PatRecord`: Record destructuring pattern matching named fields `{ id, name }`.
+export type PatternNode =
+  | PatWildcard
+  | PatVariable { name: String }
+  | PatLiteral { lit: LiteralValue }
+  | PatConstructor { name: String, args: List<PatternNode> }
+  | PatList { items: List<PatternNode>, rest: Option<String> }
+  | PatRecord { fields: List<{ key: String, pat: PatternNode }> }
+
+/// A single branch in a `match` expression.
+/// - `pattern`: Target pattern to match against subject.
+/// - `guard`: Optional boolean expression evaluated after pattern matches.
+/// - `body`: Expression executed and returned when pattern and guard succeed.
+export type MatchArmNode = {
+  pattern: PatternNode,
+  guard: Option<ExprNode>,
+  body: ExprNode
+}
+
+// -----------------------------------------------------------------------------
+// AST EXPRESSION NODES
+// -----------------------------------------------------------------------------
+
+/// Complete set of expression nodes evaluated in Aura.
+/// - `ExprLit`: Constant literal value expression.
+/// - `ExprIdent`: Variable or function identifier reference.
+/// - `ExprBinary`: Binary infix expression (`left op right`).
+/// - `ExprUnary`: Unary prefix expression (`op expr`).
+/// - `ExprPipe`: Pipeline operator expression (`left |> right`).
+/// - `ExprCall`: Function or method call invocation (`callee(args...)`).
+/// - `ExprMember`: Property or field access expression (`obj.field`).
+/// - `ExprIndex`: Collection indexing expression (`obj[index]`).
+/// - `ExprIf`: Conditional expression (`if cond => then else => else`).
+/// - `ExprWhile`: Iterative loop expression (`while cond { body }`).
+/// - `ExprForIn`: For-in loop over collection or channel (`for item in iter { body }`).
+/// - `ExprMatch`: Exhaustive pattern matching expression (`match subject { arms }`).
+/// - `ExprBlock`: Scoped sequence of statements yielding final expression value.
+/// - `ExprList`: Array or list literal expression (`[a, b, c]`).
+/// - `ExprRecord`: Anonymous record constructor (`{ key: val }`).
+/// - `ExprTry`: Try / unwrap operator expression (`inner?`).
+/// - `ExprReturn`: Explicit return expression (`return val`).
+/// - `ExprBreak`: Loop termination statement.
+/// - `ExprContinue`: Loop next iteration statement.
+export type ExprNode =
+  | ExprLit { lit: LiteralValue }
+  | ExprIdent { name: String }
+  | ExprBinary { op: BinOperator, left: ExprNode, right: ExprNode }
+  | ExprUnary { op: UnOperator, expr: ExprNode }
+  | ExprPipe { left: ExprNode, right: ExprNode }
+  | ExprCall { callee: ExprNode, args: List<ExprNode> }
+  | ExprMember { obj: ExprNode, field: String }
+  | ExprIndex { obj: ExprNode, index: ExprNode }
+  | ExprIf { cond: ExprNode, thenBranch: ExprNode, elseBranch: Option<ExprNode> }
+  | ExprWhile { cond: ExprNode, body: ExprNode }
+  | ExprForIn { indexName: Option<String>, varName: String, iter: ExprNode, body: ExprNode }
+  | ExprMatch { subject: ExprNode, arms: List<MatchArmNode> }
+  | ExprBlock { stmts: List<StmtNode> }
+  | ExprList { items: List<ExprNode> }
+  | ExprRecord { fields: List<{ key: String, value: ExprNode }> }
+  | ExprTry { inner: ExprNode }
+  | ExprReturn { val: Option<ExprNode> }
+  | ExprBreak
+  | ExprContinue
+
+// -----------------------------------------------------------------------------
+// AST STATEMENT NODES
+// -----------------------------------------------------------------------------
+
+/// Sequential execution statements executed within blocks or functions.
+/// - `StmtLet`: Variable binding (`let x = val` or `let mut x: T = val`).
+/// - `StmtExpr`: Expression evaluated purely for its side effects.
+/// - `StmtReturn`: Return statement with optional expression payload.
+/// - `StmtAssign`: Variable mutation statement (`target = val`).
+export type StmtNode =
+  | StmtLet { name: String, isMut: Bool, annot: Option<TypeNode>, val: ExprNode }
+  | StmtExpr { expr: ExprNode }
+  | StmtReturn { val: Option<ExprNode> }
+  | StmtAssign { target: String, val: ExprNode }
+
+// -----------------------------------------------------------------------------
+// MODULE ITEMS & DECLARATIONS
+// -----------------------------------------------------------------------------
+
+/// Parameter definition for function declarations and lambdas.
+/// - `name`: Parameter identifier name.
+/// - `annot`: Optional explicit type annotation.
+/// - `defaultVal`: Optional default expression if argument is omitted.
+export type ParamNode = {
+  name: String,
+  annot: Option<TypeNode>,
+  defaultVal: Option<ExprNode>
+}
+
+/// Sum type variant constructor definition.
+/// - `name`: Variant constructor identifier name.
+/// - `fields`: Ordered positional types contained in the variant payload.
+export type VariantNode = {
+  name: String,
+  fields: List<TypeNode>
+}
+
+/// Top-level module declarations and statements.
+/// - `ItemFunction`: Function declaration with parameters, return type, and body.
+/// - `ItemSumType`: Algebraic Data Type declaration with variant constructors.
+/// - `ItemTypeAlias`: Type alias definition mapped to an underlying type.
+/// - `ItemImport`: Module import declaration with source path and symbols.
+/// - `ItemStmt`: Top-level executable statement.
+export type ItemNode =
+  | ItemFunction {
+      name: String,
+      isExported: Bool,
+      isAsync: Bool,
+      params: List<ParamNode>,
+      returnType: Option<TypeNode>,
+      body: ExprNode
+    }
+  | ItemSumType {
+      name: String,
+      isExported: Bool,
+      variants: List<VariantNode>
+    }
+  | ItemTypeAlias {
+      name: String,
+      isExported: Bool,
+      target: TypeNode
+    }
+  | ItemImport {
+      source: String,
+      items: List<String>
+    }
+  | ItemStmt { stmt: StmtNode }
+
+/// Root AST node representing a compiled Aura source module.
+/// - `name`: Optional namespace identifier (e.g. `Aura.Compiler.Ast`).
+/// - `items`: List of declarations and top-level statements in the module.
+export type ModuleNode = {
+  name: Option<String>,
+  items: List<ItemNode>
+}

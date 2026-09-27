@@ -1,0 +1,203 @@
+// ==============================================================================
+// Aura Lang — Demostración del Modelo de Métodos Públicos y Privados de Golang
+// ==============================================================================
+// En Aura, siguiendo estrictamente el modelo de visibilidad de Go:
+// 1. Métodos Públicos (Exportados): Empiezan con MAYÚSCULA (PascalCase).
+//    - Son visibles fuera del módulo/paquete.
+//    - Se exportan automáticamente en las definiciones .d.ts y en binarios.
+//    - En transpilación Go generan 'func (r Recv) Method()'.
+// 2. Métodos Privados (No Exportados): Empiezan con MINÚSCULA (camelCase).
+//    - Son de ámbito interno al módulo/paquete (*package-scoped*).
+//    - No se exportan externamente.
+//    - En transpilación Go generan 'func (r Recv) method()'.
+// ==============================================================================
+
+// --- 1. Definición de Estructura de Dominio ---
+
+export struct BankAccount {
+  accountNumber: String,
+  owner: String,
+  balance: Float,
+  pinHash: String,
+  isFrozen: Bool
+};
+
+// --- 2. Métodos Públicos con Receptor (PascalCase) ---
+
+// Realizar depósito en la cuenta
+fn(b: * BankAccount)Deposit(amount: Float): Result<Float, String> => {
+  if (!b.validatePositiveAmount(amount)) {
+    return Err("El monto de depósito debe ser mayor a 0.");
+  }
+  if (b.isFrozen) {
+    return Err("La cuenta se encuentra congelada temporalmente.");
+  }
+
+  b.balance = b.balance + amount;
+  b.recordAudit(`Depósito exitoso de $${amount}`);
+  Ok(b.balance)
+}
+
+// Retirar fondos verificando PIN mediante método privado
+fn(b: * BankAccount)Withdraw(amount: Float, pin: String): Result<Float, String> => {
+  // Invocación a método privado interno
+  if (!b.verifyPin(pin)) {
+    b.recordAudit("Intento fallido de retiro: PIN incorrecto");
+    return Err("PIN de seguridad inválido.");
+  }
+  if (!b.validatePositiveAmount(amount)) {
+    return Err("El monto de retiro debe ser positivo.");
+  }
+  if (amount>b.balance) {
+    return Err(`Fondos insuficientes. Saldo actual: $${b.balance}`);
+  }
+
+  b.balance = b.balance - amount;
+  b.recordAudit(`Retiro exitoso de $${amount}`);
+  Ok(b.balance)
+}
+
+// Consultar saldo actual
+fn(b: BankAccount)GetBalance(): Float => b.balance;
+
+// Resumen del estado de la cuenta
+fn(b: BankAccount)Summary(): String => {
+  `[Cuenta: ${b.accountNumber}] Titular: ${b.owner} | Saldo: $${b.balance} | Estado: ${b.statusLabel()}`
+}
+
+// --- 3. Métodos Privados / Internos (camelCase) ---
+// Estos métodos son auxiliares internos de la lógica de negocio del paquete.
+
+fn(b: BankAccount)verifyPin(inputPin: String): Bool => {
+  // Validación interna de hash de credencial
+  b.pinHash == inputPin
+}
+
+fn(b: BankAccount)validatePositiveAmount(amount: Float): Bool => {
+  amount>0.0
+}
+
+fn(b: BankAccount)statusLabel(): String => {
+  if (b.isFrozen) {
+    "CONGELADA"
+  }else {
+    "ACTIVA"
+  }
+}
+
+fn(b: BankAccount)recordAudit(message: String): Unit => {
+  println(`  🔒 [AUDIT-LOG] [Cuenta: ${b.accountNumber}] ${message}`);
+}
+
+// --- 4. Interfaz Estructural Pública (Duck Typing estilo Go) ---
+
+export interface AccountSummary {
+  GetBalance(): Float;
+  Summary(): String;
+}
+
+fn printAccountStatement(acc: AccountSummary): Unit => {
+  println("--- Extracto Bancario Oficial ---");
+  println(acc.Summary());
+  println(`Saldo verificado: $${acc.GetBalance()}`);
+}
+
+// --- 5. Funciones Libres Públicas y Privadas & Funciones de Primer Orden ---
+
+// Función libre pública (PascalCase): exportada y accesible globalmente
+export fn CalculateFee(amount: Float, feePercent: Float): Float => {
+  roundTwoDecimals(amount * (feePercent / 100.0))
+}
+
+// Función libre privada (camelCase): auxiliar interno del paquete
+fn roundTwoDecimals(val: Float): Float => {
+  // Simulación de redondeo a dos decimales
+  val
+}
+
+// Función de primer orden / orden superior: recibe una función como argumento
+export fn ApplyTransactionFee(balance: Float, amount: Float, feePolicy: (Float, Float) -> Float): Float => {
+  let fee = feePolicy(amount, 1.5);
+  balance - amount - fee
+}
+
+// Función de primer orden: fabrica y retorna una clausura
+export fn MakeInterestCalculator(annualRate: Float): (Float) -> Float => {
+  let monthlyRate = annualRate / 12.0 / 100.0;
+  fn(principal: Float): Float => principal * monthlyRate
+}
+
+// --- 6. Punto de Entrada Principal ---
+
+export fn main(): Unit => {
+  println("==================================================================");
+  println("  🏛️  AURA LANG: MODELO GOLANG DE MÉTODOS PÚBLICOS Y PRIVADOS");
+  println("  ✨  INCLUYENDO FUNCIONES LIBRES Y DE PRIMER ORDEN (PASCALCASE)");
+  println("==================================================================");
+
+  let mut account: BankAccount = {
+    accountNumber: "CL-849201",
+    owner: "Ada Lovelace",
+    balance: 1500.0,
+    pinHash: "4321",
+    isFrozen: false
+  };
+
+  let p = & account;
+
+  // Invocación de Métodos Públicos
+  println("1. Consultando estado inicial con método público Summary():");
+  println(p.Summary());
+  println("");
+
+  println("2. Realizando depósito de $500.0 con método público Deposit():");
+  let depRes = p.Deposit(500.0);
+  match depRes {
+    Ok(newBal) => println(`✓ Depósito acreditado. Nuevo saldo: $${newBal}`),
+    Err(e) => println(`✕ Error: ${e}`)
+  }
+  println("");
+
+  println("3. Intentando retiro con PIN erróneo (probando método privado verifyPin):");
+  let badWithdraw = p.Withdraw(200.0, "0000");
+  match badWithdraw {
+    Ok(_) => println("✕ Error: no debió permitir el retiro"),
+    Err(e) => println(`✓ Validación esperada capturada: "${e}"`)
+  }
+  println("");
+
+  println("4. Realizando retiro legítimo de $300.0 con PIN correcto '4321':");
+  let goodWithdraw = p.Withdraw(300.0, "4321");
+  match goodWithdraw {
+    Ok(newBal) => println(`✓ Retiro completado con éxito. Nuevo saldo: $${newBal}`),
+    Err(e) => println(`✕ Error inesperado: ${e}`)
+  }
+  println("");
+
+  println("5. Verificando satisfacción de interfaz estructural con Duck Typing:");
+  printAccountStatement(account);
+  println("");
+
+  println("6. Funciones Libres (Standalone Functions) en PascalCase:");
+  let directFee = CalculateFee(1000.0, 2.5);
+  println(`✓ Comisión calculada con función libre pública CalculateFee: $${directFee}`);
+
+  println("7. Funciones de Primer Orden (First-Class Functions):");
+  // Pasar función libre como argumento
+  let postFeeBal = ApplyTransactionFee(account.GetBalance(), 100.0, CalculateFee);
+  println(`✓ Saldo tras aplicar comisión vía orden superior ApplyTransactionFee: $${postFeeBal}`);
+
+  // Asignar función a una variable con mayúscula y ejecutarla
+  let FeeStrategy = CalculateFee;
+  let customFee = FeeStrategy(200.0, 3.0);
+  println(`✓ Invocación de función almacenada en variable FeeStrategy: $${customFee}`);
+
+  // Retornar función desde otra función (Closure)
+  let calcMonthlyInterest = MakeInterestCalculator(6.0);
+  let interest = calcMonthlyInterest(account.GetBalance());
+  println(`✓ Interés mensual generado por closure generada: $${interest}`);
+
+  println("==================================================================");
+  println("  ✨ Modelo validado exitosamente en Aura y backends nativos.");
+  println("==================================================================");
+}

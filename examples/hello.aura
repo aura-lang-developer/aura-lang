@@ -1,0 +1,6 @@
+export fn greet(name: String): String {
+  let msg = `Hello ${name} from Self-Hosted Aura Compiler!`;
+  return msg;
+}
+
+println(greet("Developer"));

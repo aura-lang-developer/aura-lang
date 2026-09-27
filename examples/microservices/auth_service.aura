@@ -1,0 +1,353 @@
+// =============================================================================
+// Microservicio 2: Autenticación e Identidad (Auth Microservice)
+// =============================================================================
+// Modelo de Backend Golang en Aura con Structs, Tags JSON, Mutex y CSP Fibers.
+//
+// Compilar a binario ejecutable autónomo:
+//   aurac build examples/microservices/auth_service.aura -o auth-service
+//   ./auth-service
+//
+
+// --- 1. Definición de Modelos con Structs y Struct Tags ---
+
+struct User {
+    id: String `json:"id"`,
+    username: String `json:"username" validate:"required,min=3"`,
+    email: String `json:"email" validate:"required,email"`,
+    passwordHash: String `json:"password_hash"`,
+    role: String `json:"role"`,
+    createdAt: String `json:"created_at"`,
+    lastLoginAt: String `json:"last_login_at"`
+};
+
+struct RegisterRequest {
+    username: String `json:"username"`,
+    email: String `json:"email"`,
+    password: String `json:"password"`,
+    role: String `json:"role"`
+};
+
+struct LoginRequest {
+    username: String `json:"username"`,
+    password: String `json:"password"`
+};
+
+struct AuthToken {
+    accessToken: String `json:"access_token"`,
+    tokenType: String `json:"token_type"`,
+    expiresIn: Int `json:"expires_in"`,
+    userId: String `json:"user_id"`,
+    username: String `json:"username"`,
+    role: String `json:"role"`,
+    issuedAt: String `json:"issued_at"`
+};
+
+struct AuditLog {
+    id: String `json:"id"`,
+    action: String `json:"action"`,
+    userId: String `json:"user_id"`,
+    username: String `json:"username"`,
+    timestamp: String `json:"timestamp"`,
+    ipAddress: String `json:"ip_address"`,
+    status: String `json:"status"`
+};
+
+struct SecurityStats {
+    totalUsers: Int `json:"total_users"`,
+    activeSessions: Int `json:"active_sessions"`,
+    auditEventsCount: Int `json:"audit_events_count"`,
+    uptimeSeconds: Int `json:"uptime_seconds"`
+};
+
+// --- 2. Estado Global Thread-Safe ---
+
+let usersMutex = Mutex.new();
+let auditMutex = Mutex.new();
+
+let mut usersDb: List<User> = [
+    {
+        id: "usr-admin-1",
+        username: "admin",
+        email: "admin@aura.io",
+        passwordHash: "hash_admin_secret_2026",
+        role: "admin",
+        createdAt: "2026-09-01T00:00:00Z",
+        lastLoginAt: "2026-09-10T12:00:00Z"
+    },
+    {
+        id: "usr-dev-2",
+        username: "developer",
+        email: "dev@aura.io",
+        passwordHash: "hash_developer_pass",
+        role: "engineer",
+        createdAt: "2026-09-05T10:15:00Z",
+        lastLoginAt: "2026-09-10T18:40:00Z"
+    }
+];
+
+let mut auditLogsDb: List<AuditLog> = [];
+
+// Canal asíncrono para eventos de seguridad y auditoría (Go-style channel)
+let auditQueue = Channel.make(250);
+
+// Worker Fiber: procesa logs de auditoría de forma asíncrona sin bloquear peticiones HTTP
+spawn {
+    println("🔒 [Audit-Worker] Fiber de auditoría de seguridad iniciado.");
+    while (true) {
+        let event = <-auditQueue;
+        match event {
+            Some(ev) => {
+                auditMutex.lock();
+                auditLogsDb.push(ev);
+                auditMutex.unlock();
+                println(`🛡️ [Audit-Log] Evento registrado: ${ev.action} para usuario '${ev.username}' [Estado: ${ev.status}]`);
+            },
+            None => ()
+        }
+    }
+};
+
+// --- 3. Funciones Utilitarias Internas ---
+
+fn hashPassword(raw: String): String => {
+    `hash_${raw}_aura_salt`
+}
+
+fn generateSessionToken(usr: User): AuthToken => {
+    let nowStr = `${time.now()}`;
+    {
+        accessToken: `aura.jwt.${usr.id}.${time.now()}`,
+        tokenType: "Bearer",
+        expiresIn: 3600,
+        userId: usr.id,
+        username: usr.username,
+        role: usr.role,
+        issuedAt: nowStr
+    }
+}
+
+// --- 4. Configuración del Servidor HTTP (net/http ServeMux) ---
+
+let mux = http.newServeMux();
+
+// Middleware: Logging de Peticiones y Headers de Seguridad
+mux.use(fn(req: Any, res: Any, next: Any) => {
+    println(`[Auth-API] ${req.method} ${req.url}`);
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("X-Service-Name", "Aura-Auth-Microservice");
+    next();
+});
+
+// GET /healthz - Chequeo de Salud del Servicio
+mux.get("/healthz", fn(req: Any, res: Any) => {
+    http.json(res, http.StatusOK, {
+        service: "auth-service",
+        status: "UP",
+        runtime: "Aura Backend (Golang-Engine)",
+        timestamp: `${time.now()}`
+    });
+});
+
+// POST /api/auth/register - Registro de nuevo usuario
+mux.post("/api/auth/register", fn(req: Any, res: Any) => {
+    let body = req.body;
+    if (body == null) {
+        http.error(res, "El cuerpo de la petición no puede estar vacío", http.StatusBadRequest);
+        return ();
+    }
+
+    let username = body.username;
+    let email = body.email;
+    let password = body.password;
+    let rawRole = body.role;
+    let role = rawRole != null ? rawRole : "user";
+
+    if (username == null || email == null || password == null) {
+        http.error(res, "Los campos 'username', 'email' y 'password' son obligatorios", http.StatusBadRequest);
+        return ();
+    }
+
+    usersMutex.lock();
+    defer usersMutex.unlock();
+
+    // Validar si el usuario o email ya existe
+    let mut exists = false;
+    let mut i = 0;
+    while (i < usersDb.length) {
+        let u = usersDb[i];
+        if (u.username == username || u.email == email) {
+            exists = true;
+        }
+        i = i + 1;
+    }
+
+    if (exists) {
+        http.error(res, "El nombre de usuario o email ya se encuentra registrado", http.StatusConflict);
+        return ();
+    }
+
+    let newUser: User = {
+        id: `usr-${usersDb.length + 1}`,
+        username: username,
+        email: email,
+        passwordHash: hashPassword(password),
+        role: role,
+        createdAt: `${time.now()}`,
+        lastLoginAt: "never"
+    };
+
+    usersDb.push(newUser);
+
+    // Enviar evento de auditoría al canal de fondo
+    auditQueue <- {
+        id: `aud-${time.now()}`,
+        action: "USER_REGISTER",
+        userId: newUser.id,
+        username: newUser.username,
+        timestamp: `${time.now()}`,
+        ipAddress: "127.0.0.1",
+        status: "SUCCESS"
+    };
+
+    http.json(res, http.StatusCreated, {
+        success: true,
+        message: "Usuario registrado satisfactoriamente",
+        user: {
+            id: newUser.id,
+            username: newUser.username,
+            email: newUser.email,
+            role: newUser.role,
+            createdAt: newUser.createdAt
+        }
+    });
+});
+
+// POST /api/auth/login - Inicio de Sesión y Emisión de Token
+mux.post("/api/auth/login", fn(req: Any, res: Any) => {
+    let body = req.body;
+    if (body == null) {
+        http.error(res, "Credenciales requeridas", http.StatusBadRequest);
+        return ();
+    }
+
+    let username = body.username;
+    let password = body.password;
+
+    if (username == null || password == null) {
+        http.error(res, "Campos 'username' y 'password' requeridos", http.StatusBadRequest);
+        return ();
+    }
+
+    usersMutex.lock();
+    defer usersMutex.unlock();
+
+    let targetHash = hashPassword(password);
+    let mut authenticatedUser: Any = null;
+    let mut i = 0;
+
+    while (i < usersDb.length) {
+        let u = usersDb[i];
+        if (u.username == username && u.passwordHash == targetHash) {
+            usersDb[i].lastLoginAt = `${time.now()}`;
+            authenticatedUser = usersDb[i];
+        }
+        i = i + 1;
+    }
+
+    if (authenticatedUser == null) {
+        auditQueue <- {
+            id: `aud-${time.now()}`,
+            action: "LOGIN_FAILED",
+            userId: "anonymous",
+            username: username,
+            timestamp: `${time.now()}`,
+            ipAddress: "127.0.0.1",
+            status: "FAILED_INVALID_CREDENTIALS"
+        };
+        http.error(res, "Credenciales incorrectas", http.StatusUnauthorized);
+        return ();
+    }
+
+    let tokenResponse = generateSessionToken(authenticatedUser);
+
+    auditQueue <- {
+        id: `aud-${time.now()}`,
+        action: "LOGIN_SUCCESS",
+        userId: authenticatedUser.id,
+        username: authenticatedUser.username,
+        timestamp: `${time.now()}`,
+        ipAddress: "127.0.0.1",
+        status: "SUCCESS"
+    };
+
+    http.json(res, http.StatusOK, {
+        success: true,
+        auth: tokenResponse
+    });
+});
+
+// GET /api/auth/users - Lista sanitizada de usuarios (para administración)
+mux.get("/api/auth/users", fn(req: Any, res: Any) => {
+    usersMutex.lock();
+    defer usersMutex.unlock();
+
+    let mut sanitizedUsers: List<Any> = [];
+    let mut i = 0;
+    while (i < usersDb.length) {
+        let u = usersDb[i];
+        sanitizedUsers.push({
+            id: u.id,
+            username: u.username,
+            email: u.email,
+            role: u.role,
+            createdAt: u.createdAt,
+            lastLoginAt: u.lastLoginAt
+        });
+        i = i + 1;
+    }
+
+    http.json(res, http.StatusOK, {
+        total: sanitizedUsers.length,
+        users: sanitizedUsers
+    });
+});
+
+// GET /api/auth/audit - Registros de eventos de seguridad
+mux.get("/api/auth/audit", fn(req: Any, res: Any) => {
+    auditMutex.lock();
+    defer auditMutex.unlock();
+
+    http.json(res, http.StatusOK, {
+        total: auditLogsDb.length,
+        events: auditLogsDb
+    });
+});
+
+// GET /api/auth/stats - Estadísticas del servicio
+mux.get("/api/auth/stats", fn(req: Any, res: Any) => {
+    usersMutex.lock();
+    let totalUsers = usersDb.length;
+    usersMutex.unlock();
+
+    auditMutex.lock();
+    let auditCount = auditLogsDb.length;
+    auditMutex.unlock();
+
+    let stats: SecurityStats = {
+        totalUsers: totalUsers,
+        activeSessions: 4,
+        auditEventsCount: auditCount,
+        uptimeSeconds: 120
+    };
+
+    http.json(res, http.StatusOK, stats);
+});
+
+// --- 5. Inicialización del Servidor en el Puerto Designado ---
+
+let portEnv = os.env("PORT");
+let port = portEnv != "" ? portEnv : "8082";
+
+println(`🚀 Microservicio de Autenticación iniciado en http://localhost:${port}`);
+http.listenAndServe(`:${port}`, mux);

@@ -1,0 +1,12 @@
+http.handleFunc("/", fn(req: Any, res: Any) => {
+    res.writeHead(200)
+    res.end("Hello from Aura Lang Native HTTP Server!")
+})
+
+http.handleFunc("/json", fn(req: Any, res: Any) => {
+    res.setHeader("Content-Type", "application/json")
+    res.end("{\"message\": \"Hello JSON\"}")
+})
+
+println("Starting server on port 8080...")
+http.listenAndServe(":8080")

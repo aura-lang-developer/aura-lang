@@ -1,0 +1,45 @@
+// Concurrencia al estilo Go: Goroutines con 'go' y 'go (fn() => ... )()'
+
+export async fn worker(id: Int, jobsCh: RecvChannel<String>, resultsCh: SendChannel<String>, wg: WaitGroup): Task<Unit, String> => {
+    go {
+        for job in jobsCh {
+            println(`[Goroutine #${id}] Procesando: ${job}`);
+            resultsCh <- `OK [${job}] procesado por goroutine #${id}`;
+        };
+        wg.done();
+    };
+};
+
+export async fn main(): Task<Unit, String> => {
+    println("--- Iniciando Concurrencia con Goroutines ('go') en Aura ---");
+
+    let jobsCh = Channel.make<String>(10);
+    let resultsCh = Channel.make<String>(10);
+    let wg = WaitGroup.new();
+
+    // 1. Lanzar goroutines de funciones (estilo 'go worker(...)')
+    wg.add(2);
+    await worker(1, jobsCh, resultsCh, wg);
+    await worker(2, jobsCh, resultsCh, wg);
+
+    // 2. Goroutine productora con bloque directo: 'go { ... }'
+    go {
+        jobsCh <- "Microservicio Auth";
+        jobsCh <- "Microservicio Facturación";
+        jobsCh <- "Microservicio Inventario";
+        Channel.close(jobsCh);
+    };
+
+    // 3. Goroutine supervisora con función anónima: 'go (fn() => { ... })()' (estilo exacto 'go func()')
+    go (fn() => async {
+        await wg.wait();
+        Channel.close(resultsCh);
+    })();
+
+    // 4. Consumir resultados
+    for res in resultsCh {
+        println(`[Consumidor Principal] Recibido: ${res}`);
+    };
+
+    println("--- Todas las Goroutines finalizaron con éxito ---");
+};

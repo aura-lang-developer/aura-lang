@@ -1,0 +1,40 @@
+// End-to-End (E2E) Test Suite for Asynchronous Flow & Concurrency (CSP)
+
+export fn simulateAsyncFetch(userId: String): Task<String, String> => async {
+  await sleep(10);
+  `User profile for ${userId}`
+}
+
+export fn test_e2e_async_fetch(t: TestingT): Task<Unit, String> => async {
+  let profile = await simulateAsyncFetch("USR-99");
+  t.assertEqual(profile, "User profile for USR-99", "Async fetch returned correct profile");
+}
+
+export fn test_e2e_csp_channel_pipeline(t: TestingT): Task<Unit, String> => {
+  let ch = Channel.make<String>(5);
+  let wg = WaitGroup.new();
+  wg.add(1);
+
+  spawn {
+    ch <- "Message-1";
+    ch <- "Message-2";
+    wg.done();
+  };
+
+  let m1 = <-ch;
+  let val1 = match m1 {
+    Some(v) => v,
+    None => "empty"
+  };
+
+  let m2 = <-ch;
+  let val2 = match m2 {
+    Some(v) => v,
+    None => "empty"
+  };
+
+  await wg.wait();
+
+  t.assertEqual(val1, "Message-1", "First channel message");
+  t.assertEqual(val2, "Message-2", "Second channel message");
+}

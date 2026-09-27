@@ -1,0 +1,38 @@
+// Channel Range Iteration and Directional Channels in Aura Lang (Golang style CSP)
+
+// Producer: Restricted to send-only channel (SendChannel<T>)
+export fn producer(outCh: SendChannel<String>) => {
+    println("Producer: Sending items to channel...");
+    outCh <- "Task A: Fetching resources";
+    outCh <- "Task B: Compiling AST";
+    outCh <- "Task C: Emitting ES6";
+    outCh <- "Task D: Generating .d.ts";
+    
+    println("Producer: Finished, closing channel.");
+    Channel.close(outCh);
+};
+
+// Consumer: Consumes all items directly with a for-in loop until the channel is closed
+export fn consumer(inCh: RecvChannel<String>): Task<Unit, String> => {
+    println("Consumer: Starting channel iteration (for-in)...");
+    let mut count = 0;
+
+    for task in inCh {
+        count = count + 1;
+        println(`  [#${count}] Processed message: ${task}`);
+    };
+
+    println(`Consumer: Channel closed. Total processed: ${count} items.`);
+};
+
+// Orchestrator: Creates a bidirectional Channel<T> and passes it to directional handlers
+export fn runPipelineDemo(): Task<Unit, String> => {
+    let ch = Channel.make<String>(5);
+
+    spawn {
+        producer(ch);
+    };
+
+    await consumer(ch);
+    println("Pipeline completed successfully!");
+};

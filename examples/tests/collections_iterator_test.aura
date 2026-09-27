@@ -1,0 +1,45 @@
+// Unit Test for Array, List, and Iterator with map, filter, sort
+
+export fn test_array_methods(t: TestingT) => {
+  let numbers: Array<Int> = [10, 3, 15, 8, 2];
+  let evens = numbers.filter(fn(x: Int): Bool => x % 2 == 0);
+  let sortedEvens = evens.sort();
+  t.assertEqual(sortedEvens.length, 3, "should have 3 even numbers");
+  t.assertEqual(sortedEvens[0], 2, "first even is 2");
+  t.assertEqual(sortedEvens[1], 8, "second even is 8");
+  t.assertEqual(sortedEvens[2], 10, "third even is 10");
+}
+
+export fn test_pipeline_operations(t: TestingT) => {
+  let raw: List<Int> = [50, 20, 40, 10, 30];
+  let res = raw
+    |> filter(fn(x: Int): Bool => x >= 20)
+    |> map(fn(x: Int): Int => x / 10)
+    |> sort();
+
+  t.assertEqual(res.length, 4, "filtered length is 4");
+  t.assertEqual(res[0], 2, "res[0] is 2");
+  t.assertEqual(res[1], 3, "res[1] is 3");
+  t.assertEqual(res[2], 4, "res[2] is 4");
+  t.assertEqual(res[3], 5, "res[3] is 5");
+}
+
+export fn test_iterator_chaining(t: TestingT) => {
+  let it = iter([9, 1, 7, 3, 5]);
+  let list = it
+    .filter(fn(x: Int): Bool => x > 2)
+    .map(fn(x: Int): Int => x * 10)
+    .sort()
+    .toList();
+
+  t.assertEqual(list.length, 4, "iter list length is 4");
+  t.assertEqual(list[0], 30, "first is 30");
+  t.assertEqual(list[1], 50, "second is 50");
+  t.assertEqual(list[2], 70, "third is 70");
+  t.assertEqual(list[3], 90, "fourth is 90");
+}
+
+export fn benchmark_array_map_filter_sort(b: BenchmarkB) => {
+  let nums: Array<Int> = [9, 3, 1, 7, 4, 6, 2, 8, 5];
+  nums.filter(fn(x: Int): Bool => x > 3).map(fn(x: Int): Int => x * 2).sort()
+}

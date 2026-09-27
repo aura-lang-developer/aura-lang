@@ -1,0 +1,13 @@
+let mux = http.newServeMux();
+
+mux.get("/bench", fn(req: Any, res: Any) => {
+    http.json(res, http.StatusOK, {
+        status: "ok",
+        engine: "aura-lang",
+        time: time.now()
+    });
+});
+
+let port = os.env("PORT") != "" ? os.env("PORT") : "8091";
+println(`Aura HTTP server listening on :${port}`);
+mux.listenAndServe(`:${port}`);
