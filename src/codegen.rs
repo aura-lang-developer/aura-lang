@@ -189,7 +189,7 @@ const __aura_import = async (m) => {
             "  exit: (code) => { if (typeof process !== 'undefined') process.exit(code); },",
         );
         self.write_line("  readFile: (file) => fs.readFileSync(file, 'utf8'),");
-        self.write_line("  writeFile: (file, data) => fs.writeFileSync(file, data, 'utf8'),");
+        self.write_line("  writeFile: (file, data) => { const dir = path.dirname(file); if (dir && !fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(file, data, 'utf8'); },");
         self.write_line("  hostname: () => { try { return osMod.hostname(); } catch (_) { return 'localhost'; } },");
         self.write_line("});");
         self.write_line("");
@@ -2678,12 +2678,17 @@ const __aura_import = async (m) => {
                 items_str.push(item.name.clone());
             }
         }
-        let source_js = if (imp.source.starts_with("./") || imp.source.starts_with("../"))
-            && !imp.source.ends_with(".js")
-            && !imp.source.ends_with(".mjs")
-            && !imp.source.ends_with(".json")
-        {
-            format!("{}.mjs", imp.source)
+        let source_js = if imp.source.starts_with("./") || imp.source.starts_with("../") {
+            if imp.source.ends_with(".aura") {
+                format!("{}.mjs", &imp.source[..imp.source.len() - 5])
+            } else if !imp.source.ends_with(".js")
+                && !imp.source.ends_with(".mjs")
+                && !imp.source.ends_with(".json")
+            {
+                format!("{}.mjs", imp.source)
+            } else {
+                imp.source.clone()
+            }
         } else if let Some(resolved) =
             crate::package::resolve_package_import(&imp.source, self.base_path.as_deref())
         {

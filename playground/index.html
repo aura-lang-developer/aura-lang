@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Aura Language Online Playground</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 20px; background: #121214; color: #e1e1e6; }
+    h1 { color: #8257e6; }
+    .container { display: flex; gap: 20px; height: 80vh; }
+    .panel { flex: 1; display: flex; flex-direction: column; }
+    textarea { flex: 1; background: #202024; color: #fff; border: 1px solid #323238; border-radius: 8px; padding: 12px; font-family: monospace; font-size: 14px; resize: none; }
+    .output-panel { flex: 1; background: #202024; border: 1px solid #323238; border-radius: 8px; padding: 12px; font-family: monospace; white-space: pre-wrap; overflow-y: auto; }
+    .buttons { margin-bottom: 10px; display: flex; gap: 10px; }
+    button { background: #8257e6; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+    button:hover { background: #9466ff; }
+  </style>
+</head>
+<body>
+  <h1>⚡ Aura Language Online Playground</h1>
+  <p>Experience Aura: Pattern Matching, CSP Concurrency, Hindley-Milner Type Inference &amp; Zero-overhead native execution.</p>
+  <div class="buttons">
+    <button id="btn-run">Run</button>
+    <button id="btn-format">Format</button>
+    <button id="btn-ast">AST</button>
+  </div>
+  <div class="container">
+    <div class="panel">
+      <h3>Source Code (Aura)</h3>
+      <textarea id="code-input">// Aura Language Online Playground Demo
+export fn main(): Unit => {
+    println("Hello from Aura!");
+}
+</textarea>
+    </div>
+    <div class="panel">
+      <h3>Output / Diagnostics</h3>
+      <div id="console-output" class="output-panel">Ready.</div>
+    </div>
+  </div>
+</body>
+</html>

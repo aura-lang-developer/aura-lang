@@ -61,7 +61,8 @@ core::arch::global_asm!(
     "    popq %r12",
     "    popq %rbp",
     "    popq %rbx",
-    "    ret"
+    "    ret",
+    options(att_syntax)
 );
 
 unsafe extern "C" {
