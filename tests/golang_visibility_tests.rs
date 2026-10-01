@@ -3,7 +3,7 @@ use std::fs;
 use std::process::Command;
 
 // ==============================================================================
-// 1. HAPPY PATH TESTS (Casos Exitosos)
+// 1. HAPPY PATH TESTS (Success Cases)
 // ==============================================================================
 
 #[test]
@@ -246,7 +246,7 @@ fn test_happy_path_fluent_builder_chaining() {
 }
 
 // ==============================================================================
-// 2. SAD PATH TESTS (Casos de Error y Fallo)
+// 2. SAD PATH TESTS (Error & Failure Cases)
 // ==============================================================================
 
 #[test]
@@ -361,7 +361,7 @@ fn test_sad_path_invalid_argument_type_to_receiver_method() {
 }
 
 // ==============================================================================
-// 3. EDGE CASES TESTS (Casos Borde)
+// 3. EDGE CASES TESTS (Edge Cases)
 // ==============================================================================
 
 #[test]
@@ -618,7 +618,7 @@ fn test_edge_case_go_native_compilation_and_execution() {
 }
 
 // ==============================================================================
-// 4. STANDALONE FUNCTIONS & FIRST-ORDER FUNCTIONS (Funciones Libres y de Primer Orden)
+// 4. STANDALONE FUNCTIONS & FIRST-ORDER FUNCTIONS (Free & First-Class Functions)
 // ==============================================================================
 
 #[test]

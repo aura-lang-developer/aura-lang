@@ -1,61 +1,61 @@
-// Ejemplo de integración NoSQL en Aura Lang (MongoDB & Redis)
+// NoSQL Integration Example in Aura Lang (MongoDB & Redis)
 
-// 1. Configuración y acceso a MongoDB
+// 1. Setup and MongoDB access
 let mongoClient: MongoClient = mongodb.open("mongodb://localhost:27017/analytics_db")
 let mongoDb: MongoDatabase = mongoClient.db()
 let userEvents: MongoCollection = mongoDb.collection("user_events")
 
-// 2. Configuración y acceso a Redis
+// 2. Setup and Redis access
 let cache: RedisClient = redis.open("redis://127.0.0.1:6379")
 
 async fn recordUserActivity(userId: String, eventType: String): Task<Bool, String> {
-    // Almacenar en MongoDB (persistencia orientada a documentos)
-    let insertResult = await userEvents.insertOne({
-        userId: userId,
-        event: eventType,
-        timestamp: "2026-08-31T12:00:00Z"
-    })
+  // Store in MongoDB (document-oriented persistence)
+  let insertResult = await userEvents.insertOne({
+    userId: userId,
+    event: eventType,
+    timestamp: "2026-08-31T12:00:00Z"
+  })
 
-    match insertResult {
-        Ok(info) => println(`✓ Evento guardado en MongoDB con ID: ${info.insertedId}`),
-        Err(err) => println(`✕ Error MongoDB: ${err}`)
-    }
+  match insertResult {
+    Ok(info) => println(`✓ Event saved in MongoDB with ID: ${info.insertedId}`),
+    Err(err) => println(`✕ MongoDB error: ${err}`)
+  }
 
-    // Actualizar contadores y cache en Redis (alta velocidad y TTL)
-    let totalEvents = await cache.incr("analytics:total_events")
-    let userLastActive = await cache.set(`user:last_seen:${userId}`, eventType, 86400)
+  // Update counters and cache in Redis (high speed and TTL)
+  let totalEvents = await cache.incr("analytics:total_events")
+  let userLastActive = await cache.set(`user:last_seen:${userId}`, eventType, 86400)
 
-    // Consultar caché
-    let cachedSession = await cache.get(`session:${userId}`)
-    match cachedSession {
-        Ok(opt) => {
-            match opt {
-                Some(token) => println(`Sesión activa: ${token}`),
-                None => println("No hay sesión en caché")
-            }
-        },
-        Err(e) => println(`Error Redis: ${e}`)
-    }
+  // Query cache
+  let cachedSession = await cache.get(`session:${userId}`)
+  match cachedSession {
+    Ok(opt) => {
+      match opt {
+        Some(token) => println(`Active session: ${token}`),
+        None => println("No session found in cache")
+      }
+    },
+    Err(e) => println(`Redis error: ${e}`)
+  }
 
-    true
+  true
 }
 
 async fn runAggregations(): Task<(), String> {
-    // Pipeline de agregación en MongoDB
-    let aggRes = await userEvents.aggregate([
-        { "$match": { event: "login" } },
-        { "$group": { _id: "$userId", totalLogins: { "$sum": 1 } } }
-    ])
+  // Aggregation pipeline in MongoDB
+  let aggRes = await userEvents.aggregate([
+  {"$match": {event: "login"}},
+  {"$group": {_id: "$userId", totalLogins: {"$sum": 1}}}
+  ])
 
-    match aggRes {
-        Ok(results) => println(`Grupos agregados: ${results.length}`),
-        Err(e) => println(`Error agregación: ${e}`)
-    }
+  match aggRes {
+    Ok(results) => println(`Aggregated groups: ${results.length}`),
+    Err(e) => println(`Aggregation error: ${e}`)
+  }
 
-    // Consultar conteo de documentos
-    let countRes = await userEvents.countDocuments({ event: "login" })
-    match countRes {
-        Ok(c) => println(`Total logins: ${c}`),
-        Err(e) => println(`Error count: ${e}`)
-    }
+  // Query document count
+  let countRes = await userEvents.countDocuments({event: "login"})
+  match countRes {
+    Ok(c) => println(`Total logins: ${c}`),
+    Err(e) => println(`Count error: ${e}`)
+  }
 }

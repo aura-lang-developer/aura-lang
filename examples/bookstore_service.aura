@@ -1,9 +1,9 @@
 // ==============================================================================
 // Bookstore & Content Management REST API Service
-// Escrito en Aura Lang (Servicio del lado del Servidor)
+// Written in Aura Lang (Server-side Service)
 // ==============================================================================
 
-// --- Tipos del Dominio ---
+// --- Domain Types ---
 
 export type Author = {
   id: String,
@@ -64,39 +64,39 @@ export type SaleRecord = {
   status: String
 }
 
-// --- Base de Datos en Memoria y Semillas Iniciales (Seed Data) ---
+// --- In-Memory Database and Seed Data ---
 
 let mut authors: List<Any> = [
 {
   id: "aut-1",
   name: "Gabriel García Márquez",
   email: "gabo@literatura.lat",
-  nationality: "Colombiana",
-  biography: "Premio Nobel de Literatura en 1982 y figura central del realismo mágico.",
+  nationality: "Colombian",
+  biography: "Nobel Prize in Literature in 1982 and central figure of magical realism.",
   birthYear: 1927
 },
 {
   id: "aut-2",
   name: "Jorge Luis Borges",
   email: "borges@literatura.lat",
-  nationality: "Argentina",
-  biography: "Maestro del cuento fantástico, la erudición filosófica y la poesía.",
+  nationality: "Argentine",
+  biography: "Master of fantastic short stories, philosophical erudition, and poetry.",
   birthYear: 1899
 },
 {
   id: "aut-3",
   name: "Isabel Allende",
   email: "isabel@literatura.lat",
-  nationality: "Chilena",
-  biography: "Destacada escritora contemporánea de proyección internacional.",
+  nationality: "Chilean",
+  biography: "Prominent contemporary author with international acclaim.",
   birthYear: 1942
 },
 {
   id: "aut-4",
   name: "Mario Vargas Llosa",
   email: "mvll@literatura.lat",
-  nationality: "Peruana",
-  biography: "Premio Nobel de Literatura 2010 y novelista prolífico hispanoamericano.",
+  nationality: "Peruvian",
+  biography: "Nobel Prize in Literature 2010 and prolific Hispanic American novelist.",
   birthYear: 1936
 }
 ];
@@ -105,21 +105,21 @@ let mut editorials: List<Any> = [
 {
   id: "edt-1",
   name: "Editorial Sudamericana",
-  country: "Argentina",
+  country: "Argentine",
   foundedYear: 1939,
   website: "https://www.penguinrandomhouse.com/imprints/sudamericana"
 },
 {
   id: "edt-2",
   name: "Penguin Random House",
-  country: "España",
+  country: "Spain",
   foundedYear: 2013,
   website: "https://www.penguinrandomhouse.com"
 },
 {
   id: "edt-3",
   name: "Editorial Alfaguara",
-  country: "España",
+  country: "Spain",
   foundedYear: 1964,
   website: "https://www.alfaguara.com"
 }
@@ -134,7 +134,7 @@ let mut books: List<Any> = [
   editorialId: "edt-1",
   price: 24.99,
   stock: 30,
-  genre: "Realismo Mágico",
+  genre: "Magical Realism",
   publishedYear: 1967
 },
 {
@@ -145,7 +145,7 @@ let mut books: List<Any> = [
   editorialId: "edt-2",
   price: 19.50,
   stock: 15,
-  genre: "Novela Romántica",
+  genre: "Romantic Novel",
   publishedYear: 1985
 },
 {
@@ -156,7 +156,7 @@ let mut books: List<Any> = [
   editorialId: "edt-3",
   price: 18.00,
   stock: 20,
-  genre: "Ficción / Filosofía",
+  genre: "Fiction / Philosophy",
   publishedYear: 1944
 },
 {
@@ -167,7 +167,7 @@ let mut books: List<Any> = [
   editorialId: "edt-3",
   price: 17.50,
   stock: 12,
-  genre: "Cuentos Fantásticos",
+  genre: "Fantastic Tales",
   publishedYear: 1949
 },
 {
@@ -178,7 +178,7 @@ let mut books: List<Any> = [
   editorialId: "edt-1",
   price: 21.00,
   stock: 25,
-  genre: "Realismo Mágico",
+  genre: "Magical Realism",
   publishedYear: 1982
 },
 {
@@ -198,26 +198,26 @@ let mut articles: List<Any> = [
 {
   id: "art-1",
   title: "La alquimia del tiempo en Macondo",
-  summary: "Ensayo sobre la concepción cíclica del tiempo en la obra de García Márquez.",
-  content: "El tiempo en Macondo no avanza de forma estrictamente lineal, sino en espirales concéntricas...",
+  summary: "Essay on the cyclical conception of time in the work of García Márquez.",
+  content: "Time in Macondo does not move in a strictly linear manner, but in concentric spirals...",
   authorId: "aut-1",
-  topic: "Crítica Literaria",
+  topic: "Literary Criticism",
   publishedAt: "2024-03-15"
 },
 {
   id: "art-2",
   title: "Los laberintos del infinito y el espejo",
-  summary: "Reflexiones sobre la paradoja de Zenón y la geometría borgeana.",
-  content: "Borges construye en sus páginas laberintos no de piedra, sino de conceptos...",
+  summary: "Reflections on Zeno's paradox and Borgesian geometry.",
+  content: "Borges constructs in his pages labyrinths not of stone, but of concepts...",
   authorId: "aut-2",
-  topic: "Filosofía y Metafísica",
+  topic: "Philosophy and Metaphysics",
   publishedAt: "2024-05-20"
 },
 {
   id: "art-3",
-  title: "Memoria femenina e historia en América Latina",
-  summary: "El rol protagónico de las mujeres en las sagas familiares de Isabel Allende.",
-  content: "A través de personajes como Clara del Valle, se teje una historia alternativa de resistencia...",
+  title: "Female memory and history in Latin America",
+  summary: "The leading role of women in the family sagas of Isabel Allende.",
+  content: "Through characters like Clara del Valle, an alternative history of resistance is woven...",
   authorId: "aut-3",
   topic: "Estudios Culturales",
   publishedAt: "2024-07-10"
@@ -246,56 +246,56 @@ let mut sales: List<Any> = [
 }
 ];
 
-// Contadores para IDs automáticos
+// Counters for automatic IDs
 let mut nextAuthorId: Int = 10;
 let mut nextEditorialId: Int = 10;
 let mut nextBookId: Int = 10;
 let mut nextArticleId: Int = 10;
 let mut nextSaleId: Int = 1002;
 
-// --- Funciones de Búsqueda y Validación Auxiliares ---
+// --- Search and Validation Helper Functions ---
 
 fn findAuthor(id: String): Any => {
   let matched = authors.filter(fn(a: Any): Bool => a.id == id);
-  if (matched.length > 0) {
+  if (matched.length>0) {
     matched[0]
-  } else {
+  }else {
     ()
   }
 }
 
 fn findEditorial(id: String): Any => {
   let matched = editorials.filter(fn(e: Any): Bool => e.id == id);
-  if (matched.length > 0) {
+  if (matched.length>0) {
     matched[0]
-  } else {
+  }else {
     ()
   }
 }
 
 fn findBook(id: String): Any => {
   let matched = books.filter(fn(b: Any): Bool => b.id == id);
-  if (matched.length > 0) {
+  if (matched.length>0) {
     matched[0]
-  } else {
+  }else {
     ()
   }
 }
 
 fn findArticle(id: String): Any => {
   let matched = articles.filter(fn(a: Any): Bool => a.id == id);
-  if (matched.length > 0) {
+  if (matched.length>0) {
     matched[0]
-  } else {
+  }else {
     ()
   }
 }
 
 fn findSale(id: String): Any => {
   let matched = sales.filter(fn(s: Any): Bool => s.id == id);
-  if (matched.length > 0) {
+  if (matched.length>0) {
     matched[0]
-  } else {
+  }else {
     ()
   }
 }
@@ -315,8 +315,8 @@ fn getBooksByEditorial(editorialId: String): List<Any> => {
 fn enrichBook(b: Any): Any => {
   let author = findAuthor(b.authorId);
   let editorial = findEditorial(b.editorialId);
-  let authorName = if (author != ()) {author.name}else {"Autor Desconocido"};
-  let editorialName = if (editorial != ()) {editorial.name}else {"Editorial Desconocida"};
+  let authorName = if (author != ()) {author.name}else {"Unknown Author"};
+  let editorialName = if (editorial != ()) {editorial.name}else {"Unknown Publisher"};
 
   {
     id: b.id,
@@ -333,7 +333,7 @@ fn enrichBook(b: Any): Any => {
   }
 }
 
-// --- Creación del Mux y Middlewares ---
+// --- Mux Creation and Middlewares ---
 
 let mux = http.newServeMux();
 
@@ -355,7 +355,7 @@ mux.use(fn(req: Any, res: Any, next: Any) => {
 });
 
 // ==============================================================================
-// 1. ENDPOINTS GENERALES / DOCUMENTACIÓN / HEALTH CHECK
+// 1. GENERAL ENDPOINTS / DOCUMENTATION / HEALTH CHECK
 // ==============================================================================
 
 mux.get("/", fn(req: Any, res: Any) => {
@@ -363,7 +363,7 @@ mux.get("/", fn(req: Any, res: Any) => {
     service: "Aura Bookstore & Publishing REST API",
     version: "1.0.0",
     runtime: "Aura Lang Native Server",
-    description: "Servicio backend completo para gestión de libros, autores, editoriales, artículos y venta de libros.",
+    description: "Complete backend service for managing books, authors, publishers, articles, and book sales.",
     endpoints: {
       health: "GET /api/health",
       authors: {
@@ -422,7 +422,7 @@ mux.get("/api/health", fn(req: Any, res: Any) => {
 });
 
 // ==============================================================================
-// 2. GESTIÓN DE AUTORES (/api/authors)
+// 2. AUTHORS MANAGEMENT (/api/authors)
 // ==============================================================================
 
 mux.get("/api/authors", fn(req: Any, res: Any) => {
@@ -449,7 +449,7 @@ mux.get("/api/authors/:id", fn(req: Any, res: Any) => {
   if (author == ()) {
     http.json(res, http.StatusNotFound, {
       success: false,
-      error: `Autor con id '${authorId}' no encontrado`
+      error: `Author with id '${authorId}' not found`
     });
     return();
   }
@@ -505,14 +505,14 @@ mux.post("/api/authors", fn(req: Any, res: Any) => async {
 
       http.json(res, http.StatusCreated, {
         success: true,
-        message: "Autor registrado exitosamente",
+        message: "Author registered successfully",
         data: newAuthor
       });
     },
     Err(err) => {
       http.json(res, http.StatusBadRequest, {
         success: false,
-        error: `Payload JSON inválido: ${err}`
+        error: `Invalid JSON payload: ${err}`
       });
     }
   }
@@ -525,7 +525,7 @@ mux.put("/api/authors/:id", fn(req: Any, res: Any) => async {
   if (author == ()) {
     http.json(res, http.StatusNotFound, {
       success: false,
-      error: `Autor con id '${authorId}' no encontrado`
+      error: `Author with id '${authorId}' not found`
     });
     return();
   }
@@ -541,14 +541,14 @@ mux.put("/api/authors/:id", fn(req: Any, res: Any) => async {
 
       http.json(res, http.StatusOK, {
         success: true,
-        message: "Autor actualizado con éxito",
+        message: "Author updated successfully",
         data: author
       });
     },
     Err(err) => {
       http.json(res, http.StatusBadRequest, {
         success: false,
-        error: `Payload JSON inválido: ${err}`
+        error: `Invalid JSON payload: ${err}`
       });
     }
   }
@@ -561,17 +561,17 @@ mux.delete("/api/authors/:id", fn(req: Any, res: Any) => {
   if (author == ()) {
     http.json(res, http.StatusNotFound, {
       success: false,
-      error: `Autor con id '${authorId}' no encontrado`
+      error: `Author with id '${authorId}' not found`
     });
     return();
   }
 
-  // Validación de integridad: no borrar autor con libros o artículos registrados
+  // Integrity validation: do not delete author with registered books or articles
   let authorBooks = getBooksByAuthor(authorId);
   if (authorBooks.length>0) {
     http.json(res, http.StatusBadRequest, {
       success: false,
-      error: `No se puede eliminar el autor: tiene ${authorBooks.length} libro(s) asociado(s) en el catálogo.`
+      error: `Cannot delete author: has ${authorBooks.length} book(s) associated in the catalog.`
     });
     return();
   }
@@ -586,12 +586,12 @@ mux.delete("/api/authors/:id", fn(req: Any, res: Any) => {
 
   http.json(res, http.StatusOK, {
     success: true,
-    message: `Autor '${author.name}' (ID: ${authorId}) eliminado correctamente.`
+    message: `Author '${author.name}' (ID: ${authorId}) deleted successfully.`
   });
 });
 
 // ==============================================================================
-// 3. GESTIÓN DE EDITORIALES (/api/editorials)
+// 3. PUBLISHERS MANAGEMENT (/api/editorials)
 // ==============================================================================
 
 mux.get("/api/editorials", fn(req: Any, res: Any) => {
@@ -618,7 +618,7 @@ mux.get("/api/editorials/:id", fn(req: Any, res: Any) => {
   if (editorial == ()) {
     http.json(res, http.StatusNotFound, {
       success: false,
-      error: `Editorial con id '${editorialId}' no encontrada`
+      error: `Publisher with id '${editorialId}' not found`
     });
     return();
   }
@@ -670,14 +670,14 @@ mux.post("/api/editorials", fn(req: Any, res: Any) => async {
 
       http.json(res, http.StatusCreated, {
         success: true,
-        message: "Editorial registrada exitosamente",
+        message: "Publisher registered successfully",
         data: newEditorial
       });
     },
     Err(err) => {
       http.json(res, http.StatusBadRequest, {
         success: false,
-        error: `Payload JSON inválido: ${err}`
+        error: `Invalid JSON payload: ${err}`
       });
     }
   }
@@ -690,7 +690,7 @@ mux.put("/api/editorials/:id", fn(req: Any, res: Any) => async {
   if (editorial == ()) {
     http.json(res, http.StatusNotFound, {
       success: false,
-      error: `Editorial con id '${editorialId}' no encontrada`
+      error: `Publisher with id '${editorialId}' not found`
     });
     return();
   }
@@ -705,14 +705,14 @@ mux.put("/api/editorials/:id", fn(req: Any, res: Any) => async {
 
       http.json(res, http.StatusOK, {
         success: true,
-        message: "Editorial actualizada con éxito",
+        message: "Publisher updated successfully",
         data: editorial
       });
     },
     Err(err) => {
       http.json(res, http.StatusBadRequest, {
         success: false,
-        error: `Payload JSON inválido: ${err}`
+        error: `Invalid JSON payload: ${err}`
       });
     }
   }
@@ -725,17 +725,17 @@ mux.delete("/api/editorials/:id", fn(req: Any, res: Any) => {
   if (editorial == ()) {
     http.json(res, http.StatusNotFound, {
       success: false,
-      error: `Editorial con id '${editorialId}' no encontrada`
+      error: `Publisher with id '${editorialId}' not found`
     });
     return();
   }
 
-  // Validación de integridad: no borrar editorial con libros asignados
+  // Integrity validation: do not delete publisher with assigned books
   let publishedBooks = getBooksByEditorial(editorialId);
   if (publishedBooks.length>0) {
     http.json(res, http.StatusBadRequest, {
       success: false,
-      error: `No se puede eliminar la editorial: tiene ${publishedBooks.length} libro(s) asociado(s) en el catálogo.`
+      error: `Cannot delete publisher: has ${publishedBooks.length} book(s) associated in the catalog.`
     });
     return();
   }
@@ -750,12 +750,12 @@ mux.delete("/api/editorials/:id", fn(req: Any, res: Any) => {
 
   http.json(res, http.StatusOK, {
     success: true,
-    message: `Editorial '${editorial.name}' (ID: ${editorialId}) eliminada correctamente.`
+    message: `Publisher '${editorial.name}' (ID: ${editorialId}) deleted successfully.`
   });
 });
 
 // ==============================================================================
-// 4. GESTIÓN DE LIBROS (/api/books)
+// 4. BOOKS MANAGEMENT (/api/books)
 // ==============================================================================
 
 mux.get("/api/books", fn(req: Any, res: Any) => {
@@ -766,20 +766,20 @@ mux.get("/api/books", fn(req: Any, res: Any) => {
   let inStockFilter = http.query(req, "inStock");
 
   let filtered = books
-    .filter(fn(b: Any): Bool => {
-      let matchGenre = genreFilter == "" || b.genre.toLowerCase() == genreFilter.toLowerCase();
-      let matchAuthor = authorFilter == "" || b.authorId == authorFilter;
-      let matchEditorial = editorialFilter == "" || b.editorialId == editorialFilter;
-      let matchStock = inStockFilter != "true" || b.stock > 0;
-      let matchSearch = if (search != "") {
-        let term = search.toLowerCase();
-        b.title.toLowerCase().includes(term) || b.isbn.toLowerCase().includes(term)
-      } else {
-        true
-      };
-      matchGenre && matchAuthor && matchEditorial && matchStock && matchSearch
-    })
-    .map(fn(b: Any): Any => enrichBook(b));
+  .filter(fn(b: Any): Bool => {
+    let matchGenre = genreFilter == "" || b.genre.toLowerCase() == genreFilter.toLowerCase();
+    let matchAuthor = authorFilter == "" || b.authorId == authorFilter;
+    let matchEditorial = editorialFilter == "" || b.editorialId == editorialFilter;
+    let matchStock = inStockFilter != "true" || b.stock>0;
+    let matchSearch = if (search != "") {
+      let term = search.toLowerCase();
+      b.title.toLowerCase().includes(term) || b.isbn.toLowerCase().includes(term)
+    }else {
+      true
+    };
+    matchGenre && matchAuthor && matchEditorial && matchStock && matchSearch
+  })
+  .map(fn(b: Any): Any => enrichBook(b));
 
   http.json(res, http.StatusOK, {
     success: true,
@@ -795,7 +795,7 @@ mux.get("/api/books/:id", fn(req: Any, res: Any) => {
   if (book == ()) {
     http.json(res, http.StatusNotFound, {
       success: false,
-      error: `Libro con id '${bookId}' no encontrado`
+      error: `Book with id '${bookId}' not found`
     });
     return();
   }
@@ -858,7 +858,7 @@ mux.post("/api/books", fn(req: Any, res: Any) => async {
       if (author == ()) {
         http.json(res, http.StatusBadRequest, {
           success: false,
-          error: `El autor con id '${body.authorId}' no existe en el sistema`
+          error: `El autor con id '${body.authorId}' does not exist en el sistema`
         });
         return();
       }
@@ -868,138 +868,138 @@ mux.post("/api/books", fn(req: Any, res: Any) => async {
       if (editorial == ()) {
         http.json(res, http.StatusBadRequest, {
           success: false,
-          error: `La editorial con id '${body.editorialId}' no existe en el sistema`
+          error: `La editorial con id '${body.editorialId}' does not exist en el sistema`
         });
         return();
       }
 
       let price = if (body.price != ()) {body.price}else {0.0};
       if (price<0.0) {
-        http .json (res , http .StatusBadRequest , {
-          success : false ,
-          error : "El precio del libro no puede ser negativo"
-        } );
+        http.json(res, http.StatusBadRequest, {
+          success: false,
+          error: "El precio del libro no puede ser negativo"
+        });
         return();
       }
 
-      let stock=if (body .stock != ()) {body .stock } else {0} ;
-      if (stock <0) {
-        http .json (res , http .StatusBadRequest , {
-          success : false ,
-          error : "El stock no puede ser negativo"
-        } );
+      let stock = if (body.stock != ()) {body.stock}else {0};
+      if (stock<0) {
+        http.json(res, http.StatusBadRequest, {
+          success: false,
+          error: "El stock no puede ser negativo"
+        });
         return();
       }
 
-      nextBookId=nextBookId + 1;
-      let newId=`bk-${nextBookId}`;
-      let newBook= {
-        id : newId ,
-        title : body .title ,
-        isbn : body .isbn ,
-        authorId : body .authorId ,
-        editorialId : body .editorialId ,
-        price : price ,
-        stock : stock ,
-        genre : if (body .genre != ()) {body .genre } else {"General" } ,
-        publishedYear : if (body .publishedYear != ()) {body .publishedYear } else {2026}
-      } ;
+      nextBookId = nextBookId + 1;
+      let newId = `bk-${nextBookId}`;
+      let newBook = {
+        id: newId,
+        title: body.title,
+        isbn: body.isbn,
+        authorId: body.authorId,
+        editorialId: body.editorialId,
+        price: price,
+        stock: stock,
+        genre: if (body.genre != ()) {body.genre}else {"General"},
+        publishedYear: if (body.publishedYear != ()) {body.publishedYear}else {2026}
+      };
 
-      books .push (newBook );
+      books.push(newBook);
 
-      http .json (res , http .StatusCreated , {
-        success : true ,
-        message : "Libro registrado exitosamente" ,
-        data : enrichBook (newBook )
-      } );
-    } ,
-    Err (err ) => {
-      http .json (res , http .StatusBadRequest , {
-        success : false ,
-        error : `Payload JSON inválido: ${err}`
-      } );
+      http.json(res, http.StatusCreated, {
+        success: true,
+        message: "Book registered successfully",
+        data: enrichBook(newBook)
+      });
+    },
+    Err(err) => {
+      http.json(res, http.StatusBadRequest, {
+        success: false,
+        error: `Invalid JSON payload: ${err}`
+      });
     }
   }
-} );
+});
 
-mux .put ("/api/books/:id" , fn(req : Any , res : Any ) => async {
-  let bookId=http .pathValue (req , "id" );
-  let book=findBook (bookId );
+mux.put("/api/books/:id", fn(req: Any, res: Any) => async {
+  let bookId = http.pathValue(req, "id");
+  let book = findBook(bookId);
 
   if (book == ()) {
-    http .json (res , http .StatusNotFound , {
-      success : false ,
-      error : `Libro con id '${bookId}' no encontrado`
-    } );
+    http.json(res, http.StatusNotFound, {
+      success: false,
+      error: `Book with id '${bookId}' not found`
+    });
     return();
   }
 
-  let parseRes=await http .parseJson (req );
+  let parseRes = await http.parseJson(req);
   match parseRes {
-    Ok (body ) => {
-      if (body .title != ()) {book .title=body .title ; }
-      if (body .isbn != ()) {book .isbn=body .isbn ; }
-      if (body .price != ()) {
-        if (body .price <0.0) {
-          http .json (res , http .StatusBadRequest , {success : false , error : "El precio no puede ser negativo" } );
+    Ok(body) => {
+      if (body.title != ()) {book.title = body.title; }
+      if (body.isbn != ()) {book.isbn = body.isbn; }
+      if (body.price != ()) {
+        if (body.price<0.0) {
+          http.json(res, http.StatusBadRequest, {success: false, error: "El precio no puede ser negativo"});
           return();
         }
-        book .price=body .price ;
+        book.price = body.price;
       }
-      if (body .stock != ()) {
-        if (body .stock <0) {
-          http .json (res , http .StatusBadRequest , {success : false , error : "El stock no puede ser negativo" } );
+      if (body.stock != ()) {
+        if (body.stock<0) {
+          http.json(res, http.StatusBadRequest, {success: false, error: "El stock no puede ser negativo"});
           return();
         }
-        book .stock=body .stock ;
+        book.stock = body.stock;
       }
-      if (body .genre != ()) {book .genre=body .genre ; }
-      if (body .publishedYear != ()) {book .publishedYear=body .publishedYear ; }
-      if (body .authorId != ()) {
-        let author=findAuthor (body .authorId );
+      if (body.genre != ()) {book.genre = body.genre; }
+      if (body.publishedYear != ()) {book.publishedYear = body.publishedYear; }
+      if (body.authorId != ()) {
+        let author = findAuthor(body.authorId);
         if (author == ()) {
-          http .json (res , http .StatusBadRequest , {success : false , error : `Autor '${body.authorId}' no existe`} );
+          http.json(res, http.StatusBadRequest, {success: false, error: `Author '${body.authorId}' does not exist`});
           return();
         }
-        book .authorId=body .authorId ;
+        book.authorId = body.authorId;
       }
-      if (body .editorialId != ()) {
-        let editorial=findEditorial (body .editorialId );
+      if (body.editorialId != ()) {
+        let editorial = findEditorial(body.editorialId);
         if (editorial == ()) {
-          http .json (res , http .StatusBadRequest , {success : false , error : `Editorial '${body.editorialId}' no existe`} );
+          http.json(res, http.StatusBadRequest, {success: false, error: `Publisher '${body.editorialId}' does not exist`});
           return();
         }
-        book .editorialId=body .editorialId ;
+        book.editorialId = body.editorialId;
       }
 
-      http .json (res , http .StatusOK , {
-        success : true ,
-        message : "Libro actualizado con éxito" ,
-        data : enrichBook (book )
-      } );
-    } ,
-    Err (err ) => {
-      http .json (res , http .StatusBadRequest , {
-        success : false ,
-        error : `Payload JSON inválido: ${err}`
-      } );
+      http.json(res, http.StatusOK, {
+        success: true,
+        message: "Book updated successfully",
+        data: enrichBook(book)
+      });
+    },
+    Err(err) => {
+      http.json(res, http.StatusBadRequest, {
+        success: false,
+        error: `Invalid JSON payload: ${err}`
+      });
     }
   }
-} );
+});
 
-mux .delete ("/api/books/:id" , fn(req : Any , res : Any ) => {
-  let bookId=http .pathValue (req , "id" );
-  let book=findBook (bookId );
+mux.delete("/api/books/:id", fn(req: Any, res: Any) => {
+  let bookId = http.pathValue(req, "id");
+  let book = findBook(bookId);
 
   if (book == ()) {
-    http .json (res , http .StatusNotFound , {
-      success : false ,
-      error : `Libro con id '${bookId}' no encontrado`
-    } );
+    http.json(res, http.StatusNotFound, {
+      success: false,
+      error: `Book with id '${bookId}' not found`
+    });
     return();
   }
 
-  let mut newBooks : List <Any> = [];
+  let mut newBooks: List<Any> = [];
   for b in books {
     if (b.id != bookId) {
       newBooks.push(b);
@@ -1009,12 +1009,12 @@ mux .delete ("/api/books/:id" , fn(req : Any , res : Any ) => {
 
   http.json(res, http.StatusOK, {
     success: true,
-    message: `Libro '${book.title}' (ID: ${bookId}) eliminado correctamente del catálogo.`
+    message: `Book '${book.title}' (ID: ${bookId}) deleted successfully from catalog.`
   });
 });
 
 // ==============================================================================
-// 5. GESTIÓN DE ARTÍCULOS (/api/articles)
+// 5. ARTICLES MANAGEMENT (/api/articles)
 // ==============================================================================
 
 mux.get("/api/articles", fn(req: Any, res: Any) => {
@@ -1023,31 +1023,31 @@ mux.get("/api/articles", fn(req: Any, res: Any) => {
   let search = http.query(req, "search");
 
   let filtered = articles
-    .filter(fn(a: Any): Bool => {
-      let matchTopic = topicFilter == "" || a.topic.toLowerCase() == topicFilter.toLowerCase();
-      let matchAuthor = authorFilter == "" || a.authorId == authorFilter;
-      let matchSearch = if (search != "") {
-        let term = search.toLowerCase();
-        a.title.toLowerCase().includes(term) || a.summary.toLowerCase().includes(term)
-      } else {
-        true
-      };
-      matchTopic && matchAuthor && matchSearch
-    })
-    .map(fn(a: Any): Any => {
-      let author = findAuthor(a.authorId);
-      let authorName = if (author != ()) {author.name} else {"Desconocido"};
-      {
-        id: a.id,
-        title: a.title,
-        summary: a.summary,
-        content: a.content,
-        authorId: a.authorId,
-        authorName: authorName,
-        topic: a.topic,
-        publishedAt: a.publishedAt
-      }
-    });
+  .filter(fn(a: Any): Bool => {
+    let matchTopic = topicFilter == "" || a.topic.toLowerCase() == topicFilter.toLowerCase();
+    let matchAuthor = authorFilter == "" || a.authorId == authorFilter;
+    let matchSearch = if (search != "") {
+      let term = search.toLowerCase();
+      a.title.toLowerCase().includes(term) || a.summary.toLowerCase().includes(term)
+    }else {
+      true
+    };
+    matchTopic && matchAuthor && matchSearch
+  })
+  .map(fn(a: Any): Any => {
+    let author = findAuthor(a.authorId);
+    let authorName = if (author != ()) {author.name}else {"Desconocido"};
+    {
+      id: a.id,
+      title: a.title,
+      summary: a.summary,
+      content: a.content,
+      authorId: a.authorId,
+      authorName: authorName,
+      topic: a.topic,
+      publishedAt: a.publishedAt
+    }
+  });
 
   http.json(res, http.StatusOK, {
     success: true,
@@ -1063,7 +1063,7 @@ mux.get("/api/articles/:id", fn(req: Any, res: Any) => {
   if (article == ()) {
     http.json(res, http.StatusNotFound, {
       success: false,
-      error: `Artículo con id '${articleId}' no encontrado`
+      error: `Article with id '${articleId}' not found`
     });
     return();
   }
@@ -1109,7 +1109,7 @@ mux.post("/api/articles", fn(req: Any, res: Any) => async {
       if (author == ()) {
         http.json(res, http.StatusBadRequest, {
           success: false,
-          error: `El autor con id '${body.authorId}' no existe en el sistema`
+          error: `El autor con id '${body.authorId}' does not exist en el sistema`
         });
         return();
       }
@@ -1130,14 +1130,14 @@ mux.post("/api/articles", fn(req: Any, res: Any) => async {
 
       http.json(res, http.StatusCreated, {
         success: true,
-        message: "Artículo publicado exitosamente",
+        message: "Article published successfully",
         data: newArticle
       });
     },
     Err(err) => {
       http.json(res, http.StatusBadRequest, {
         success: false,
-        error: `Payload JSON inválido: ${err}`
+        error: `Invalid JSON payload: ${err}`
       });
     }
   }
@@ -1150,7 +1150,7 @@ mux.put("/api/articles/:id", fn(req: Any, res: Any) => async {
   if (article == ()) {
     http.json(res, http.StatusNotFound, {
       success: false,
-      error: `Artículo con id '${articleId}' no encontrado`
+      error: `Article with id '${articleId}' not found`
     });
     return();
   }
@@ -1165,7 +1165,7 @@ mux.put("/api/articles/:id", fn(req: Any, res: Any) => async {
       if (body.authorId != ()) {
         let author = findAuthor(body.authorId);
         if (author == ()) {
-          http.json(res, http.StatusBadRequest, {success: false, error: `Autor '${body.authorId}' no existe`});
+          http.json(res, http.StatusBadRequest, {success: false, error: `Author '${body.authorId}' does not exist`});
           return();
         }
         article.authorId = body.authorId;
@@ -1173,14 +1173,14 @@ mux.put("/api/articles/:id", fn(req: Any, res: Any) => async {
 
       http.json(res, http.StatusOK, {
         success: true,
-        message: "Artículo actualizado con éxito",
+        message: "Article updated successfully",
         data: article
       });
     },
     Err(err) => {
       http.json(res, http.StatusBadRequest, {
         success: false,
-        error: `Payload JSON inválido: ${err}`
+        error: `Invalid JSON payload: ${err}`
       });
     }
   }
@@ -1193,7 +1193,7 @@ mux.delete("/api/articles/:id", fn(req: Any, res: Any) => {
   if (article == ()) {
     http.json(res, http.StatusNotFound, {
       success: false,
-      error: `Artículo con id '${articleId}' no encontrado`
+      error: `Article with id '${articleId}' not found`
     });
     return();
   }
@@ -1208,7 +1208,7 @@ mux.delete("/api/articles/:id", fn(req: Any, res: Any) => {
 
   http.json(res, http.StatusOK, {
     success: true,
-    message: `Artículo '${article.title}' (ID: ${articleId}) eliminado correctamente.`
+    message: `Article '${article.title}' (ID: ${articleId}) deleted successfully.`
   });
 });
 
@@ -1216,14 +1216,14 @@ mux.delete("/api/articles/:id", fn(req: Any, res: Any) => {
 // 6. ENDPOINTS DE VENTA DE LIBROS (/api/books/:id/sell & /api/sales)
 // ==============================================================================
 
-// Función centralizada para ejecutar la venta de un libro
+// Centralized function to execute book sale
 fn executeBookSale(bookId: String, body: Any, res: Any) => {
   let book = findBook(bookId);
 
   if (book == ()) {
     http.json(res, http.StatusNotFound, {
       success: false,
-      error: `No se puede realizar la venta: el libro con ID '${bookId}' no existe`
+      error: `Cannot complete sale: book with ID '${bookId}' does not exist`
     });
     return();
   }
@@ -1237,115 +1237,115 @@ fn executeBookSale(bookId: String, body: Any, res: Any) => {
     return();
   }
 
-  if (book.stock<quantity ) {
-    http .json (res , http .StatusBadRequest , {
-      success : false ,
-      error : `Stock insuficiente para '${book.title}'. Stock disponible: ${book.stock}, cantidad solicitada: ${quantity}`
-    } );
+  if (book.stock<quantity) {
+    http.json(res, http.StatusBadRequest, {
+      success: false,
+      error: `Stock insuficiente para '${book.title}'. Stock disponible: ${book.stock}, cantidad solicitada: ${quantity}`
+    });
     return();
   }
 
-  let customerName=if (body .customerName != ()) {body .customerName } else {"Cliente Ocasional" } ;
-  let customerEmail=if (body .customerEmail != ()) {body .customerEmail } else {"cliente@ventas.lat" } ;
-  let paymentMethod=if (body .paymentMethod != ()) {body .paymentMethod } else {"CASH" } ;
-  let discountPercent=if (body .discountPercent != ()) {body .discountPercent } else {0.0} ;
+  let customerName = if (body.customerName != ()) {body.customerName}else {"Cliente Ocasional"};
+  let customerEmail = if (body.customerEmail != ()) {body.customerEmail}else {"cliente@ventas.lat"};
+  let paymentMethod = if (body.paymentMethod != ()) {body.paymentMethod}else {"CASH"};
+  let discountPercent = if (body.discountPercent != ()) {body.discountPercent}else {0.0};
 
-  // Cálculo financiero de la venta
-  let unitPrice=book .price ;
-  let subtotal=unitPrice * quantity ;
-  let discountAmount=subtotal * (discountPercent / 100.0);
-  let taxableAmount=subtotal - discountAmount ;
-  let taxPercent=19.0;// 19% IVA estándar
-  let taxAmount=taxableAmount * (taxPercent / 100.0);
-  let total=taxableAmount + taxAmount ;
+  // Financial calculation of the sale
+  let unitPrice = book.price;
+  let subtotal = unitPrice * quantity;
+  let discountAmount = subtotal * (discountPercent / 100.0);
+  let taxableAmount = subtotal - discountAmount;
+  let taxPercent = 19.0;// 19% standard VAT
+  let taxAmount = taxableAmount * (taxPercent / 100.0);
+  let total = taxableAmount + taxAmount;
 
-  // Descontar inventario atómicamente
-  book .stock=book .stock - quantity ;
+  // Deduct inventory atomically
+  book.stock = book.stock - quantity;
 
-  let author=findAuthor (book .authorId );
-  let authorName=if (author != ()) {author .name } else {"Autor Desconocido" } ;
+  let author = findAuthor(book.authorId);
+  let authorName = if (author != ()) {author.name}else {"Unknown Author"};
 
-  nextSaleId=nextSaleId + 1;
-  let saleId=`sale-${nextSaleId}`;
+  nextSaleId = nextSaleId + 1;
+  let saleId = `sale-${nextSaleId}`;
 
-  let receipt= {
-    id : saleId ,
-    bookId : book .id ,
-    bookTitle : book .title ,
-    authorName : authorName ,
-    quantity : quantity ,
-    unitPrice : unitPrice ,
-    subtotal : subtotal ,
-    discountPercent : discountPercent ,
-    discountAmount : discountAmount ,
-    taxPercent : taxPercent ,
-    taxAmount : taxAmount ,
-    total : total ,
-    customerName : customerName ,
-    customerEmail : customerEmail ,
-    paymentMethod : paymentMethod ,
-    timestamp : "2026-09-04T23:20:00Z" ,
-    status : "COMPLETED"
-  } ;
+  let receipt = {
+    id: saleId,
+    bookId: book.id,
+    bookTitle: book.title,
+    authorName: authorName,
+    quantity: quantity,
+    unitPrice: unitPrice,
+    subtotal: subtotal,
+    discountPercent: discountPercent,
+    discountAmount: discountAmount,
+    taxPercent: taxPercent,
+    taxAmount: taxAmount,
+    total: total,
+    customerName: customerName,
+    customerEmail: customerEmail,
+    paymentMethod: paymentMethod,
+    timestamp: "2026-09-04T23:20:00Z",
+    status: "COMPLETED"
+  };
 
-  sales .push (receipt );
+  sales.push(receipt);
 
-  println (`[VENTA] Libro '${book.title}' x${quantity} vendido a '${customerName}' ($${total}). Stock restante: ${book.stock}`);
+  println(`[SALE] Book '${book.title}' x${quantity} sold to '${customerName}' ($${total}). Stock restante: ${book.stock}`);
 
-  http .json (res , http .StatusCreated , {
-    success : true ,
-    message : `Venta #${saleId} procesada exitosamente`,
-    receipt : receipt ,
-    inventory : {
-      bookId : book .id ,
-      bookTitle : book .title ,
-      remainingStock : book .stock
+  http.json(res, http.StatusCreated, {
+    success: true,
+    message: `Venta #${saleId} procesada exitosamente`,
+    receipt: receipt,
+    inventory: {
+      bookId: book.id,
+      bookTitle: book.title,
+      remainingStock: book.stock
     }
-  } );
+  });
 }
 
-// Endpoint específico: Vender un libro por su ID en la URL
-mux .post ("/api/books/:id/sell" , fn(req : Any , res : Any ) => async {
-  let bookId=http .pathValue (req , "id" );
-  let parseRes=await http .parseJson (req );
+// Specific endpoint: Sell a book by its URL ID
+mux.post("/api/books/:id/sell", fn(req: Any, res: Any) => async {
+  let bookId = http.pathValue(req, "id");
+  let parseRes = await http.parseJson(req);
   match parseRes {
-    Ok (body ) => {
-      executeBookSale (bookId , body , res );
-    } ,
-    Err (_ ) => {
+    Ok(body) => {
+      executeBookSale(bookId, body, res);
+    },
+    Err(_) => {
       // Permitir venta sin body (compra por defecto de 1 unidad al contado)
-      executeBookSale (bookId , {} , res );
+      executeBookSale(bookId, {}, res);
     }
   }
-} );
+});
 
-// Endpoint general: Crear venta indicando el bookId en el body
-mux .post ("/api/sales" , fn(req : Any , res : Any ) => async {
-  let parseRes=await http .parseJson (req );
+// General endpoint: Create sale specifying bookId in request body
+mux.post("/api/sales", fn(req: Any, res: Any) => async {
+  let parseRes = await http.parseJson(req);
   match parseRes {
-    Ok (body ) => {
-      if (body .bookId == () || body .bookId == "" ) {
-        http .json (res , http .StatusBadRequest , {
-          success : false ,
-          error : "El campo 'bookId' es obligatorio en el cuerpo de la solicitud"
-        } );
+    Ok(body) => {
+      if (body.bookId == () || body.bookId == "") {
+        http.json(res, http.StatusBadRequest, {
+          success: false,
+          error: "El campo 'bookId' es obligatorio en el cuerpo de la solicitud"
+        });
         return();
       }
-      executeBookSale (body .bookId , body , res );
-    } ,
-    Err (err ) => {
-      http .json (res , http .StatusBadRequest , {
-        success : false ,
-        error : `Payload JSON inválido: ${err}`
-      } );
+      executeBookSale(body.bookId, body, res);
+    },
+    Err(err) => {
+      http.json(res, http.StatusBadRequest, {
+        success: false,
+        error: `Invalid JSON payload: ${err}`
+      });
     }
   }
-} );
+});
 
-// Listar todas las transacciones de venta
-mux .get ("/api/sales" , fn(req : Any , res : Any ) => {
-  let bookFilter=http .query (req , "bookId" );
-  let customerFilter=http .query (req , "customerEmail" );
+// List all sales transactions
+mux.get("/api/sales", fn(req: Any, res: Any) => {
+  let bookFilter = http.query(req, "bookId");
+  let customerFilter = http.query(req, "customerEmail");
 
   let filtered = sales.filter(fn(s: Any): Bool => {
     let matchBook = bookFilter == "" || s.bookId == bookFilter;
@@ -1360,7 +1360,7 @@ mux .get ("/api/sales" , fn(req : Any , res : Any ) => {
   });
 });
 
-// Resumen / Dashboard de métricas de ventas
+// Summary / Sales Metrics Dashboard
 mux.get("/api/sales/summary", fn(req: Any, res: Any) => {
   let mut totalSold = 0;
   let mut totalRevenue = 0.0;
@@ -1394,7 +1394,7 @@ mux.get("/api/sales/summary", fn(req: Any, res: Any) => {
   });
 });
 
-// Obtener comprobante de venta por ID
+// Get sales receipt by ID
 mux.get("/api/sales/:id", fn(req: Any, res: Any) => {
   let saleId = http.pathValue(req, "id");
   let sale = findSale(saleId);
@@ -1402,7 +1402,7 @@ mux.get("/api/sales/:id", fn(req: Any, res: Any) => {
   if (sale == ()) {
     http.json(res, http.StatusNotFound, {
       success: false,
-      error: `Comprobante de venta con id '${saleId}' no encontrado`
+      error: `Sales receipt with id '${saleId}' not found`
     });
     return();
   }
@@ -1414,22 +1414,22 @@ mux.get("/api/sales/:id", fn(req: Any, res: Any) => {
 });
 
 // ==============================================================================
-// 7. INICIALIZACIÓN Y ARRANQUE DEL SERVIDOR
+// 7. SERVER INITIALIZATION AND STARTUP
 // ==============================================================================
 
 let port: String = ":8080";
 println("==========================================================");
-println("🚀 AURA LANG REST API SERVER - LIBRERÍA & EDITORIAL");
+println("🚀 AURA LANG REST API SERVER - BOOKSTORE & PUBLISHER");
 println("==========================================================");
-println(`Servidor HTTP iniciado exitosamente en http://localhost${port}`);
+println(`HTTP Server started successfully on http://localhost${port}`);
 println("Endpoints disponibles:");
-println("  - Documentación:       GET  /");
+println("  - Documentation:       GET  /");
 println("  - Estado de salud:     GET  /api/health");
-println("  - Autores:             GET, POST /api/authors | GET, PUT, DELETE /api/authors/:id");
-println("  - Editoriales:         GET, POST /api/editorials | GET, PUT, DELETE /api/editorials/:id");
-println("  - Libros:              GET, POST /api/books | GET, PUT, DELETE /api/books/:id");
-println("  - Vender Libro:        POST /api/books/:id/sell");
-println("  - Artículos:           GET, POST /api/articles | GET, PUT, DELETE /api/articles/:id");
+println("  - Authors:             GET, POST /api/authors | GET, PUT, DELETE /api/authors/:id");
+println("  - Publishers:          GET, POST /api/editorials | GET, PUT, DELETE /api/editorials/:id");
+println("  - Books:               GET, POST /api/books | GET, PUT, DELETE /api/books/:id");
+println("  - Sell Book:           POST /api/books/:id/sell");
+println("  - Articles:            GET, POST /api/articles | GET, PUT, DELETE /api/articles/:id");
 println("  - Ventas:              GET, POST /api/sales | GET /api/sales/:id | GET /api/sales/summary");
 println("==========================================================");
 

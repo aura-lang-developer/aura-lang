@@ -1112,11 +1112,11 @@ func (auraJwtStatic) Verify(token, secret string) auraResult {
     h.Write([]byte(unsigned))
     expectedSig := base64.RawURLEncoding.EncodeToString(h.Sum(nil))
     if parts[2] != expectedSig {
-        return Err("Firma de token JWT inválida")
+        return Err("Invalid JWT token signature")
     }
     payloadBytes, err := base64.RawURLEncoding.DecodeString(parts[1])
     if err != nil {
-        return Err("No se pudo decodificar payload de token: " + err.Error())
+        return Err("Failed to decode token payload: " + err.Error())
     }
     var val any
     if err := json.Unmarshal(payloadBytes, &val); err != nil {

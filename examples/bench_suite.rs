@@ -8,9 +8,9 @@ use std::time::Instant;
 
 fn bench_stages(name: &str, source: &str) {
     println!("\n------------------------------------------------------------");
-    println!("  Análisis de Fases Internas del Compilador: {}", name);
+    println!("  Compiler Internal Phases Analysis: {}", name);
     println!(
-        "  Líneas de código: {} | Tamaño: {} bytes",
+        "  Lines of code: {} | Size: {} bytes",
         source.lines().count(),
         source.len()
     );
@@ -66,7 +66,7 @@ fn bench_stages(name: &str, source: &str) {
 
     let total_us = total_dur.as_micros() as f64;
     println!(
-        "  1. Lexer (Tokenización):       {:>8.2} µs ({:>5.1}%)",
+        "  1. Lexer (Tokenization):       {:>8.2} µs ({:>5.1}%)",
         lex_dur.as_micros() as f64,
         (lex_dur.as_micros() as f64 / total_us) * 100.0
     );
@@ -76,7 +76,7 @@ fn bench_stages(name: &str, source: &str) {
         (parse_dur.as_micros() as f64 / total_us) * 100.0
     );
     println!(
-        "  3. Typechecker (Inferencia):   {:>8.2} µs ({:>5.1}%)",
+        "  3. Typechecker (Inference):   {:>8.2} µs ({:>5.1}%)",
         tc_dur.as_micros() as f64,
         (tc_dur.as_micros() as f64 / total_us) * 100.0
     );
@@ -87,7 +87,7 @@ fn bench_stages(name: &str, source: &str) {
     );
     println!("  ----------------------------------------------------------");
     println!(
-        "  TOTAL Latencia Interna:        {:>8.2} µs ({:.3} ms)",
+        "  TOTAL Internal Latency:        {:>8.2} µs ({:.3} ms)",
         total_us,
         total_dur.as_secs_f64() * 1000.0
     );
@@ -95,14 +95,14 @@ fn bench_stages(name: &str, source: &str) {
     let loc = source.lines().count() as f64;
     let loc_per_sec = (loc / total_dur.as_secs_f64()) as u64;
     println!(
-        "  Throughput Motor Aura:         {:>8} Líneas/segundo",
+        "  Aura Engine Throughput:         {:>8} Lines/second",
         loc_per_sec
     );
 }
 
 fn bench_batch_scaling() {
     println!("\n============================================================");
-    println!("  ESCALABILIDAD EN MEMORIA: PROYECTOS MULTI-MÓDULO (AURA)");
+    println!("  IN-MEMORY SCALABILITY: MULTI-MODULE PROJECTS (AURA)");
     println!("============================================================");
 
     let base_module = r#"
@@ -155,7 +155,7 @@ export fn calculateTotal(events: List<EventType>, acc: Float = 0.0): Float =>
         let loc_per_sec = ((total_lines as f64) / dur.as_secs_f64()) as u64;
 
         println!(
-            "  - {:>4} Módulos ({:>5} LOC): {:>8.2} ms | Throughput: {:>9} LOC/s",
+            "  - {:>4} Modules ({:>5} LOC): {:>8.2} ms | Throughput: {:>9} LOC/s",
             count, total_lines, ms, loc_per_sec
         );
     }
@@ -163,7 +163,7 @@ export fn calculateTotal(events: List<EventType>, acc: Float = 0.0): Float =>
 
 fn main() {
     println!("============================================================");
-    println!("   MICRO-BENCHMARKS DE RENDIMIENTO: COMPILADOR AURA (aurac)  ");
+    println!("   PERFORMANCE MICRO-BENCHMARKS: AURA COMPILER (aurac)  ");
     println!("============================================================");
 
     let eco = fs::read_to_string("examples/ecommerce.aura").expect("ecommerce.aura");
@@ -178,7 +178,7 @@ fn main() {
 
     // Bench with DTS parsing
     println!("\n------------------------------------------------------------");
-    println!("  Análisis de Fases Internas: API Service con Ingesta .d.ts");
+    println!("  Internal Phases Analysis: API Service with .d.ts Ingestion");
     println!("------------------------------------------------------------");
     let dts_inputs = [("npm_packages.d.ts", dts.as_str())];
     let start = Instant::now();
@@ -187,12 +187,12 @@ fn main() {
     }
     let total_dur = start.elapsed() / 1000;
     println!(
-        "  TOTAL Latencia (Parsing DTS + Aura + Typecheck + Codegen): {:.3} ms ({:.1} µs)",
+        "  TOTAL Latency (DTS Parsing + Aura + Typecheck + Codegen): {:.3} ms ({:.1} µs)",
         total_dur.as_secs_f64() * 1000.0,
         total_dur.as_micros() as f64
     );
     println!(
-        "  Throughput: {:>8} Líneas/segundo",
+        "  Throughput: {:>8} Lines/second",
         ((api.lines().count() as f64) / total_dur.as_secs_f64()) as u64
     );
 

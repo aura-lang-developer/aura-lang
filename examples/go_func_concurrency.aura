@@ -1,22 +1,22 @@
 // =============================================================================
-// Ejemplo de Concurrencia al estilo 'go func()' en Aura Language
+// 'go func()' Style Concurrency Example in Aura Language
 // =============================================================================
-// Aura soporta el modelo de concurrencia CSP (Communicating Sequential Processes)
-// inspirado directamente en Golang.
+// Aura supports the CSP (Communicating Sequential Processes) concurrency model
+// inspired directly by Golang.
 //
-// En Go:
+// In Go:
 //   go func() { ... }()
 //   go func(id int) { ... }(i)
 //
-// En Aura:
+// In Aura:
 //   go (fn() => { ... })()
 //   go (fn(id: Int) => { ... })(i)
-//   go { ... }  // Sintaxis ergonómica directa de Aura
+//   go { ... }  // Direct ergonomic Aura syntax
 // =============================================================================
 
 export async fn main(): Task<Unit, String> => {
   println("==========================================================");
-  println("  Aura CSP Concurrency: Formato 'go func()' (Goroutines)  ");
+  println("  Aura CSP Concurrency: 'go func()' Format (Goroutines)   ");
   println("==========================================================");
 
   let jobsCh = Channel.make<String>(5);
@@ -24,79 +24,79 @@ export async fn main(): Task<Unit, String> => {
   let wg = WaitGroup.new();
 
   // -------------------------------------------------------------------------
-  // 1. Goroutine Anónima Básica: estilo exacto 'go func() { ... }()'
+  // 1. Basic Anonymous Goroutine: exact 'go func() { ... }()' style
   // -------------------------------------------------------------------------
   wg.add(1);
   go(fn() => {
-    println("[go func #1] Goroutine anónima ejecutándose en background.");
-    jobsCh <- "Tarea Alfa";
-    jobsCh <- "Tarea Beta";
-    jobsCh <- "Tarea Gamma";
+    println("[go func #1] Anonymous goroutine running in background.");
+    jobsCh <- "Task Alpha";
+    jobsCh <- "Task Beta";
+    jobsCh <- "Task Gamma";
     Channel.close(jobsCh);
     wg.done();
   })();
 
   // -------------------------------------------------------------------------
-  // 2. Goroutine Anónima con Argumentos: estilo 'go func(id int) { ... }(i)'
-  //    (Paso de parámetros por valor para evitar problemas de captura)
+  // 2. Anonymous Goroutine with Arguments: 'go func(id int) { ... }(i)' style
+  //    (Passing parameters by value to avoid variable capture issues)
   // -------------------------------------------------------------------------
   let workersCount = 2;
   wg.add(workersCount);
 
   for workerId in[1, 2] {
     go(fn(id: Int) => {
-      println(`[go func worker #${id}] Iniciado y escuchando canal...`);
+      println(`[go func worker #${id}] Started and listening on channel...`);
       for job in jobsCh {
-        println(`[go func worker #${id}] Procesando: ${job}`);
-        resultsCh <- `OK: [${job}] completado por worker #${id}`;
+        println(`[go func worker #${id}] Processing: ${job}`);
+        resultsCh <- `OK: [${job}] completed by worker #${id}`;
       };
-      println(`[go func worker #${id}] Finalizado.`);
+      println(`[go func worker #${id}] Finished.`);
       wg.done();
     })(workerId);
   };
 
   // -------------------------------------------------------------------------
-  // 3. Goroutine Supervisora con bloque 'go { ... }'
-  //    Espera a que todos los workers terminen y cierra el canal de resultados
+  // 3. Supervisor Goroutine with 'go { ... }' block
+  //    Waits for all workers to finish and closes the results channel
   // -------------------------------------------------------------------------
   go {
     await wg.wait();
     Channel.close(resultsCh);
-    println("[Supervisor] Todos los workers terminaron. Canal cerrado.");
+    println("[Supervisor] All workers finished. Channel closed.");
   };
 
   // -------------------------------------------------------------------------
-  // 4. Consumo de Resultados en el Hilo Principal
+  // 4. Result Consumption in Main Fiber
   // -------------------------------------------------------------------------
   for res in resultsCh {
-    println(`[Resultado Recibido] -> ${res}`);
+    println(`[Received Result] -> ${res}`);
   };
 
   // -------------------------------------------------------------------------
-  // 5. Multiplexación no bloqueante con 'select' y 'timeout'
+  // 5. Non-blocking multiplexing with 'select' and 'timeout'
   // -------------------------------------------------------------------------
   let alertCh = Channel.make<String>(1);
 
   go(fn() => {
-    alertCh <- "Notificación del sistema recibida";
+    alertCh <- "System notification received";
   })();
 
   select {
     case msg = <-alertCh => {
       match msg {
         Some(txt) => println(`[Select] ${txt}`),
-        None => println("[Select] Canal de alertas cerrado"),
+        None => println("[Select] Alert channel closed"),
       }
     },
     case timeout(500) => {
-      println("[Select] Timeout: No hubo respuesta en 500ms");
+      println("[Select] Timeout: No response within 500ms");
     },
     default => {
-      println("[Select] Ningún evento disponible inmediatamente");
+      println("[Select] No event available immediately");
     }
   };
 
   println("==========================================================");
-  println("  Pipeline de concurrencia finalizado exitosamente        ");
+  println("  Concurrency pipeline completed successfully             ");
   println("==========================================================");
 };

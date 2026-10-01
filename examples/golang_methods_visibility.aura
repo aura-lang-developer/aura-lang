@@ -1,18 +1,18 @@
 // ==============================================================================
-// Aura Lang — Demostración del Modelo de Métodos Públicos y Privados de Golang
+// Aura Lang — Golang Public and Private Methods Model Demonstration
 // ==============================================================================
-// En Aura, siguiendo estrictamente el modelo de visibilidad de Go:
-// 1. Métodos Públicos (Exportados): Empiezan con MAYÚSCULA (PascalCase).
-//    - Son visibles fuera del módulo/paquete.
-//    - Se exportan automáticamente en las definiciones .d.ts y en binarios.
-//    - En transpilación Go generan 'func (r Recv) Method()'.
-// 2. Métodos Privados (No Exportados): Empiezan con MINÚSCULA (camelCase).
-//    - Son de ámbito interno al módulo/paquete (*package-scoped*).
-//    - No se exportan externamente.
-//    - En transpilación Go generan 'func (r Recv) method()'.
+// In Aura, following Go's visibility model:
+// 1. Public Methods (Exported): Start with UPPERCASE (PascalCase).
+//    - Visible outside the module/package.
+//    - Automatically exported in .d.ts definitions and binary symbols.
+//    - In Go transpilation, they generate 'func (r Recv) Method()'.
+// 2. Private Methods (Unexported): Start with LOWERCASE (camelCase).
+//    - Package-scoped internal visibility.
+//    - Not exported externally.
+//    - In Go transpilation, they generate 'func (r Recv) method()'.
 // ==============================================================================
 
-// --- 1. Definición de Estructura de Dominio ---
+// --- 1. Domain Struct Definition ---
 
 export struct BankAccount {
   accountNumber: String,
@@ -22,54 +22,54 @@ export struct BankAccount {
   isFrozen: Bool
 };
 
-// --- 2. Métodos Públicos con Receptor (PascalCase) ---
+// --- 2. Public Methods with Receiver (PascalCase) ---
 
-// Realizar depósito en la cuenta
+// Deposit funds into account
 fn(b: * BankAccount)Deposit(amount: Float): Result<Float, String> => {
   if (!b.validatePositiveAmount(amount)) {
-    return Err("El monto de depósito debe ser mayor a 0.");
+    return Err("Deposit amount must be greater than 0.");
   }
   if (b.isFrozen) {
-    return Err("La cuenta se encuentra congelada temporalmente.");
+    return Err("The account is temporarily frozen.");
   }
 
   b.balance = b.balance + amount;
-  b.recordAudit(`Depósito exitoso de $${amount}`);
+  b.recordAudit(`Successful deposit of $${amount}`);
   Ok(b.balance)
 }
 
-// Retirar fondos verificando PIN mediante método privado
+// Withdraw funds verifying PIN through private method
 fn(b: * BankAccount)Withdraw(amount: Float, pin: String): Result<Float, String> => {
-  // Invocación a método privado interno
+  // Call internal private method
   if (!b.verifyPin(pin)) {
-    b.recordAudit("Intento fallido de retiro: PIN incorrecto");
-    return Err("PIN de seguridad inválido.");
+    b.recordAudit("Failed withdrawal attempt: invalid PIN");
+    return Err("Invalid security PIN.");
   }
   if (!b.validatePositiveAmount(amount)) {
-    return Err("El monto de retiro debe ser positivo.");
+    return Err("Withdrawal amount must be positive.");
   }
   if (amount>b.balance) {
-    return Err(`Fondos insuficientes. Saldo actual: $${b.balance}`);
+    return Err(`Insufficient funds. Current balance: $${b.balance}`);
   }
 
   b.balance = b.balance - amount;
-  b.recordAudit(`Retiro exitoso de $${amount}`);
+  b.recordAudit(`Successful withdrawal of $${amount}`);
   Ok(b.balance)
 }
 
-// Consultar saldo actual
+// Query current balance
 fn(b: BankAccount)GetBalance(): Float => b.balance;
 
-// Resumen del estado de la cuenta
+// Account status summary
 fn(b: BankAccount)Summary(): String => {
-  `[Cuenta: ${b.accountNumber}] Titular: ${b.owner} | Saldo: $${b.balance} | Estado: ${b.statusLabel()}`
+  `[Account: ${b.accountNumber}] Owner: ${b.owner} | Balance: $${b.balance} | Status: ${b.statusLabel()}`
 }
 
-// --- 3. Métodos Privados / Internos (camelCase) ---
-// Estos métodos son auxiliares internos de la lógica de negocio del paquete.
+// --- 3. Private / Internal Methods (camelCase) ---
+// These methods are internal package helpers for business logic.
 
 fn(b: BankAccount)verifyPin(inputPin: String): Bool => {
-  // Validación interna de hash de credencial
+  // Internal credential hash validation
   b.pinHash == inputPin
 }
 
@@ -79,17 +79,17 @@ fn(b: BankAccount)validatePositiveAmount(amount: Float): Bool => {
 
 fn(b: BankAccount)statusLabel(): String => {
   if (b.isFrozen) {
-    "CONGELADA"
+    "FROZEN"
   }else {
-    "ACTIVA"
+    "ACTIVE"
   }
 }
 
 fn(b: BankAccount)recordAudit(message: String): Unit => {
-  println(`  🔒 [AUDIT-LOG] [Cuenta: ${b.accountNumber}] ${message}`);
+  println(`  🔒 [AUDIT-LOG] [Account: ${b.accountNumber}] ${message}`);
 }
 
-// --- 4. Interfaz Estructural Pública (Duck Typing estilo Go) ---
+// --- 4. Public Structural Interface (Go-Style Duck Typing) ---
 
 export interface AccountSummary {
   GetBalance(): Float;
@@ -97,42 +97,42 @@ export interface AccountSummary {
 }
 
 fn printAccountStatement(acc: AccountSummary): Unit => {
-  println("--- Extracto Bancario Oficial ---");
+  println("--- Official Bank Statement ---");
   println(acc.Summary());
-  println(`Saldo verificado: $${acc.GetBalance()}`);
+  println(`Verified balance: $${acc.GetBalance()}`);
 }
 
-// --- 5. Funciones Libres Públicas y Privadas & Funciones de Primer Orden ---
+// --- 5. Public & Private Standalone Functions & First-Class Functions ---
 
-// Función libre pública (PascalCase): exportada y accesible globalmente
+// Public standalone function (PascalCase): exported and globally accessible
 export fn CalculateFee(amount: Float, feePercent: Float): Float => {
   roundTwoDecimals(amount * (feePercent / 100.0))
 }
 
-// Función libre privada (camelCase): auxiliar interno del paquete
+// Private standalone function (camelCase): internal package helper
 fn roundTwoDecimals(val: Float): Float => {
-  // Simulación de redondeo a dos decimales
+  // Two decimal rounding simulation
   val
 }
 
-// Función de primer orden / orden superior: recibe una función como argumento
+// Higher-order function: accepts a function as argument
 export fn ApplyTransactionFee(balance: Float, amount: Float, feePolicy: (Float, Float) -> Float): Float => {
   let fee = feePolicy(amount, 1.5);
   balance - amount - fee
 }
 
-// Función de primer orden: fabrica y retorna una clausura
+// First-class function factory: returns a closure
 export fn MakeInterestCalculator(annualRate: Float): (Float) -> Float => {
   let monthlyRate = annualRate / 12.0 / 100.0;
   fn(principal: Float): Float => principal * monthlyRate
 }
 
-// --- 6. Punto de Entrada Principal ---
+// --- 6. Main Entry Point ---
 
 export fn main(): Unit => {
   println("==================================================================");
-  println("  🏛️  AURA LANG: MODELO GOLANG DE MÉTODOS PÚBLICOS Y PRIVADOS");
-  println("  ✨  INCLUYENDO FUNCIONES LIBRES Y DE PRIMER ORDEN (PASCALCASE)");
+  println("  🏛️  AURA LANG: GOLANG PUBLIC AND PRIVATE METHODS MODEL");
+  println("  ✨  INCLUDING STANDALONE & FIRST-CLASS FUNCTIONS (PASCALCASE)");
   println("==================================================================");
 
   let mut account: BankAccount = {
@@ -145,59 +145,59 @@ export fn main(): Unit => {
 
   let p = & account;
 
-  // Invocación de Métodos Públicos
-  println("1. Consultando estado inicial con método público Summary():");
+  // Public Methods Invocation
+  println("1. Querying initial status with public method Summary():");
   println(p.Summary());
   println("");
 
-  println("2. Realizando depósito de $500.0 con método público Deposit():");
+  println("2. Making $500.0 deposit with public method Deposit():");
   let depRes = p.Deposit(500.0);
   match depRes {
-    Ok(newBal) => println(`✓ Depósito acreditado. Nuevo saldo: $${newBal}`),
+    Ok(newBal) => println(`✓ Deposit credited. New balance: $${newBal}`),
     Err(e) => println(`✕ Error: ${e}`)
   }
   println("");
 
-  println("3. Intentando retiro con PIN erróneo (probando método privado verifyPin):");
+  println("3. Attempting withdrawal with wrong PIN (testing private method verifyPin):");
   let badWithdraw = p.Withdraw(200.0, "0000");
   match badWithdraw {
-    Ok(_) => println("✕ Error: no debió permitir el retiro"),
-    Err(e) => println(`✓ Validación esperada capturada: "${e}"`)
+    Ok(_) => println("✕ Error: should not permit withdrawal"),
+    Err(e) => println(`✓ Expected validation caught: "${e}"`)
   }
   println("");
 
-  println("4. Realizando retiro legítimo de $300.0 con PIN correcto '4321':");
+  println("4. Making legitimate withdrawal of $300.0 with correct PIN '4321':");
   let goodWithdraw = p.Withdraw(300.0, "4321");
   match goodWithdraw {
-    Ok(newBal) => println(`✓ Retiro completado con éxito. Nuevo saldo: $${newBal}`),
-    Err(e) => println(`✕ Error inesperado: ${e}`)
+    Ok(newBal) => println(`✓ Withdrawal completed successfully. New balance: $${newBal}`),
+    Err(e) => println(`✕ Unexpected error: ${e}`)
   }
   println("");
 
-  println("5. Verificando satisfacción de interfaz estructural con Duck Typing:");
+  println("5. Verifying structural interface satisfaction with Duck Typing:");
   printAccountStatement(account);
   println("");
 
-  println("6. Funciones Libres (Standalone Functions) en PascalCase:");
+  println("6. Standalone Functions in PascalCase:");
   let directFee = CalculateFee(1000.0, 2.5);
-  println(`✓ Comisión calculada con función libre pública CalculateFee: $${directFee}`);
+  println(`✓ Fee calculated with public standalone function CalculateFee: $${directFee}`);
 
-  println("7. Funciones de Primer Orden (First-Class Functions):");
-  // Pasar función libre como argumento
+  println("7. First-Class Functions:");
+  // Pass standalone function as argument
   let postFeeBal = ApplyTransactionFee(account.GetBalance(), 100.0, CalculateFee);
-  println(`✓ Saldo tras aplicar comisión vía orden superior ApplyTransactionFee: $${postFeeBal}`);
+  println(`✓ Balance after fee via higher-order ApplyTransactionFee: $${postFeeBal}`);
 
-  // Asignar función a una variable con mayúscula y ejecutarla
+  // Assign function to capitalized variable and call it
   let FeeStrategy = CalculateFee;
   let customFee = FeeStrategy(200.0, 3.0);
-  println(`✓ Invocación de función almacenada en variable FeeStrategy: $${customFee}`);
+  println(`✓ Invocation of function stored in variable FeeStrategy: $${customFee}`);
 
-  // Retornar función desde otra función (Closure)
+  // Return function from function (Closure)
   let calcMonthlyInterest = MakeInterestCalculator(6.0);
   let interest = calcMonthlyInterest(account.GetBalance());
-  println(`✓ Interés mensual generado por closure generada: $${interest}`);
+  println(`✓ Monthly interest generated by closure: $${interest}`);
 
   println("==================================================================");
-  println("  ✨ Modelo validado exitosamente en Aura y backends nativos.");
+  println("  ✨ Model validated successfully in Aura and native backends.");
   println("==================================================================");
 }

@@ -1,75 +1,74 @@
 // ==============================================================================
-// Aura Backend: Demostración del Concepto de Slice (Modelo Golang)
+// Aura Backend: Slice Concept Demonstration (Golang Model)
 // ==============================================================================
-// En Aura, las colecciones secuenciales se adaptan directamente al modelo de
-// slices de Go:
-// 1. Sintaxis de tipo Go: `[]T` (equivalente a `List<T>` / `Array<T>`)
-// 2. Expresiones de rebanado: `s[low:high]`, `s[:high]`, `s[low:]`, `s[:]`, `s[low:high:max]`
-// 3. Funciones nativas: `len(s)`, `cap(s)`, `append(s, item)`
-// 4. Métodos y propiedades: `s.len`, `s.cap`, `s.length`, `s.capacity`, `s.push(item)`
-// 5. Rebanado de cadenas de texto: `"cadena"[inicio:fin]`
+// In Aura, sequential collections directly adhere to Go's slice model:
+// 1. Go type syntax: `[]T` (equivalent to `List<T>` / `Array<T>`)
+// 2. Slicing expressions: `s[low:high]`, `s[:high]`, `s[low:]`, `s[:]`, `s[low:high:max]`
+// 3. Built-in functions: `len(s)`, `cap(s)`, `append(s, item)`
+// 4. Methods and properties: `s.len`, `s.cap`, `s.length`, `s.capacity`, `s.push(item)`
+// 5. String slicing: `"string"[start:end]`
 // ==============================================================================
 
-fn calcularSuma(items: []Int): Int => {
-    let mut acumulador: Int = 0;
-    for x in items {
-        acumulador = acumulador + x;
-    }
-    return acumulador;
+fn calculateSum(items: []Int): Int => {
+  let mut accumulator: Int = 0;
+  for x in items {
+    accumulator = accumulator + x;
+  }
+  return accumulator;
 }
 
 export fn main(): Unit => {
-    println("=== 1. Creación e Indexación de Slices ===");
-    let mut numeros: []Int = [10, 20, 30, 40, 50, 60, 70];
-    println(`Slice original: longitud = ${len(numeros)}, capacidad = ${cap(numeros)}`);
+  println("=== 1. Slice Creation and Indexing ===");
+  let mut numbers: []Int = [10, 20, 30, 40, 50, 60, 70];
+  println(`Original slice: length = ${len(numbers)}, capacity = ${cap(numbers)}`);
 
-    println("\n=== 2. Expresiones de Slicing (Sintaxis Golang) ===");
-    // Sub-slice con rango [inicio:fin]
-    let sub = numeros[1:4];
-    println(`numeros[1:4]: len=${len(sub)}, elementos=[${sub[0]}, ${sub[1]}, ${sub[2]}]`);
+  println("\n=== 2. Slicing Expressions (Golang Syntax) ===");
+  // Sub-slice with [start:end] range
+  let sub = numbers[1: 4];
+  println(`numbers[1:4]: len=${len(sub)}, elements=[${sub[0]}, ${sub[1]}, ${sub[2]}]`);
 
-    // Desde el inicio hasta el índice [:fin]
-    let primeros = numeros[:3];
-    println(`numeros[:3]: len=${len(primeros)}, elementos=[${primeros[0]}, ${primeros[1]}, ${primeros[2]}]`);
+  // From start to index [:end]
+  let firstElements = numbers[: 3];
+  println(`numbers[:3]: len=${len(firstElements)}, elements=[${firstElements[0]}, ${firstElements[1]}, ${firstElements[2]}]`);
 
-    // Desde índice hasta el final [inicio:]
-    let ultimos = numeros[4:];
-    println(`numeros[4:]: len=${len(ultimos)}, elementos=[${ultimos[0]}, ${ultimos[1]}, ${ultimos[2]}]`);
+  // From index to the end [start:]
+  let lastElements = numbers[4: ];
+  println(`numbers[4:]: len=${len(lastElements)}, elements=[${lastElements[0]}, ${lastElements[1]}, ${lastElements[2]}]`);
 
-    // Copia completa [:]
-    let copia = numeros[:];
-    println(`numeros[:]: len=${len(copia)}`);
+  // Full copy [:]
+  let copy = numbers[: ];
+  println(`numbers[:]: len=${len(copy)}`);
 
-    // Slice con 3 índices [inicio:fin:capacidad_max]
-    let acotado = numeros[1:3:5];
-    println(`numeros[1:3:5]: len=${len(acotado)}`);
+  // 3-index slice [start:end:max_capacity]
+  let bounded = numbers[1: 3: 5];
+  println(`numbers[1:3:5]: len=${len(bounded)}`);
 
-    println("\n=== 3. Crecimiento Dinámico: append y push ===");
-    // Invocación estilo Go: append
-    let ampliado = append(numeros, 80);
-    println(`append(numeros, 80) -> nueva longitud: ${len(ampliado)}`);
+  println("\n=== 3. Dynamic Growth: append and push ===");
+  // Go-style invocation: append
+  let extended = append(numbers, 80);
+  println(`append(numbers, 80) -> new length: ${len(extended)}`);
 
-    // Modificación in-place estilo TS/Go
-    numeros.push(90);
-    println(`numeros.push(90) -> longitud actual: ${numeros.length}`);
+  // In-place modification (TS/Go style)
+  numbers.push(90);
+  println(`numbers.push(90) -> current length: ${numbers.length}`);
 
-    println("\n=== 4. Rebanado de Cadenas (String Slices) ===");
-    let mensaje = "Aura Backend Engine";
-    let prefijo = mensaje[0:4];
-    let resto = mensaje[5:];
-    println(`mensaje[0:4] = "${prefijo}"`);
-    println(`mensaje[5:] = "${resto}"`);
+  println("\n=== 4. String Slices ===");
+  let message = "Aura Backend Engine";
+  let prefix = message[0: 4];
+  let rest = message[5: ];
+  println(`message[0:4] = "${prefix}"`);
+  println(`message[5:] = "${rest}"`);
 
-    println("\n=== 5. Funciones con Parámetros []T y Pipelines ===");
-    let sumaSub = calcularSuma(numeros[2:6]);
-    println(`calcularSuma(numeros[2:6]) = ${sumaSub}`);
+  println("\n=== 5. Functions with []T Parameters and Pipelines ===");
+  let sumSub = calculateSum(numbers[2: 6]);
+  println(`calculateSum(numbers[2:6]) = ${sumSub}`);
 
-    // Integración con pipelines funcionales
-    let transformado = numeros[1:5]
-        |> filter(fn(x: Int): Bool => x % 20 == 0)
-        |> map(fn(x: Int): Int => x * 2);
+  // Integration with functional pipelines
+  let transformed = numbers[1: 5]
+  |> filter(fn(x: Int): Bool => x % 20 == 0)
+  |> map(fn(x: Int): Int => x * 2);
 
-    println(`numeros[1:5] filtrado y transformado: len=${len(transformado)}, primero=${transformado[0]}`);
+  println(`numbers[1:5] filtered and transformed: len=${len(transformed)}, first=${transformed[0]}`);
 
-    println("\n✨ Demostración completada con éxito!");
+  println("\n✨ Demonstration completed successfully!");
 }

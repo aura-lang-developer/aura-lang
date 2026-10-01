@@ -225,7 +225,7 @@ const __aura_import = async (m) => {
         self.write_line("    const unsigned = `${parts[0]}.${parts[1]}`;");
         self.write_line("    const expectedSig = cryptoMod.createHmac('sha256', secret).update(unsigned).digest('base64url');");
         self.write_line(
-            "    if (parts[2] !== expectedSig) return Err('Firma de token JWT inválida');",
+            "    if (parts[2] !== expectedSig) return Err('Invalid JWT token signature');",
         );
         self.write_line("    try {");
         self.write_line(
@@ -234,7 +234,7 @@ const __aura_import = async (m) => {
         self.write_line(
             "      try { return Ok(JSON.parse(decoded)); } catch (_) { return Ok(decoded); }",
         );
-        self.write_line("    } catch (e) { return Err(`No se pudo decodificar payload de token: ${e?.message || e}`); }");
+        self.write_line("    } catch (e) { return Err(`Failed to decode token payload: ${e?.message || e}`); }");
         self.write_line("  },");
         self.write_line("});");
         self.write_line("");

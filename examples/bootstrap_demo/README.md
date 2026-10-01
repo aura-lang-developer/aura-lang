@@ -1,24 +1,24 @@
 # 🌟 Aura Self-Hosted Compiler Demo
 
-Este ejemplo demuestra la capacidad de **Bootstrapping / Self-Hosting** del lenguaje Aura.
+This example demonstrates the **Bootstrapping / Self-Hosting** capability of the Aura language.
 
-## Archivos
-- `hello.aura`: Programa de ejemplo en Aura que utiliza funciones puras, interpolación de cadenas, bucles `while` y tipos nativos.
-- `hello.js`: Código JavaScript ES6 generado directamente por el compilador de Aura escrito en Aura (`dist/aurac.mjs`).
+## Files
+- `hello.aura`: Sample Aura program using pure functions, string interpolation, `while` loops, and native types.
+- `hello.js`: ES6 JavaScript code generated directly by the Aura compiler written in Aura (`dist/aurac.mjs`).
 
-## Cómo Ejecutar
+## How to Run
 
-1. **Compilar con el Compilador Auto-Alojado:**
+1. **Compile with the Self-Hosted Compiler:**
    ```bash
    node ../../dist/aurac.mjs hello.aura -o hello.js
    ```
 
-2. **Ejecutar el programa JavaScript resultante:**
+2. **Run the resulting JavaScript program:**
    ```bash
    node hello.js
    ```
 
-3. **Salida esperada:**
+3. **Expected Output:**
    ```text
    Hello Developer from Self-Hosted Aura Compiler!
    Sum of 1..100: 5050

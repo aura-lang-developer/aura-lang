@@ -1,24 +1,24 @@
-# Microservicios en Aura Language (Modelo Backend Golang)
+# Microservices in Aura Language (Golang Backend Model)
 
-Este directorio contiene una suite completa de **microservicios de producción** implementados en el lenguaje **Aura**, utilizando la sintaxis de **Structs con Struct Tags**, **Canales CSP (Go-style)**, **Fibers asíncronos (`spawn`)**, **Exclusión mutua (`Mutex`)** y el motor HTTP estándar (`net/http`).
+This directory contains a full suite of **production microservices** implemented in the **Aura** language, utilizing **Structs with Struct Tags**, **CSP Channels (Go-style)**, **Asynchronous Fibers (`spawn`)**, **Mutual Exclusion (`Mutex`)**, and the standard HTTP engine (`net/http`).
 
-Todos los microservicios son compilados por `aurac build` en **binarios nativos ejecutables autónomos** (sin requerir runtimes externos ni dependencias en el entorno de ejecución).
+All microservices are compiled by `aurac build` into **standalone native executable binaries** (without requiring external runtimes or dependencies in the execution environment).
 
 ---
 
-## Índice de Microservicios
+## Microservices Index
 
-| Microservicio | Archivo | Puerto por Defecto | Características Principales |
+| Microservice | File | Default Port | Key Features |
 |---|---|---|---|
-| **Orders Service** | [`orders_service.aura`](./orders_service.aura) | `:8081` | Ciclo de vida de órdenes de compra, cálculo de impuestos, despacho asíncrono con CSP queue, métricas en tiempo real. |
-| **Auth Service** | [`auth_service.aura`](./auth_service.aura) | `:8082` | Registro, autenticación, tokens de sesión Bearer, canal de auditoría en segundo plano con protección de concurrencia. |
-| **Telemetry Service** | [`telemetry_service.aura`](./telemetry_service.aura) | `:8083` | Ingesta masiva IoT, worker pool concurrente con canales tipados, detección y emisión de alertas de anomalías en tiempo real. |
+| **Orders Service** | [`orders_service.aura`](./orders_service.aura) | `:8081` | Purchase order lifecycle, tax calculations, asynchronous dispatch via CSP queue, real-time metrics. |
+| **Auth Service** | [`auth_service.aura`](./auth_service.aura) | `:8082` | Registration, authentication, Bearer session tokens, background audit logging channel with concurrency protection. |
+| **Telemetry Service** | [`telemetry_service.aura`](./telemetry_service.aura) | `:8083` | High-throughput IoT ingestion, concurrent worker pool with typed channels, real-time anomaly detection and alert emission. |
 
 ---
 
-## Modelado de Datos con `struct` y Struct Tags
+## Data Modeling with `struct` and Struct Tags
 
-Aura soporta la declaración de estructuras idéntica al modelo de Go, permitiendo definir tipos de datos con etiquetas (`struct tags`) para serialización JSON y validaciones:
+Aura supports structure declarations identical to Go's model, allowing developers to define data types with struct tags for JSON serialization and validation:
 
 ```aura
 struct Order {
@@ -35,38 +35,38 @@ struct Order {
 
 ---
 
-## Compilación y Ejecución a Binario Autónomo
+## Standalone Binary Compilation and Execution
 
-### 1. Verificar tipos estáticos
+### 1. Static Type Checking
 ```bash
 aurac check examples/microservices/orders_service.aura
 aurac check examples/microservices/auth_service.aura
 aurac check examples/microservices/telemetry_service.aura
 ```
 
-### 2. Compilar a binario nativo ejecutable
+### 2. Compile to Standalone Native Binary
 ```bash
-# Compilar cada microservicio a su respectivo binario
+# Compile each microservice to its respective binary
 aurac build examples/microservices/orders_service.aura -o dist/orders_service
 aurac build examples/microservices/auth_service.aura -o dist/auth_service
 aurac build examples/microservices/telemetry_service.aura -o dist/telemetry_service
 ```
 
-### 3. Ejecutar los binarios generados
+### 3. Run Generated Binaries
 ```bash
-# Iniciar Orders Microservice en puerto 8081
+# Start Orders Microservice on port 8081
 PORT=8081 ./dist/orders_service
 
-# Iniciar Auth Microservice en puerto 8082
+# Start Auth Microservice on port 8082
 PORT=8082 ./dist/auth_service
 
-# Iniciar Telemetry Microservice en puerto 8083
+# Start Telemetry Microservice on port 8083
 PORT=8083 ./dist/telemetry_service
 ```
 
 ---
 
-## Referencia de Endpoints y Pruebas con cURL
+## Endpoints Reference and cURL Testing
 
 ### 1. Orders Microservice (`:8081`)
 
@@ -74,26 +74,26 @@ PORT=8083 ./dist/telemetry_service
   ```bash
   curl http://localhost:8081/api/health
   ```
-- **Listar órdenes:**
+- **List orders:**
   ```bash
   curl http://localhost:8081/api/orders
   ```
-- **Crear nueva orden (despacha evento a canal asíncrono):**
+- **Create new order (dispatches event to asynchronous channel):**
   ```bash
   curl -X POST http://localhost:8081/api/orders \
     -H "Content-Type: application/json" \
     -d '{
       "customer": {
         "name": "Carlos Mendoza",
-        "email": "carlos@empresa.com",
-        "address": "Av. Las Condes 400"
+        "email": "carlos@company.com",
+        "address": "400 Las Condes Ave"
       },
       "items": [
-        { "productId": "prod-10", "title": "Servidor ARM64", "quantity": 1, "unitPrice": 850.0 }
+        { "productId": "prod-10", "title": "ARM64 Server", "quantity": 1, "unitPrice": 850.0 }
       ]
     }'
   ```
-- **Métricas agregadas:**
+- **Aggregate metrics:**
   ```bash
   curl http://localhost:8081/api/orders/metrics
   ```
@@ -106,7 +106,7 @@ PORT=8083 ./dist/telemetry_service
   ```bash
   curl http://localhost:8082/healthz
   ```
-- **Registrar usuario:**
+- **Register user:**
   ```bash
   curl -X POST http://localhost:8082/api/auth/register \
     -H "Content-Type: application/json" \
@@ -117,7 +117,7 @@ PORT=8083 ./dist/telemetry_service
       "role": "admin"
     }'
   ```
-- **Iniciar sesión (Obtener token):**
+- **Log in (Get token):**
   ```bash
   curl -X POST http://localhost:8082/api/auth/login \
     -H "Content-Type: application/json" \
@@ -126,7 +126,7 @@ PORT=8083 ./dist/telemetry_service
       "password": "secret"
     }'
   ```
-- **Ver logs de auditoría de seguridad:**
+- **View security audit logs:**
   ```bash
   curl http://localhost:8082/api/auth/audit
   ```
@@ -135,11 +135,11 @@ PORT=8083 ./dist/telemetry_service
 
 ### 3. Telemetry Microservice (`:8083`)
 
-- **Healthcheck & Estado de Workers:**
+- **Healthcheck & Worker Status:**
   ```bash
   curl http://localhost:8083/healthz
   ```
-- **Ingestar lectura de sensor individual:**
+- **Ingest single sensor reading:**
   ```bash
   curl -X POST http://localhost:8083/api/telemetry/ingest \
     -H "Content-Type: application/json" \
@@ -150,22 +150,22 @@ PORT=8083 ./dist/telemetry_service
       "unit": "celsius"
     }'
   ```
-  *(Nota: Al superar 75.0 °C, el worker fiber emitirá automáticamente una alerta crítica al canal de anomalías).*
+  *(Note: Exceeding 75.0 °C causes the worker fiber to emit a critical alert to the anomalies channel).*
 
-- **Consultar alertas de anomalías:**
+- **Query anomaly alerts:**
   ```bash
   curl http://localhost:8083/api/telemetry/alerts
   ```
-- **Estadísticas agregadas:**
+- **Aggregate statistics:**
   ```bash
   curl http://localhost:8083/api/telemetry/stats
   ```
 
 ---
 
-## Transpilación a Golang Nativo (`aurac emit-go`)
+## Native Golang Transpilation (`aurac emit-go`)
 
-Cada microservicio también puede ser transpilado directamente a código Go:
+Each microservice can also be transpiled directly to pure Go code:
 
 ```bash
 aurac emit-go examples/microservices/orders_service.aura -o dist/orders_service.go
