@@ -615,55 +615,51 @@ impl DocumentState {
                                 {
                                     candidate = candidate.with_extension("aura");
                                 }
-                                if candidate.is_file() {
-                                    if let Ok(src) = std::fs::read_to_string(&candidate) {
-                                        for line in src.lines() {
-                                            let trimmed = line.trim();
-                                            if (trimmed.starts_with("export fn")
-                                                || trimmed.starts_with("fn"))
-                                                && trimmed.contains(&it.name)
-                                            {
-                                                resolved_sig = format!(
-                                                    "// Defined in {}\n{}",
-                                                    imp.source,
-                                                    trimmed
-                                                        .trim_end_matches('{')
-                                                        .trim_end_matches("=>")
-                                                        .trim()
-                                                );
-                                                resolved_doc = Some(format!(
-                                                    "Underlying definition in `{}`",
-                                                    candidate
-                                                        .file_name()
-                                                        .unwrap_or_default()
-                                                        .to_string_lossy()
-                                                ));
-                                                resolved_uri = format!(
-                                                    "file://{}",
-                                                    candidate.to_string_lossy()
-                                                );
-                                                break;
-                                            } else if (trimmed.starts_with("export type")
-                                                || trimmed.starts_with("type"))
-                                                && trimmed.contains(&it.name)
-                                            {
-                                                resolved_sig = format!(
-                                                    "// Defined in {}\n{}",
-                                                    imp.source, trimmed
-                                                );
-                                                resolved_doc = Some(format!(
-                                                    "Underlying type in `{}`",
-                                                    candidate
-                                                        .file_name()
-                                                        .unwrap_or_default()
-                                                        .to_string_lossy()
-                                                ));
-                                                resolved_uri = format!(
-                                                    "file://{}",
-                                                    candidate.to_string_lossy()
-                                                );
-                                                break;
-                                            }
+                                if candidate.is_file()
+                                    && let Ok(src) = std::fs::read_to_string(&candidate)
+                                {
+                                    for line in src.lines() {
+                                        let trimmed = line.trim();
+                                        if (trimmed.starts_with("export fn")
+                                            || trimmed.starts_with("fn"))
+                                            && trimmed.contains(&it.name)
+                                        {
+                                            resolved_sig = format!(
+                                                "// Defined in {}\n{}",
+                                                imp.source,
+                                                trimmed
+                                                    .trim_end_matches('{')
+                                                    .trim_end_matches("=>")
+                                                    .trim()
+                                            );
+                                            resolved_doc = Some(format!(
+                                                "Underlying definition in `{}`",
+                                                candidate
+                                                    .file_name()
+                                                    .unwrap_or_default()
+                                                    .to_string_lossy()
+                                            ));
+                                            resolved_uri =
+                                                format!("file://{}", candidate.to_string_lossy());
+                                            break;
+                                        } else if (trimmed.starts_with("export type")
+                                            || trimmed.starts_with("type"))
+                                            && trimmed.contains(&it.name)
+                                        {
+                                            resolved_sig = format!(
+                                                "// Defined in {}\n{}",
+                                                imp.source, trimmed
+                                            );
+                                            resolved_doc = Some(format!(
+                                                "Underlying type in `{}`",
+                                                candidate
+                                                    .file_name()
+                                                    .unwrap_or_default()
+                                                    .to_string_lossy()
+                                            ));
+                                            resolved_uri =
+                                                format!("file://{}", candidate.to_string_lossy());
+                                            break;
                                         }
                                     }
                                 }
@@ -741,18 +737,18 @@ impl DocumentState {
     pub fn hover(&self, pos: &LspPosition) -> Option<HoverResult> {
         // 1. Check if hovering over a reference or definition
         for s_ref in &self.references {
-            if s_ref.range.contains(pos) {
-                if let Some(def) = self.definitions.get(&s_ref.def_name) {
-                    let mut md = format!("```aura\n{}\n```", def.type_str);
-                    if let Some(ref doc) = def.doc_comment {
-                        md.push_str("\n\n---\n");
-                        md.push_str(doc);
-                    }
-                    return Some(HoverResult {
-                        contents: md,
-                        range: Some(s_ref.range),
-                    });
+            if s_ref.range.contains(pos)
+                && let Some(def) = self.definitions.get(&s_ref.def_name)
+            {
+                let mut md = format!("```aura\n{}\n```", def.type_str);
+                if let Some(ref doc) = def.doc_comment {
+                    md.push_str("\n\n---\n");
+                    md.push_str(doc);
                 }
+                return Some(HoverResult {
+                    contents: md,
+                    range: Some(s_ref.range),
+                });
             }
         }
 
@@ -781,13 +777,13 @@ impl DocumentState {
     /// Resolves Go to Definition for a position in the document.
     pub fn definition(&self, pos: &LspPosition) -> Option<Location> {
         for s_ref in &self.references {
-            if s_ref.range.contains(pos) {
-                if let Some(def) = self.definitions.get(&s_ref.def_name) {
-                    return Some(Location {
-                        uri: def.uri.clone(),
-                        range: def.def_range,
-                    });
-                }
+            if s_ref.range.contains(pos)
+                && let Some(def) = self.definitions.get(&s_ref.def_name)
+            {
+                return Some(Location {
+                    uri: def.uri.clone(),
+                    range: def.def_range,
+                });
             }
         }
 
@@ -1115,18 +1111,18 @@ impl DocumentState {
             }
         }
 
-        if target_name.is_none() {
-            if let Some((word, _)) = self.word_at_position(pos) {
-                if self.definitions.contains_key(&word) {
-                    target_name = Some(word.clone());
-                    target_def = self.definitions.get(&word);
-                } else if self
-                    .references
-                    .iter()
-                    .any(|r| r.name == word || r.def_name == word)
-                {
-                    target_name = Some(word);
-                }
+        if target_name.is_none()
+            && let Some((word, _)) = self.word_at_position(pos)
+        {
+            if self.definitions.contains_key(&word) {
+                target_name = Some(word.clone());
+                target_def = self.definitions.get(&word);
+            } else if self
+                .references
+                .iter()
+                .any(|r| r.name == word || r.def_name == word)
+            {
+                target_name = Some(word);
             }
         }
 
@@ -1137,23 +1133,20 @@ impl DocumentState {
 
         let mut results = Vec::new();
 
-        if include_declaration {
-            if let Some(def) = target_def {
-                results.push(Location {
-                    uri: def.uri.clone(),
-                    range: def.def_range,
-                });
-            }
+        if include_declaration && let Some(def) = target_def {
+            results.push(Location {
+                uri: def.uri.clone(),
+                range: def.def_range,
+            });
         }
 
         for s_ref in &self.references {
             if s_ref.name == name || s_ref.def_name == name {
-                if !include_declaration {
-                    if let Some(def) = target_def {
-                        if s_ref.range == def.def_range {
-                            continue;
-                        }
-                    }
+                if !include_declaration
+                    && let Some(def) = target_def
+                    && s_ref.range == def.def_range
+                {
+                    continue;
                 }
                 results.push(Location {
                     uri: self.uri.clone(),
@@ -1221,14 +1214,12 @@ impl DocumentState {
                 }
             }
         }
-        if target_name.is_none() {
-            if let Some((word, _)) = self.word_at_position(pos) {
-                if self.definitions.contains_key(&word)
-                    || self.references.iter().any(|r| r.name == word)
-                {
-                    target_name = Some(word);
-                }
-            }
+        if target_name.is_none()
+            && let Some((word, _)) = self.word_at_position(pos)
+            && (self.definitions.contains_key(&word)
+                || self.references.iter().any(|r| r.name == word))
+        {
+            target_name = Some(word);
         }
 
         let name = match target_name {
@@ -1404,12 +1395,11 @@ impl DocumentState {
 
         for def in self.definitions.values() {
             if def.kind_name == "variable" {
-                if let Some(r) = range {
-                    if def.def_range.start.line < r.start.line
-                        || def.def_range.end.line > r.end.line
-                    {
-                        continue;
-                    }
+                if let Some(r) = range
+                    && (def.def_range.start.line < r.start.line
+                        || def.def_range.end.line > r.end.line)
+                {
+                    continue;
                 }
                 let line_idx = def.def_range.start.line as usize;
                 if line_idx < self.lines.len() {
@@ -1515,26 +1505,26 @@ impl DocumentState {
             }
         }
 
-        if let Ok(formatted) = format_aura(&self.source) {
-            if formatted != self.source {
-                let total_lines = self.lines.len() as u32;
-                let last_len = self.lines.last().map(|l| l.len() as u32).unwrap_or(0);
-                let mut edits = HashMap::new();
-                edits.insert(
-                    self.uri.clone(),
-                    vec![TextEdit {
-                        range: LspRange::new(0, 0, total_lines, last_len),
-                        new_text: formatted,
-                    }],
-                );
-                actions.push(CodeAction {
-                    title: "Format Document (Aura Formatter)".to_string(),
-                    kind: "source.fixAll".to_string(),
-                    diagnostics: Vec::new(),
-                    edit: Some(edits),
-                    is_preferred: false,
-                });
-            }
+        if let Ok(formatted) = format_aura(&self.source)
+            && formatted != self.source
+        {
+            let total_lines = self.lines.len() as u32;
+            let last_len = self.lines.last().map(|l| l.len() as u32).unwrap_or(0);
+            let mut edits = HashMap::new();
+            edits.insert(
+                self.uri.clone(),
+                vec![TextEdit {
+                    range: LspRange::new(0, 0, total_lines, last_len),
+                    new_text: formatted,
+                }],
+            );
+            actions.push(CodeAction {
+                title: "Format Document (Aura Formatter)".to_string(),
+                kind: "source.fixAll".to_string(),
+                diagnostics: Vec::new(),
+                edit: Some(edits),
+                is_preferred: false,
+            });
         }
 
         actions
@@ -1723,14 +1713,15 @@ impl DocumentState {
             }
         }
 
-        raw_tokens.sort_by(|a, b| (a.line, a.start_char).cmp(&(b.line, b.start_char)));
+        raw_tokens.sort_by_key(|a| (a.line, a.start_char));
 
         let mut deduped: Vec<RawToken> = Vec::new();
         for tok in raw_tokens {
-            if let Some(last) = deduped.last() {
-                if last.line == tok.line && tok.start_char < last.start_char + last.length {
-                    continue;
-                }
+            if let Some(last) = deduped.last()
+                && last.line == tok.line
+                && tok.start_char < last.start_char + last.length
+            {
+                continue;
             }
             deduped.push(tok);
         }
@@ -1817,16 +1808,15 @@ impl DocumentState {
             for ch in line.chars() {
                 if ch == '{' {
                     brace_stack.push(u_line);
-                } else if ch == '}' {
-                    if let Some(start_line) = brace_stack.pop() {
-                        if u_line > start_line {
-                            ranges.push(FoldingRange {
-                                start_line,
-                                end_line: u_line,
-                                kind: Some("region".to_string()),
-                            });
-                        }
-                    }
+                } else if ch == '}'
+                    && let Some(start_line) = brace_stack.pop()
+                    && u_line > start_line
+                {
+                    ranges.push(FoldingRange {
+                        start_line,
+                        end_line: u_line,
+                        kind: Some("region".to_string()),
+                    });
                 }
             }
         }
@@ -1837,16 +1827,15 @@ impl DocumentState {
             if line.contains("/*") {
                 comment_start = Some(u_line);
             }
-            if line.contains("*/") {
-                if let Some(start_line) = comment_start.take() {
-                    if u_line > start_line {
-                        ranges.push(FoldingRange {
-                            start_line,
-                            end_line: u_line,
-                            kind: Some("comment".to_string()),
-                        });
-                    }
-                }
+            if line.contains("*/")
+                && let Some(start_line) = comment_start.take()
+                && u_line > start_line
+            {
+                ranges.push(FoldingRange {
+                    start_line,
+                    end_line: u_line,
+                    kind: Some("comment".to_string()),
+                });
             }
         }
 
@@ -1868,18 +1857,17 @@ impl DocumentState {
             }
         }
         for s_ref in &self.references {
-            if s_ref.range.contains(pos) {
-                if let Some(def) = self.definitions.get(&s_ref.def_name) {
-                    if def.kind_name == "function" {
-                        return Some(CallHierarchyItem {
-                            name: def.name.clone(),
-                            kind: SymbolKind::Function,
-                            uri: self.uri.clone(),
-                            range: def.def_range,
-                            selection_range: def.def_range,
-                        });
-                    }
-                }
+            if s_ref.range.contains(pos)
+                && let Some(def) = self.definitions.get(&s_ref.def_name)
+                && def.kind_name == "function"
+            {
+                return Some(CallHierarchyItem {
+                    name: def.name.clone(),
+                    kind: SymbolKind::Function,
+                    uri: self.uri.clone(),
+                    range: def.def_range,
+                    selection_range: def.def_range,
+                });
             }
         }
         None
@@ -1959,20 +1947,19 @@ impl DocumentState {
 }
 
 fn extract_param_names_from_sig(sig: &str) -> Vec<String> {
-    if let Some(start) = sig.find('(') {
-        if let Some(end) = sig.find(')') {
-            if end > start {
-                let inner = &sig[start + 1..end];
-                if inner.trim().is_empty() {
-                    return Vec::new();
-                }
-                return inner
-                    .split(',')
-                    .map(|p| p.trim().to_string())
-                    .filter(|p| !p.is_empty())
-                    .collect();
-            }
+    if let Some(start) = sig.find('(')
+        && let Some(end) = sig.find(')')
+        && end > start
+    {
+        let inner = &sig[start + 1..end];
+        if inner.trim().is_empty() {
+            return Vec::new();
         }
+        return inner
+            .split(',')
+            .map(|p| p.trim().to_string())
+            .filter(|p| !p.is_empty())
+            .collect();
     }
     Vec::new()
 }
@@ -2036,7 +2023,7 @@ fn extract_name_from_decl(decl: &str) -> Option<String> {
         if (tokens[i] == "fn" || tokens[i] == "type") && i + 1 < tokens.len() {
             let raw_name = tokens[i + 1];
             let clean_name = raw_name
-                .split(|c| c == '(' || c == '<' || c == '=' || c == '{' || c == ':')
+                .split(['(', '<', '=', '{', ':'])
                 .next()
                 .unwrap_or("");
             if !clean_name.is_empty() {
@@ -2066,12 +2053,12 @@ fn extract_line_col_from_error(err: &str) -> Option<(u32, u32)> {
         .split(|c: char| !c.is_numeric())
         .filter(|s| !s.is_empty())
         .collect();
-    if parts.len() >= 2 {
-        if let (Ok(l), Ok(c)) = (parts[0].parse::<u32>(), parts[1].parse::<u32>()) {
-            if l < 10000 && c < 500 {
-                return Some((l, c));
-            }
-        }
+    if parts.len() >= 2
+        && let (Ok(l), Ok(c)) = (parts[0].parse::<u32>(), parts[1].parse::<u32>())
+        && l < 10000
+        && c < 500
+    {
+        return Some((l, c));
     }
     None
 }
@@ -2370,6 +2357,12 @@ pub struct LspServer {
     pub is_shutdown: bool,
 }
 
+impl Default for LspServer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LspServer {
     pub fn new() -> Self {
         Self {
@@ -2578,23 +2571,23 @@ impl LspServer {
                     character: char_idx,
                 };
 
-                if let Some(doc) = self.documents.get(&uri) {
-                    if let Some(hover) = doc.hover(&pos) {
-                        let escaped_contents = escape_json_string(&hover.contents);
-                        let range_json = if let Some(r) = hover.range {
-                            format!(
-                                r#","range":{{"start":{{"line":{},"character":{}}},"end":{{"line":{},"character":{}}}}}"#,
-                                r.start.line, r.start.character, r.end.line, r.end.character
-                            )
-                        } else {
-                            String::new()
-                        };
-                        let res = format!(
-                            r#"{{"contents":{{"kind":"markdown","value":"{}"}}{}}}"#,
-                            escaped_contents, range_json
-                        );
-                        return Some(format_json_response(id, &res));
-                    }
+                if let Some(doc) = self.documents.get(&uri)
+                    && let Some(hover) = doc.hover(&pos)
+                {
+                    let escaped_contents = escape_json_string(&hover.contents);
+                    let range_json = if let Some(r) = hover.range {
+                        format!(
+                            r#","range":{{"start":{{"line":{},"character":{}}},"end":{{"line":{},"character":{}}}}}"#,
+                            r.start.line, r.start.character, r.end.line, r.end.character
+                        )
+                    } else {
+                        String::new()
+                    };
+                    let res = format!(
+                        r#"{{"contents":{{"kind":"markdown","value":"{}"}}{}}}"#,
+                        escaped_contents, range_json
+                    );
+                    return Some(format_json_response(id, &res));
                 }
                 Some(format_json_response(id, "null"))
             }
@@ -2607,18 +2600,18 @@ impl LspServer {
                     character: char_idx,
                 };
 
-                if let Some(doc) = self.documents.get(&uri) {
-                    if let Some(loc) = doc.definition(&pos) {
-                        let res = format!(
-                            r#"{{"uri":"{}","range":{{"start":{{"line":{},"character":{}}},"end":{{"line":{},"character":{}}}}}}}"#,
-                            escape_json_string(&loc.uri),
-                            loc.range.start.line,
-                            loc.range.start.character,
-                            loc.range.end.line,
-                            loc.range.end.character
-                        );
-                        return Some(format_json_response(id, &res));
-                    }
+                if let Some(doc) = self.documents.get(&uri)
+                    && let Some(loc) = doc.definition(&pos)
+                {
+                    let res = format!(
+                        r#"{{"uri":"{}","range":{{"start":{{"line":{},"character":{}}},"end":{{"line":{},"character":{}}}}}}}"#,
+                        escape_json_string(&loc.uri),
+                        loc.range.start.line,
+                        loc.range.start.character,
+                        loc.range.end.line,
+                        loc.range.end.character
+                    );
+                    return Some(format_json_response(id, &res));
                 }
                 Some(format_json_response(id, "null"))
             }
@@ -2663,11 +2656,12 @@ impl LspServer {
             }
             "textDocument/formatting" => {
                 let uri = extract_json_string(&params, "uri")?;
-                if let Some(doc) = self.documents.get(&uri) {
-                    if let Ok(edits) = doc.format(None) {
-                        let mut edits_json = Vec::new();
-                        for edit in edits {
-                            edits_json.push(format!(
+                if let Some(doc) = self.documents.get(&uri)
+                    && let Ok(edits) = doc.format(None)
+                {
+                    let mut edits_json = Vec::new();
+                    for edit in edits {
+                        edits_json.push(format!(
                                 r#"{{"range":{{"start":{{"line":{},"character":{}}},"end":{{"line":{},"character":{}}}}},"newText":"{}"}}"#,
                                 edit.range.start.line,
                                 edit.range.start.character,
@@ -2675,12 +2669,11 @@ impl LspServer {
                                 edit.range.end.character,
                                 escape_json_string(&edit.new_text)
                             ));
-                        }
-                        return Some(format_json_response(
-                            id,
-                            &format!("[{}]", edits_json.join(",")),
-                        ));
                     }
+                    return Some(format_json_response(
+                        id,
+                        &format!("[{}]", edits_json.join(",")),
+                    ));
                 }
                 Some(format_json_response(id, "[]"))
             }
@@ -2720,18 +2713,18 @@ impl LspServer {
                     line,
                     character: char_idx,
                 };
-                if let Some(doc) = self.documents.get(&uri) {
-                    if let Some((range, placeholder)) = doc.prepare_rename(&pos) {
-                        let res = format!(
-                            r#"{{"range":{{"start":{{"line":{},"character":{}}},"end":{{"line":{},"character":{}}}}},"placeholder":"{}"}}"#,
-                            range.start.line,
-                            range.start.character,
-                            range.end.line,
-                            range.end.character,
-                            escape_json_string(&placeholder)
-                        );
-                        return Some(format_json_response(id, &res));
-                    }
+                if let Some(doc) = self.documents.get(&uri)
+                    && let Some((range, placeholder)) = doc.prepare_rename(&pos)
+                {
+                    let res = format!(
+                        r#"{{"range":{{"start":{{"line":{},"character":{}}},"end":{{"line":{},"character":{}}}}},"placeholder":"{}"}}"#,
+                        range.start.line,
+                        range.start.character,
+                        range.end.line,
+                        range.end.character,
+                        escape_json_string(&placeholder)
+                    );
+                    return Some(format_json_response(id, &res));
                 }
                 Some(format_json_response(id, "null"))
             }
@@ -2759,45 +2752,43 @@ impl LspServer {
                     line,
                     character: char_idx,
                 };
-                if let Some(doc) = self.documents.get(&uri) {
-                    if let Some(sig_help) = doc.signature_help(&pos) {
-                        let mut sigs_json = Vec::new();
-                        for sig in &sig_help.signatures {
-                            let mut params_json = Vec::new();
-                            for p in &sig.parameters {
-                                let doc_str = p
-                                    .documentation
-                                    .as_ref()
-                                    .map(|d| {
-                                        format!(r#","documentation":"{}""#, escape_json_string(d))
-                                    })
-                                    .unwrap_or_default();
-                                params_json.push(format!(
-                                    r#"{{"label":"{}"{}}}"#,
-                                    escape_json_string(&p.label),
-                                    doc_str
-                                ));
-                            }
-                            let doc_str = sig
+                if let Some(doc) = self.documents.get(&uri)
+                    && let Some(sig_help) = doc.signature_help(&pos)
+                {
+                    let mut sigs_json = Vec::new();
+                    for sig in &sig_help.signatures {
+                        let mut params_json = Vec::new();
+                        for p in &sig.parameters {
+                            let doc_str = p
                                 .documentation
                                 .as_ref()
                                 .map(|d| format!(r#","documentation":"{}""#, escape_json_string(d)))
                                 .unwrap_or_default();
-                            sigs_json.push(format!(
-                                r#"{{"label":"{}"{},"parameters":[{}]}}"#,
-                                escape_json_string(&sig.label),
-                                doc_str,
-                                params_json.join(",")
+                            params_json.push(format!(
+                                r#"{{"label":"{}"{}}}"#,
+                                escape_json_string(&p.label),
+                                doc_str
                             ));
                         }
-                        let res = format!(
-                            r#"{{"signatures":[{}],"activeSignature":{},"activeParameter":{}}}"#,
-                            sigs_json.join(","),
-                            sig_help.active_signature,
-                            sig_help.active_parameter
-                        );
-                        return Some(format_json_response(id, &res));
+                        let doc_str = sig
+                            .documentation
+                            .as_ref()
+                            .map(|d| format!(r#","documentation":"{}""#, escape_json_string(d)))
+                            .unwrap_or_default();
+                        sigs_json.push(format!(
+                            r#"{{"label":"{}"{},"parameters":[{}]}}"#,
+                            escape_json_string(&sig.label),
+                            doc_str,
+                            params_json.join(",")
+                        ));
                     }
+                    let res = format!(
+                        r#"{{"signatures":[{}],"activeSignature":{},"activeParameter":{}}}"#,
+                        sigs_json.join(","),
+                        sig_help.active_signature,
+                        sig_help.active_parameter
+                    );
+                    return Some(format_json_response(id, &res));
                 }
                 Some(format_json_response(id, "null"))
             }
@@ -2981,13 +2972,13 @@ impl LspServer {
                     line,
                     character: char_idx,
                 };
-                if let Some(doc) = self.documents.get(&uri) {
-                    if let Some(item) = doc.prepare_call_hierarchy(&pos) {
-                        return Some(format_json_response(
-                            id,
-                            &format!("[{}]", format_call_hierarchy_item(&item)),
-                        ));
-                    }
+                if let Some(doc) = self.documents.get(&uri)
+                    && let Some(item) = doc.prepare_call_hierarchy(&pos)
+                {
+                    return Some(format_json_response(
+                        id,
+                        &format!("[{}]", format_call_hierarchy_item(&item)),
+                    ));
                 }
                 Some(format_json_response(id, "[]"))
             }
@@ -3083,10 +3074,10 @@ impl LspServer {
                     break; // Header section finished
                 }
 
-                if trimmed.to_lowercase().starts_with("content-length:") {
-                    if let Some(len_str) = trimmed.split(':').nth(1) {
-                        content_length = len_str.trim().parse::<usize>().ok();
-                    }
+                if trimmed.to_lowercase().starts_with("content-length:")
+                    && let Some(len_str) = trimmed.split(':').nth(1)
+                {
+                    content_length = len_str.trim().parse::<usize>().ok();
                 }
             }
 
@@ -3186,10 +3177,10 @@ fn extract_json_string(json: &str, field: &str) -> Option<String> {
     let colon_pos = after_field.find(':')?;
     let after_colon = &after_field[colon_pos + 1..].trim_start();
 
-    if after_colon.starts_with('"') {
+    if let Some(stripped) = after_colon.strip_prefix('"') {
         let mut s = String::new();
         let mut escaped = false;
-        for c in after_colon[1..].chars() {
+        for c in stripped.chars() {
             if escaped {
                 match c {
                     'n' => s.push('\n'),
@@ -3221,7 +3212,7 @@ fn extract_json_int(json: &str, field: &str) -> Option<i64> {
 
     let num_str: String = after_colon
         .chars()
-        .take_while(|c| c.is_digit(10) || *c == '-')
+        .take_while(|c| c.is_ascii_digit() || *c == '-')
         .collect();
     num_str.parse::<i64>().ok()
 }
@@ -3239,7 +3230,7 @@ fn extract_json_raw_field(json: &str, field: &str) -> Option<String> {
 
     let raw: String = after_colon
         .chars()
-        .take_while(|c| c.is_digit(10) || *c == '-' || *c == 'n' || *c == 'u' || *c == 'l')
+        .take_while(|c| c.is_ascii_digit() || *c == '-' || *c == 'n' || *c == 'u' || *c == 'l')
         .collect();
     if !raw.is_empty() { Some(raw) } else { None }
 }

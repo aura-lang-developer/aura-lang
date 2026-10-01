@@ -120,10 +120,10 @@ impl AuraBindgen {
             return "*const Unit".to_string();
         }
 
-        if let Some(inner) = trimmed.strip_prefix("const ") {
-            if let Some(base) = inner.strip_suffix('*') {
-                return format!("*const {}", Self::map_c_type_to_aura(base.trim()));
-            }
+        if let Some(inner) = trimmed.strip_prefix("const ")
+            && let Some(base) = inner.strip_suffix('*')
+        {
+            return format!("*const {}", Self::map_c_type_to_aura(base.trim()));
         }
 
         if let Some(base) = trimmed.strip_suffix('*') {
@@ -228,7 +228,7 @@ impl AuraBindgen {
             let val_str = parts[2..].join(" ").trim().to_string();
 
             // Check if integer
-            if let Ok(_) = val_str.parse::<i64>() {
+            if val_str.parse::<i64>().is_ok() {
                 return Some(CMacroConst {
                     name: name.to_string(),
                     value: val_str,
@@ -236,24 +236,24 @@ impl AuraBindgen {
                 });
             }
             // Hex integer (e.g. 0x01)
-            if val_str.starts_with("0x") || val_str.starts_with("0X") {
-                if let Ok(num) = i64::from_str_radix(
+            if (val_str.starts_with("0x") || val_str.starts_with("0X"))
+                && let Ok(num) = i64::from_str_radix(
                     val_str
                         .trim_start_matches("0x")
                         .trim_start_matches("0X")
                         .trim_end_matches("U")
                         .trim_end_matches("L"),
                     16,
-                ) {
-                    return Some(CMacroConst {
-                        name: name.to_string(),
-                        value: num.to_string(),
-                        aura_type: "Int".to_string(),
-                    });
-                }
+                )
+            {
+                return Some(CMacroConst {
+                    name: name.to_string(),
+                    value: num.to_string(),
+                    aura_type: "Int".to_string(),
+                });
             }
             // Check if float
-            if let Ok(_) = val_str.parse::<f64>() {
+            if val_str.parse::<f64>().is_ok() {
                 return Some(CMacroConst {
                     name: name.to_string(),
                     value: val_str,
@@ -307,26 +307,29 @@ impl AuraBindgen {
             }
 
             // Parse enum
-            if item.contains("enum ") {
-                if let Some(c_enum) = self.parse_enum(item) {
-                    header.enums.push(c_enum);
-                    continue;
-                }
+            if item.contains("enum ")
+                && let Some(c_enum) = self.parse_enum(item)
+            {
+                header.enums.push(c_enum);
+                continue;
             }
 
             // Parse struct
-            if item.contains("struct ") && item.contains('{') && item.contains('}') {
-                if let Some(c_struct) = self.parse_struct(item) {
-                    header.structs.push(c_struct);
-                    continue;
-                }
+            if item.contains("struct ")
+                && item.contains('{')
+                && item.contains('}')
+                && let Some(c_struct) = self.parse_struct(item)
+            {
+                header.structs.push(c_struct);
+                continue;
             }
 
             // Parse function declaration
-            if item.contains('(') && item.contains(')') {
-                if let Some(c_fn) = self.parse_function(item) {
-                    header.functions.push(c_fn);
-                }
+            if item.contains('(')
+                && item.contains(')')
+                && let Some(c_fn) = self.parse_function(item)
+            {
+                header.functions.push(c_fn);
             }
         }
     }

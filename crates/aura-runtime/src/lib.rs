@@ -1,6 +1,9 @@
 //! Native Standalone Runtime for Aura Language.
 //! Provides M:N Fiber Scheduler, Garbage Collector (GC), CSP Channels, and C ABI.
 
+// The C ABI functions exported by this runtime receive raw pointers across FFI from Cranelift native binaries.
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
+
 pub mod c_api;
 pub mod channel;
 pub mod context;
@@ -49,8 +52,11 @@ mod tests {
         collect_garbage();
     }
 
+    static TEST_SCHEDULER_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[test]
     fn test_fiber_execution_and_yielding() {
+        let _guard = TEST_SCHEDULER_MUTEX.lock().unwrap();
         init_scheduler();
         let sched = get_scheduler();
 
@@ -73,6 +79,7 @@ mod tests {
 
     #[test]
     fn test_csp_channel_handoff_between_fibers() {
+        let _guard = TEST_SCHEDULER_MUTEX.lock().unwrap();
         init_scheduler();
         let sched = get_scheduler();
 

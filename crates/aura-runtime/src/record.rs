@@ -234,13 +234,8 @@ pub extern "C" fn aura_record_get_f64(
         match (*rec).fields.get(key) {
             Some(AuraVal::Float(f)) => *f,
             Some(AuraVal::Int(i)) => *i as f64,
-            Some(AuraVal::Bool(b)) => {
-                if *b {
-                    1.0
-                } else {
-                    0.0
-                }
-            }
+            Some(AuraVal::Bool(true)) => 1.0,
+            Some(AuraVal::Bool(false)) => 0.0,
             _ => 0.0,
         }
     }

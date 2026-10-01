@@ -1,38 +1,51 @@
 use std::fs;
 use std::process::Command;
+use std::sync::Once;
+
+static STAGE1_BOOTSTRAP: Once = Once::new();
+
+fn run_stage1_compilation() {
+    STAGE1_BOOTSTRAP.call_once(|| {
+        let _ = fs::create_dir_all("dist");
+        let modules = [
+            ("src/aura_compiler/ast.aura", "dist/ast.mjs"),
+            ("src/aura_compiler/lexer.aura", "dist/lexer.mjs"),
+            ("src/aura_compiler/parser.aura", "dist/parser.mjs"),
+            ("src/aura_compiler/codegen.aura", "dist/codegen.mjs"),
+            ("src/aura_compiler/main.aura", "dist/aurac.mjs"),
+        ];
+
+        for (src, out) in &modules {
+            let status = Command::new(env!("CARGO_BIN_EXE_aurac"))
+                .args(["compile", src, "-o", out])
+                .status()
+                .expect("Failed to execute aurac compile");
+
+            assert!(
+                status.success(),
+                "Failed to compile stage 1 module: {}",
+                src
+            );
+            assert!(
+                fs::metadata(out).is_ok(),
+                "Output file does not exist: {}",
+                out
+            );
+        }
+    });
+}
 
 #[test]
 fn test_bootstrap_stage1_rust_compiles_aura_compiler() {
-    let modules = [
-        ("src/aura_compiler/ast.aura", "dist/ast.mjs"),
-        ("src/aura_compiler/lexer.aura", "dist/lexer.mjs"),
-        ("src/aura_compiler/parser.aura", "dist/parser.mjs"),
-        ("src/aura_compiler/codegen.aura", "dist/codegen.mjs"),
-        ("src/aura_compiler/main.aura", "dist/aurac.mjs"),
-    ];
-
-    for (src, out) in &modules {
-        let status = Command::new("cargo")
-            .args(["run", "--bin", "aurac", "--", "compile", src, "-o", out])
-            .status()
-            .expect("Failed to execute cargo run aurac compile");
-
-        assert!(
-            status.success(),
-            "Failed to compile stage 1 module: {}",
-            src
-        );
-        assert!(
-            fs::metadata(out).is_ok(),
-            "Output file does not exist: {}",
-            out
-        );
-    }
+    run_stage1_compilation();
 }
 
 #[test]
 fn test_bootstrap_stage2_aura_compiler_compiles_sample_programs() {
-    // 1. Compile hello.aura with the self-hosted compiler (dist/aurac.mjs)
+    // 1. Ensure stage 1 compiler is compiled first (thread-safe synchronization)
+    run_stage1_compilation();
+
+    // 2. Compile hello.aura with the self-hosted compiler (dist/aurac.mjs)
     let compile_status = Command::new("node")
         .args([
             "dist/aurac.mjs",
@@ -52,7 +65,7 @@ fn test_bootstrap_stage2_aura_compiler_compiles_sample_programs() {
         "Generated JS output does not exist"
     );
 
-    // 2. Execute the compiled JS program and verify stdout
+    // 3. Execute the compiled JS program and verify stdout
     let run_output = Command::new("node")
         .arg("examples/bootstrap_demo/hello.js")
         .output()

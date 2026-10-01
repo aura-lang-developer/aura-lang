@@ -45,7 +45,7 @@ fn bench_stages(name: &str, source: &str) {
     let start = Instant::now();
     for _ in 0..iterations {
         let mut tc = TypeChecker::new();
-        let _ = tc.check_module(&module).unwrap();
+        tc.check_module(&module).unwrap();
     }
     let tc_dur = start.elapsed() / iterations;
 

@@ -28,6 +28,12 @@ pub struct CodeGen {
     pub base_path: Option<PathBuf>,
 }
 
+impl Default for CodeGen {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CodeGen {
     pub fn new() -> Self {
         Self {
@@ -142,9 +148,9 @@ impl CodeGen {
 
         let map_filename = format!("{}.map", js_file);
         let comment = crate::sourcemap::SourceMapBuilder::generate_mapping_comment(&map_filename);
-        js_code.push_str("\n");
+        js_code.push('\n');
         js_code.push_str(&comment);
-        js_code.push_str("\n");
+        js_code.push('\n');
 
         let map_json = map_builder.to_json();
         (js_code, dts_code, map_json)
@@ -234,7 +240,9 @@ const __aura_import = async (m) => {
         self.write_line(
             "      try { return Ok(JSON.parse(decoded)); } catch (_) { return Ok(decoded); }",
         );
-        self.write_line("    } catch (e) { return Err(`Failed to decode token payload: ${e?.message || e}`); }");
+        self.write_line(
+            "    } catch (e) { return Err(`Failed to decode token payload: ${e?.message || e}`); }",
+        );
         self.write_line("  },");
         self.write_line("});");
         self.write_line("");
@@ -2790,7 +2798,7 @@ const __aura_import = async (m) => {
                 }
                 "Map" => {
                     let k_str = type_args
-                        .get(0)
+                        .first()
                         .map(|t| self.ast_type_to_dts(t))
                         .unwrap_or_else(|| "any".to_string());
                     let v_str = type_args
@@ -2815,7 +2823,7 @@ const __aura_import = async (m) => {
                 }
                 "Result" => {
                     let ok_str = type_args
-                        .get(0)
+                        .first()
                         .map(|t| self.ast_type_to_dts(t))
                         .unwrap_or_else(|| "any".to_string());
                     let err_str = type_args
@@ -2829,7 +2837,7 @@ const __aura_import = async (m) => {
                 }
                 "Task" => {
                     let ok_str = type_args
-                        .get(0)
+                        .first()
                         .map(|t| self.ast_type_to_dts(t))
                         .unwrap_or_else(|| "any".to_string());
                     let _err_str = type_args
@@ -3192,7 +3200,7 @@ const __aura_import = async (m) => {
                     || self.expr_contains_defer(then_branch)
                     || else_branch
                         .as_ref()
-                        .map_or(false, |e| self.expr_contains_defer(e))
+                        .is_some_and(|e| self.expr_contains_defer(e))
             }
             Expr::While {
                 condition, body, ..
@@ -3740,25 +3748,21 @@ const __aura_import = async (m) => {
                     self.indent_level += 1;
                     self.emit_pattern_bindings(&arm.pattern, "_subj");
 
-                    if let Expr::FunctionCall { callee, args } = &arm.body {
-                        if let Expr::Identifier(ref name) = **callee {
-                            if name == fn_name {
-                                for (p, arg) in params.iter().zip(args.iter()) {
-                                    let arg_js = self.expr_to_js_with_renames(arg, &arm_renames);
-                                    self.write_line(&format!(
-                                        "const _next_{} = {};",
-                                        p.name, arg_js
-                                    ));
-                                }
-                                for p in params {
-                                    self.write_line(&format!("_{} = _next_{};", p.name, p.name));
-                                }
-                                self.write_line("continue;");
-                                self.indent_level -= 1;
-                                self.write_line("}");
-                                continue;
-                            }
+                    if let Expr::FunctionCall { callee, args } = &arm.body
+                        && let Expr::Identifier(ref name) = **callee
+                        && name == fn_name
+                    {
+                        for (p, arg) in params.iter().zip(args.iter()) {
+                            let arg_js = self.expr_to_js_with_renames(arg, &arm_renames);
+                            self.write_line(&format!("const _next_{} = {};", p.name, arg_js));
                         }
+                        for p in params {
+                            self.write_line(&format!("_{} = _next_{};", p.name, p.name));
+                        }
+                        self.write_line("continue;");
+                        self.indent_level -= 1;
+                        self.write_line("}");
+                        continue;
                     }
 
                     let ret_js = self.expr_to_js_with_renames(&arm.body, &arm_renames);
@@ -4230,6 +4234,9 @@ const __aura_import = async (m) => {
                     }
                 }
                 if let Expr::Identifier(name) = &**callee {
+                    if name == "yield" {
+                        return "(typeof setImmediate !== 'undefined' ? setImmediate(() => {}) : setTimeout(() => {}, 0))".to_string();
+                    }
                     if (name == "len" || name == "cap" || name == "length" || name == "capacity")
                         && args.len() == 1
                     {
@@ -4322,8 +4329,8 @@ const __aura_import = async (m) => {
             Expr::Lambda { params, body, .. } => {
                 let is_async = matches!(&**body, Expr::Async(_))
                     || self.expr_contains_async(match &**body {
-                        Expr::Async(inner) => &**inner,
-                        _ => &**body,
+                        Expr::Async(inner) => inner,
+                        _ => body,
                     });
                 let async_kw = if is_async { "async " } else { "" };
                 let mut local_renames = renames.clone();

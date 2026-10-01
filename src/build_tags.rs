@@ -25,17 +25,13 @@ pub fn should_build_with_exact_tags(source: &str, active_tags: &HashSet<String>)
             .or_else(|| trimmed.strip_prefix("//go:build"))
         {
             let expr = expr_str.trim();
-            if !expr.is_empty() {
-                if !eval_tag_expression(expr, active_tags) {
-                    return false;
-                }
+            if !expr.is_empty() && !eval_tag_expression(expr, active_tags) {
+                return false;
             }
         } else if let Some(expr_str) = trimmed.strip_prefix("// +build") {
             let expr = expr_str.trim();
-            if !expr.is_empty() {
-                if !eval_plus_build(expr, active_tags) {
-                    return false;
-                }
+            if !expr.is_empty() && !eval_plus_build(expr, active_tags) {
+                return false;
             }
         }
     }

@@ -51,8 +51,11 @@ pub extern "C" fn aura_list_push(list: *mut AuraList, item: i64) {
         if l.len >= l.cap {
             let new_cap = l.cap * 2;
             let old_layout = Layout::array::<i64>(l.cap).unwrap();
-            let new_size = Layout::array::<i64>(new_cap).unwrap().size();
-            let new_items = realloc(l.items as *mut u8, old_layout, new_size) as *mut i64;
+            let new_layout = Layout::array::<i64>(new_cap).unwrap();
+            let new_items = realloc(l.items as *mut u8, old_layout, new_layout.size()) as *mut i64;
+            if new_items.is_null() {
+                std::alloc::handle_alloc_error(new_layout);
+            }
             l.items = new_items;
             l.cap = new_cap;
         }
@@ -177,16 +180,26 @@ pub extern "C" fn aura_list_to_json(list: *mut AuraList) -> *mut crate::string::
     crate::string::aura_string_from_rust_str(&s)
 }
 
+impl Drop for AuraList {
+    fn drop(&mut self) {
+        if !self.items.is_null() && self.cap > 0 {
+            let layout = Layout::array::<i64>(self.cap).unwrap();
+            unsafe {
+                dealloc(self.items as *mut u8, layout);
+            }
+            self.items = ptr::null_mut();
+            self.len = 0;
+            self.cap = 0;
+        }
+    }
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn aura_list_free(list: *mut AuraList) {
     if !list.is_null() {
         crate::gc::unregister_valid_ptr(list as usize);
         unsafe {
-            let l = Box::from_raw(list);
-            if !l.items.is_null() && l.cap > 0 {
-                let layout = Layout::array::<i64>(l.cap).unwrap();
-                dealloc(l.items as *mut u8, layout);
-            }
+            drop(Box::from_raw(list));
         }
     }
 }

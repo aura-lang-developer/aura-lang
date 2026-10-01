@@ -27,8 +27,8 @@ use std::sync::OnceLock;
 
 static GLOBAL_SCHEDULER: OnceLock<Scheduler> = OnceLock::new();
 
-impl Scheduler {
-    pub fn new() -> Self {
+impl Default for Scheduler {
+    fn default() -> Self {
         Scheduler {
             ready_queue: Arc::new(Mutex::new(VecDeque::new())),
             all_fibers: Arc::new(Mutex::new(Vec::new())),
@@ -38,6 +38,12 @@ impl Scheduler {
             total_workers: Arc::new(AtomicUsize::new(1)),
             deadlock_detection: Arc::new(AtomicBool::new(true)),
         }
+    }
+}
+
+impl Scheduler {
+    pub fn new() -> Self {
+        Self::default()
     }
 
     pub fn spawn(&self, entry: extern "C" fn(*mut ()), arg: *mut ()) -> u64 {
@@ -78,7 +84,7 @@ impl Scheduler {
     pub fn parked_fibers_count(&self) -> usize {
         let active = self.active_fibers_count();
         let ready = self.ready_fibers_count();
-        if active >= ready { active - ready } else { 0 }
+        active.saturating_sub(ready)
     }
 
     pub fn set_deadlock_detection(&self, enabled: bool) {

@@ -49,21 +49,19 @@ export fn runDeferTest(): List<String> => {
     std::fs::create_dir_all("dist").unwrap();
     std::fs::write(temp_js_path, &result.js_code).unwrap();
 
-    let runner_script = format!(
-        r#"
-import {{ runDeferTest }} from './test_defer_e2e.mjs';
+    let runner_script = r#"
+import { runDeferTest } from './test_defer_e2e.mjs';
 const result = runDeferTest();
 console.log("Defer execution order:", JSON.stringify(result));
-if (!result || result.length !== 4) {{
+if (!result || result.length !== 4) {
     console.error("Expected 4 items, got:", result);
     process.exit(1);
-}}
-if (result[0] !== 'body_execution' || result[1] !== 'third_defer' || result[2] !== 'second_defer' || result[3] !== 'first_defer') {{
+}
+if (result[0] !== 'body_execution' || result[1] !== 'third_defer' || result[2] !== 'second_defer' || result[3] !== 'first_defer') {
     console.error("LIFO order mismatch:", result);
     process.exit(2);
-}}
-"#
-    );
+}
+"#.to_string();
 
     let script_path = "dist/run_defer_check.mjs";
     std::fs::write(script_path, runner_script).unwrap();

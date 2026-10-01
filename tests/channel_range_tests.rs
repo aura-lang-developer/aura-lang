@@ -91,27 +91,26 @@ export fn runChannelRangeTest(): Task<List<Int>, String> => {
     std::fs::create_dir_all("dist").unwrap();
     std::fs::write(temp_js_path, &result.js_code).unwrap();
 
-    let runner_script = format!(
-        r#"
-import {{ runChannelRangeTest }} from './test_channel_range_e2e.mjs';
+    let runner_script = r#"
+import { runChannelRangeTest } from './test_channel_range_e2e.mjs';
 
-runChannelRangeTest().then(result => {{
+runChannelRangeTest().then(result => {
     console.log("Channel range consumed items:", JSON.stringify(result));
-    if (!result || result.length !== 4) {{
+    if (!result || result.length !== 4) {
         console.error("Expected 4 items from channel, got:", result);
         process.exit(1);
-    }}
-    if (result[0] !== 10 || result[1] !== 20 || result[2] !== 30 || result[3] !== 40) {{
+    }
+    if (result[0] !== 10 || result[1] !== 20 || result[2] !== 30 || result[3] !== 40) {
         console.error("Item values mismatch:", result);
         process.exit(2);
-    }}
+    }
     process.exit(0);
-}}).catch(err => {{
+}).catch(err => {
     console.error("Error running channel range test:", err);
     process.exit(3);
-}});
+});
 "#
-    );
+    .to_string();
 
     let script_path = "dist/run_channel_range_check.mjs";
     std::fs::write(script_path, runner_script).unwrap();

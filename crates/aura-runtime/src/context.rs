@@ -89,7 +89,7 @@ impl FiberStack {
     pub fn new(size: usize) -> Self {
         let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize }.max(4096);
         let guard_size = page_size;
-        let aligned_user_size = ((size + page_size - 1) / page_size) * page_size;
+        let aligned_user_size = size.div_ceil(page_size) * page_size;
         let total_mmap_size = aligned_user_size + guard_size;
 
         let ptr = unsafe {
@@ -177,6 +177,10 @@ unsafe impl Sync for FiberStack {}
 
 /// Prepares a new fiber stack so that the first context switch into it
 /// jumps directly to `trampoline`.
+///
+/// # Safety
+///
+/// Caller must ensure that `stack` contains valid memory allocated for a fiber execution context.
 pub unsafe fn init_stack(stack: &FiberStack, trampoline: extern "C" fn() -> !) -> *mut u8 {
     let top = stack.top();
 

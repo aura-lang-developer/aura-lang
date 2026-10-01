@@ -313,7 +313,7 @@ fn collect_let_names(expr: &Expr, names: &mut Vec<String>) {
 }
 
 fn is_block_terminated(builder: &FunctionBuilder, block: Block) -> bool {
-    builder.func.layout.last_inst(block).map_or(false, |inst| {
+    builder.func.layout.last_inst(block).is_some_and(|inst| {
         let op = builder.func.dfg.insts[inst].opcode();
         op.is_branch() || op.is_return()
     })
@@ -1014,19 +1014,19 @@ impl CraneliftBackend {
                 Ok(builder.inst_results(call)[0])
             }
             Expr::MemberAccess { object, member } => {
-                if let Expr::Identifier(ref name) = **object {
-                    if name == "http" {
-                        match member.as_str() {
-                            "StatusOK" => return Ok(builder.ins().iconst(types::I64, 200)),
-                            "StatusCreated" => return Ok(builder.ins().iconst(types::I64, 201)),
-                            "StatusNoContent" => return Ok(builder.ins().iconst(types::I64, 204)),
-                            "StatusBadRequest" => return Ok(builder.ins().iconst(types::I64, 400)),
-                            "StatusNotFound" => return Ok(builder.ins().iconst(types::I64, 404)),
-                            "StatusInternalServerError" => {
-                                return Ok(builder.ins().iconst(types::I64, 500));
-                            }
-                            _ => {}
+                if let Expr::Identifier(ref name) = **object
+                    && name == "http"
+                {
+                    match member.as_str() {
+                        "StatusOK" => return Ok(builder.ins().iconst(types::I64, 200)),
+                        "StatusCreated" => return Ok(builder.ins().iconst(types::I64, 201)),
+                        "StatusNoContent" => return Ok(builder.ins().iconst(types::I64, 204)),
+                        "StatusBadRequest" => return Ok(builder.ins().iconst(types::I64, 400)),
+                        "StatusNotFound" => return Ok(builder.ins().iconst(types::I64, 404)),
+                        "StatusInternalServerError" => {
+                            return Ok(builder.ins().iconst(types::I64, 500));
                         }
+                        _ => {}
                     }
                 }
 
@@ -1197,10 +1197,10 @@ impl CraneliftBackend {
             Expr::Block(stmts) => {
                 let mut last_val = builder.ins().iconst(types::I64, 0);
                 for stmt in stmts {
-                    if let Some(cur_b) = builder.current_block() {
-                        if is_block_terminated(builder, cur_b) {
-                            break;
-                        }
+                    if let Some(cur_b) = builder.current_block()
+                        && is_block_terminated(builder, cur_b)
+                    {
+                        break;
                     }
                     match stmt {
                         Statement::Let { name, value, .. } => {
@@ -1359,11 +1359,11 @@ impl CraneliftBackend {
                 builder.switch_to_block(then_block);
                 builder.seal_block(then_block);
                 let then_res = self.compile_expr(builder, then_branch, vars, defers, loop_ctx)?;
-                if let Some(cur) = builder.current_block() {
-                    if !is_block_terminated(builder, cur) {
-                        builder.def_var(res_var, then_res);
-                        builder.ins().jump(merge_block, &[]);
-                    }
+                if let Some(cur) = builder.current_block()
+                    && !is_block_terminated(builder, cur)
+                {
+                    builder.def_var(res_var, then_res);
+                    builder.ins().jump(merge_block, &[]);
                 }
 
                 // Else branch
@@ -1374,11 +1374,11 @@ impl CraneliftBackend {
                 } else {
                     builder.ins().iconst(types::I64, 0)
                 };
-                if let Some(cur) = builder.current_block() {
-                    if !is_block_terminated(builder, cur) {
-                        builder.def_var(res_var, else_res);
-                        builder.ins().jump(merge_block, &[]);
-                    }
+                if let Some(cur) = builder.current_block()
+                    && !is_block_terminated(builder, cur)
+                {
+                    builder.def_var(res_var, else_res);
+                    builder.ins().jump(merge_block, &[]);
                 }
 
                 // Merge block
@@ -1578,29 +1578,28 @@ impl CraneliftBackend {
                             builder.switch_to_block(arm_exec_block);
                             builder.seal_block(arm_exec_block);
 
-                            if !patterns.is_empty() {
-                                if let Pattern::Variable(v_name) = &patterns[0] {
-                                    let local_val_fn = self
-                                        .module
-                                        .declare_func_in_func(self.variant_val_id, builder.func);
-                                    let call_val = builder.ins().call(local_val_fn, &[sub_val]);
-                                    let inner_val = builder.inst_results(call_val)[0];
+                            if !patterns.is_empty()
+                                && let Pattern::Variable(v_name) = &patterns[0]
+                            {
+                                let local_val_fn = self
+                                    .module
+                                    .declare_func_in_func(self.variant_val_id, builder.func);
+                                let call_val = builder.ins().call(local_val_fn, &[sub_val]);
+                                let inner_val = builder.inst_results(call_val)[0];
 
-                                    let var = builder.declare_var(types::I64);
-                                    builder.def_var(var, inner_val);
-                                    vars.insert(v_name.clone(), (var, types::I64));
-                                    if let Some(&data_id) = self.globals.get(v_name) {
-                                        let local_data =
-                                            self.module.declare_data_in_func(data_id, builder.func);
-                                        let addr =
-                                            builder.ins().symbol_value(types::I64, local_data);
-                                        builder.ins().store(
-                                            MemFlagsData::trusted(),
-                                            inner_val,
-                                            addr,
-                                            0,
-                                        );
-                                    }
+                                let var = builder.declare_var(types::I64);
+                                builder.def_var(var, inner_val);
+                                vars.insert(v_name.clone(), (var, types::I64));
+                                if let Some(&data_id) = self.globals.get(v_name) {
+                                    let local_data =
+                                        self.module.declare_data_in_func(data_id, builder.func);
+                                    let addr = builder.ins().symbol_value(types::I64, local_data);
+                                    builder.ins().store(
+                                        MemFlagsData::trusted(),
+                                        inner_val,
+                                        addr,
+                                        0,
+                                    );
                                 }
                             }
 
@@ -2450,12 +2449,12 @@ fn find_or_build_runtime_lib() -> Result<PathBuf, String> {
         .arg("aura-runtime")
         .status();
 
-    if let Ok(s) = status {
-        if s.success() {
-            for c in &candidates {
-                if c.exists() {
-                    return Ok(c.canonicalize().unwrap_or(c.clone()));
-                }
+    if let Ok(s) = status
+        && s.success()
+    {
+        for c in &candidates {
+            if c.exists() {
+                return Ok(c.canonicalize().unwrap_or(c.clone()));
             }
         }
     }

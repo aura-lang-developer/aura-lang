@@ -42,12 +42,12 @@ pub extern "C" fn aura_json_get_str(
     };
 
     let doc_ref = unsafe { &*doc };
-    if let Value::Object(map) = &doc_ref.value {
-        if let Some(val) = map.get(key) {
-            match val {
-                Value::String(s) => return aura_string_from_rust_str(s),
-                _ => return aura_string_from_rust_str(&val.to_string()),
-            }
+    if let Value::Object(map) = &doc_ref.value
+        && let Some(val) = map.get(key)
+    {
+        match val {
+            Value::String(s) => return aura_string_from_rust_str(s),
+            _ => return aura_string_from_rust_str(&val.to_string()),
         }
     }
 
@@ -70,12 +70,11 @@ pub extern "C" fn aura_json_get_i64(
     };
 
     let doc_ref = unsafe { &*doc };
-    if let Value::Object(map) = &doc_ref.value {
-        if let Some(val) = map.get(key) {
-            if let Some(n) = val.as_i64() {
-                return n;
-            }
-        }
+    if let Value::Object(map) = &doc_ref.value
+        && let Some(val) = map.get(key)
+        && let Some(n) = val.as_i64()
+    {
+        return n;
     }
 
     0

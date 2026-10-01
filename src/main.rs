@@ -108,7 +108,7 @@ fn execute_build(
 
     if _target_backend == "native" || _target_backend == "cranelift" || explicit_target.is_some() {
         println!(
-            "⚡ Compiling standalone native binary executable via Cranelift{}{}{}...",
+            "⚡ Compiling standalone native binary executable via Cranelift{}{}...",
             explicit_target
                 .map(|t| format!(" (target: {})", t))
                 .unwrap_or_default(),
@@ -116,8 +116,7 @@ fn execute_build(
                 " [release: -O3, SIMD enabled, dead-code strip]"
             } else {
                 ""
-            },
-            ""
+            }
         );
         match aura_lang::build_native_binary_with_options(
             &source,
@@ -654,11 +653,11 @@ fn main() {
                                 eprintln!("Error writing debug bundle '{}': {}", debug_js, e);
                                 return;
                             }
-                            if let Some(ref map_content) = res.source_map {
-                                if let Err(e) = fs::write(&debug_map, map_content) {
-                                    eprintln!("Error writing sourcemap '{}': {}", debug_map, e);
-                                    return;
-                                }
+                            if let Some(ref map_content) = res.source_map
+                                && let Err(e) = fs::write(&debug_map, map_content)
+                            {
+                                eprintln!("Error writing sourcemap '{}': {}", debug_map, e);
+                                return;
                             }
 
                             if step_mode {
@@ -847,7 +846,6 @@ fn main() {
 }
 
 #[cfg(test)]
-
 mod tests {
     use super::*;
 

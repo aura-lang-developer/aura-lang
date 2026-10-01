@@ -1217,6 +1217,12 @@ pub struct GoCodeGen {
     current_return_type: Option<String>,
 }
 
+impl Default for GoCodeGen {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GoCodeGen {
     pub fn new() -> Self {
         Self {
@@ -1404,9 +1410,11 @@ impl GoCodeGen {
         final_code.push_str("    \"strings\"\n");
         final_code.push_str("    \"sync\"\n");
         final_code.push_str("    go_time \"time\"\n");
+        final_code.push_str("    go_runtime \"runtime\"\n");
         final_code.push_str(")\n\n");
 
         // Suppress unused imports
+        final_code.push_str("var _ = go_runtime.Gosched\n");
         final_code.push_str("var _ = hmac.New\n");
         final_code.push_str("var _ = sha256.New\n");
         final_code.push_str("var _ = base64.RawURLEncoding\n");
@@ -1537,15 +1545,15 @@ impl GoCodeGen {
                 Expr::Block(stmts) => {
                     let count = stmts.len();
                     for (idx, stmt) in stmts.iter().enumerate() {
-                        if idx == count - 1 && !ret_str.is_empty() {
-                            if let Statement::Expr(e) = stmt {
-                                let expr_str = self.emit_expr(e);
-                                if expr_str != "unit" && !expr_str.is_empty() {
-                                    let final_ret =
-                                        self.wrap_return_expr(&expr_str, ret_str.trim());
-                                    self.write_line(&format!("return {}", final_ret));
-                                    continue;
-                                }
+                        if idx == count - 1
+                            && !ret_str.is_empty()
+                            && let Statement::Expr(e) = stmt
+                        {
+                            let expr_str = self.emit_expr(e);
+                            if expr_str != "unit" && !expr_str.is_empty() {
+                                let final_ret = self.wrap_return_expr(&expr_str, ret_str.trim());
+                                self.write_line(&format!("return {}", final_ret));
+                                continue;
                             }
                         }
                         self.emit_statement(stmt);
@@ -1613,14 +1621,15 @@ impl GoCodeGen {
             Expr::Block(stmts) => {
                 let count = stmts.len();
                 for (idx, stmt) in stmts.iter().enumerate() {
-                    if idx == count - 1 && !ret_str.is_empty() {
-                        if let Statement::Expr(e) = stmt {
-                            let expr_str = self.emit_expr(e);
-                            if expr_str != "unit" && !expr_str.is_empty() {
-                                let final_ret = self.wrap_return_expr(&expr_str, ret_str.trim());
-                                self.write_line(&format!("return {}", final_ret));
-                                continue;
-                            }
+                    if idx == count - 1
+                        && !ret_str.is_empty()
+                        && let Statement::Expr(e) = stmt
+                    {
+                        let expr_str = self.emit_expr(e);
+                        if expr_str != "unit" && !expr_str.is_empty() {
+                            let final_ret = self.wrap_return_expr(&expr_str, ret_str.trim());
+                            self.write_line(&format!("return {}", final_ret));
+                            continue;
                         }
                     }
                     self.emit_statement(stmt);
@@ -1885,21 +1894,18 @@ impl GoCodeGen {
     }
 
     fn infer_unwrap_type(&self, inner: &Expr) -> String {
-        match inner {
-            Expr::FunctionCall { callee, .. } => match &**callee {
+        if let Expr::FunctionCall { callee, .. } = inner {
+            match &**callee {
                 Expr::Identifier(name) => {
-                    if let Some(func) = self.func_defs.get(name) {
-                        if let Some(Type::Named {
+                    if let Some(func) = self.func_defs.get(name)
+                        && let Some(Type::Named {
                             name: type_name,
                             type_args,
                         }) = &func.return_type
-                        {
-                            if (type_name == "Result" || type_name == "Option")
-                                && !type_args.is_empty()
-                            {
-                                return self.map_type_to_go(&type_args[0]);
-                            }
-                        }
+                        && (type_name == "Result" || type_name == "Option")
+                        && !type_args.is_empty()
+                    {
+                        return self.map_type_to_go(&type_args[0]);
                     }
                     if name == "createOrderEntity" {
                         return "Order".to_string();
@@ -1932,18 +1938,15 @@ impl GoCodeGen {
                     }
                     for iface in self.interface_defs.values() {
                         for m in &iface.methods {
-                            if m.name == *member {
-                                if let Type::Named {
+                            if m.name == *member
+                                && let Type::Named {
                                     name: type_name,
                                     type_args,
                                 } = &m.return_type
-                                {
-                                    if (type_name == "Result" || type_name == "Option")
-                                        && !type_args.is_empty()
-                                    {
-                                        return self.map_type_to_go(&type_args[0]);
-                                    }
-                                }
+                                && (type_name == "Result" || type_name == "Option")
+                                && !type_args.is_empty()
+                            {
+                                return self.map_type_to_go(&type_args[0]);
                             }
                         }
                     }
@@ -1957,8 +1960,7 @@ impl GoCodeGen {
                     }
                 }
                 _ => {}
-            },
-            _ => {}
+            }
         }
         "any".to_string()
     }
@@ -2153,79 +2155,66 @@ impl GoCodeGen {
         value: &Expr,
         type_annotation: Option<&Type>,
     ) -> String {
-        if let Some(ty) = type_annotation {
-            match ty {
-                Type::Named {
-                    name: ty_name,
-                    type_args,
-                } => {
-                    if self.struct_defs.contains_key(ty_name) {
-                        if let Expr::RecordLiteral { fields, .. } = value {
-                            let rec_str = self.emit_typed_record_literal(ty_name, fields);
-                            return format!("{} := {}", name, rec_str);
-                        }
-                    }
-                    if ty_name == "List" || ty_name == "Array" {
-                        if let Some(elem_ty) = type_args.first() {
-                            let elem_go_ty = self.map_type_to_go(elem_ty);
-                            if let Expr::ListLiteral(items) = value {
-                                let items_str: Vec<String> = items
-                                    .iter()
-                                    .map(|it| {
-                                        if let Expr::RecordLiteral {
-                                            fields: it_fields, ..
-                                        } = it
-                                        {
-                                            if let Type::Named {
-                                                name: elem_name, ..
-                                            } = elem_ty
-                                            {
-                                                if self.struct_defs.contains_key(elem_name) {
-                                                    return self.emit_typed_record_literal(
-                                                        elem_name, it_fields,
-                                                    );
-                                                }
-                                            }
-                                        }
-                                        self.emit_expr(it)
-                                    })
-                                    .collect();
-                                return format!(
-                                    "{} := []{}{{{}}}",
-                                    name,
-                                    elem_go_ty,
-                                    items_str.join(", ")
-                                );
+        if let Some(ty) = type_annotation
+            && let Type::Named {
+                name: ty_name,
+                type_args,
+            } = ty
+        {
+            if self.struct_defs.contains_key(ty_name)
+                && let Expr::RecordLiteral { fields, .. } = value
+            {
+                let rec_str = self.emit_typed_record_literal(ty_name, fields);
+                return format!("{} := {}", name, rec_str);
+            }
+            if (ty_name == "List" || ty_name == "Array")
+                && let Some(elem_ty) = type_args.first()
+            {
+                let elem_go_ty = self.map_type_to_go(elem_ty);
+                if let Expr::ListLiteral(items) = value {
+                    let items_str: Vec<String> = items
+                        .iter()
+                        .map(|it| {
+                            if let Expr::RecordLiteral {
+                                fields: it_fields, ..
+                            } = it
+                                && let Type::Named {
+                                    name: elem_name, ..
+                                } = elem_ty
+                                && self.struct_defs.contains_key(elem_name)
+                            {
+                                return self.emit_typed_record_literal(elem_name, it_fields);
                             }
-                        }
-                    }
-                    if ty_name == "Int" || ty_name == "Int64" {
-                        let val_str = self.emit_expr(value);
-                        return format!("var {} int64 = {}", name, val_str);
-                    }
-                    if ty_name == "Channel" {
-                        if let Expr::FunctionCall { args, .. } = value {
-                            let cap_str = args
-                                .first()
-                                .map(|a| self.emit_expr(a))
-                                .unwrap_or_else(|| "0".to_string());
-                            return format!("{} := make(chan any, {})", name, cap_str);
-                        }
-                    }
-                    if ty_name == "Float" {
-                        return format!("{} := __auraFloat({})", name, self.emit_expr(value));
-                    }
-                    if ty_name == "Int" {
-                        return format!("{} := __auraInt({})", name, self.emit_expr(value));
-                    }
-                    if ty_name == "String" {
-                        return format!("{} := __auraStr({})", name, self.emit_expr(value));
-                    }
-                    if ty_name == "Bool" {
-                        return format!("{} := __auraBool({})", name, self.emit_expr(value));
-                    }
+                            self.emit_expr(it)
+                        })
+                        .collect();
+                    return format!("{} := []{}{{{}}}", name, elem_go_ty, items_str.join(", "));
                 }
-                _ => {}
+            }
+            if ty_name == "Int" || ty_name == "Int64" {
+                let val_str = self.emit_expr(value);
+                return format!("var {} int64 = {}", name, val_str);
+            }
+            if ty_name == "Channel"
+                && let Expr::FunctionCall { args, .. } = value
+            {
+                let cap_str = args
+                    .first()
+                    .map(|a| self.emit_expr(a))
+                    .unwrap_or_else(|| "0".to_string());
+                return format!("{} := make(chan any, {})", name, cap_str);
+            }
+            if ty_name == "Float" {
+                return format!("{} := __auraFloat({})", name, self.emit_expr(value));
+            }
+            if ty_name == "Int" {
+                return format!("{} := __auraInt({})", name, self.emit_expr(value));
+            }
+            if ty_name == "String" {
+                return format!("{} := __auraStr({})", name, self.emit_expr(value));
+            }
+            if ty_name == "Bool" {
+                return format!("{} := __auraBool({})", name, self.emit_expr(value));
             }
         }
         if name == "rawItems" {
@@ -2334,7 +2323,7 @@ impl GoCodeGen {
                     let range_vars = if let Some(idx) = index_name {
                         format!("{}, {}", idx, var_name)
                     } else if is_chan {
-                        format!("{}", var_name)
+                        var_name.to_string()
                     } else {
                         format!("_, {}", var_name)
                     };
@@ -2599,6 +2588,7 @@ impl GoCodeGen {
                 "println" => "fmt.Println".to_string(),
                 "print" => "fmt.Print".to_string(),
                 "sleep" => "time.sleep".to_string(),
+                "yield" => "go_runtime.Gosched".to_string(),
                 "panic" => "panic".to_string(),
                 "recover" => "recover".to_string(),
                 "null" | "undefined" => "nil".to_string(),
@@ -2992,14 +2982,14 @@ impl GoCodeGen {
                     Expr::Block(stmts) => {
                         for (idx, stmt) in stmts.iter().enumerate() {
                             let is_last = idx == stmts.len() - 1;
-                            if is_last && !ret_str.is_empty() {
-                                if let Statement::Expr(e) = stmt {
-                                    let expr_str = self.emit_expr(e);
-                                    let final_ret =
-                                        self.wrap_return_expr(&expr_str, ret_str.trim());
-                                    self.write_line(&format!("return {}", final_ret));
-                                    continue;
-                                }
+                            if is_last
+                                && !ret_str.is_empty()
+                                && let Statement::Expr(e) = stmt
+                            {
+                                let expr_str = self.emit_expr(e);
+                                let final_ret = self.wrap_return_expr(&expr_str, ret_str.trim());
+                                self.write_line(&format!("return {}", final_ret));
+                                continue;
                             }
                             self.emit_statement(stmt);
                         }
@@ -3235,7 +3225,7 @@ impl GoCodeGen {
                     let ret_ty = self
                         .infer_expr_go_type(then_branch)
                         .or_else(|| self.infer_expr_go_type(else_b))
-                        .or_else(|| self.current_return_type.as_deref())
+                        .or(self.current_return_type.as_deref())
                         .unwrap_or("any");
 
                     let (then_fmt, else_fmt) = match ret_ty {
@@ -3395,10 +3385,10 @@ impl GoCodeGen {
                     format!("Err({})", arg_str)
                 }
                 _ => {
-                    if args.len() == 1 {
-                        if let Expr::RecordLiteral { fields, .. } = &args[0] {
-                            return self.emit_typed_record_literal(name, fields);
-                        }
+                    if args.len() == 1
+                        && let Expr::RecordLiteral { fields, .. } = &args[0]
+                    {
+                        return self.emit_typed_record_literal(name, fields);
                     }
                     let args_str: Vec<String> = args.iter().map(|a| self.emit_expr(a)).collect();
                     format!("{}({})", name, args_str.join(", "))
@@ -3490,7 +3480,7 @@ impl GoCodeGen {
                 let range_vars = if let Some(idx) = index_name {
                     format!("{}, {}", idx, var_name)
                 } else if is_chan {
-                    format!("{}", var_name)
+                    var_name.to_string()
                 } else {
                     format!("_, {}", var_name)
                 };

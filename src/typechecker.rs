@@ -245,6 +245,12 @@ pub struct TypeEnv {
     parent: Option<Box<TypeEnv>>,
 }
 
+impl Default for TypeEnv {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TypeEnv {
     pub fn new() -> Self {
         let mut env = Self {
@@ -965,6 +971,13 @@ impl TypeEnv {
             "println".to_string(),
             ConcreteType::Function {
                 params: vec![ConcreteType::Any],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        env.variables.insert(
+            "yield".to_string(),
+            ConcreteType::Function {
+                params: vec![],
                 return_type: Box::new(ConcreteType::Unit),
             },
         );
@@ -2905,6 +2918,12 @@ pub struct TypeChecker {
     pub type_alias_map: HashMap<String, ConcreteType>,
 }
 
+impl Default for TypeChecker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TypeChecker {
     pub fn new() -> Self {
         Self {
@@ -2985,12 +3004,11 @@ impl TypeChecker {
                         variants: variants.clone(),
                     });
                 }
-            } else if let ConcreteType::Generic(_, ref inner) = ty {
-                if let ConcreteType::SumType { variants, .. } = inner.as_ref() {
-                    if variants.contains_key(variant_name) {
-                        return Some(ty.clone());
-                    }
-                }
+            } else if let ConcreteType::Generic(_, ref inner) = ty
+                && let ConcreteType::SumType { variants, .. } = inner.as_ref()
+                && variants.contains_key(variant_name)
+            {
+                return Some(ty.clone());
             }
         }
         None
@@ -3159,33 +3177,30 @@ impl TypeChecker {
 
         // Pass 3: Type check function bodies
         for item in &module.items {
-            match item {
-                Item::Function(func) => {
-                    let mut scope = self.env.enter_scope();
-                    if let Some(ref recv) = func.receiver {
-                        let recv_ty = self.resolve_ast_type(&recv.target_type)?;
-                        scope.insert_var(recv.name.clone(), recv_ty);
-                    }
-                    for p in &func.params {
-                        let p_ty = if let Some(ref t) = p.type_annotation {
-                            self.resolve_ast_type(t)?
-                        } else {
-                            ConcreteType::Any
-                        };
-                        scope.insert_var(p.name.clone(), p_ty);
-                    }
-
-                    let inferred_body_ty = self.infer_expr(&func.body, &mut scope)?;
-                    if let Some(ref declared_ret) = func.return_type {
-                        let declared_ty = self.resolve_ast_type(declared_ret)?;
-                        self.unify(
-                            &declared_ty,
-                            &inferred_body_ty,
-                            &format!("Function '{}' return type", func.name),
-                        )?;
-                    }
+            if let Item::Function(func) = item {
+                let mut scope = self.env.enter_scope();
+                if let Some(ref recv) = func.receiver {
+                    let recv_ty = self.resolve_ast_type(&recv.target_type)?;
+                    scope.insert_var(recv.name.clone(), recv_ty);
                 }
-                _ => {}
+                for p in &func.params {
+                    let p_ty = if let Some(ref t) = p.type_annotation {
+                        self.resolve_ast_type(t)?
+                    } else {
+                        ConcreteType::Any
+                    };
+                    scope.insert_var(p.name.clone(), p_ty);
+                }
+
+                let inferred_body_ty = self.infer_expr(&func.body, &mut scope)?;
+                if let Some(ref declared_ret) = func.return_type {
+                    let declared_ty = self.resolve_ast_type(declared_ret)?;
+                    self.unify(
+                        &declared_ty,
+                        &inferred_body_ty,
+                        &format!("Function '{}' return type", func.name),
+                    )?;
+                }
             }
         }
 
@@ -3299,7 +3314,7 @@ impl TypeChecker {
                 }
                 "Result" => {
                     let ok = type_args
-                        .get(0)
+                        .first()
                         .ok_or("Result requires 2 type arguments (Ok, Err)")?;
                     let err = type_args
                         .get(1)
@@ -3311,7 +3326,7 @@ impl TypeChecker {
                 }
                 "Task" => {
                     let ok = type_args
-                        .get(0)
+                        .first()
                         .ok_or("Task requires 2 type arguments (Ok, Err)")?;
                     let err = type_args
                         .get(1)
@@ -3689,12 +3704,7 @@ impl TypeChecker {
                                 return Ok(ConcreteType::List(Box::new(ret_ty)));
                             }
                         }
-                    } else if member == "filter" {
-                        if let Some(arg) = args.first() {
-                            let _ = self.infer_expr(arg, env)?;
-                        }
-                        return Ok(obj_ty);
-                    } else if member == "sort" {
+                    } else if member == "filter" || member == "sort" {
                         if let Some(arg) = args.first() {
                             let _ = self.infer_expr(arg, env)?;
                         }
@@ -4823,13 +4833,12 @@ impl TypeChecker {
                     }
                     _ => None,
                 };
-                if let Some(variants_map) = variants {
-                    if let Some(shape) = variants_map.get(name) {
-                        if let VariantFieldTypes::Tuple(tys) = shape {
-                            for (p, ty) in patterns.iter().zip(tys.iter()) {
-                                self.bind_pattern_with_type(p, ty, env)?;
-                            }
-                        }
+                if let Some(variants_map) = variants
+                    && let Some(shape) = variants_map.get(name)
+                    && let VariantFieldTypes::Tuple(tys) = shape
+                {
+                    for (p, ty) in patterns.iter().zip(tys.iter()) {
+                        self.bind_pattern_with_type(p, ty, env)?;
                     }
                 }
                 Ok(())
@@ -4842,10 +4851,10 @@ impl TypeChecker {
                     ConcreteType::SumType { variants, .. } => {
                         let mut found = None;
                         for (vname, shape) in variants {
-                            if let Some(tname) = type_name {
-                                if vname != tname {
-                                    continue;
-                                }
+                            if let Some(tname) = type_name
+                                && vname != tname
+                            {
+                                continue;
                             }
                             if let VariantFieldTypes::Record(f) = shape {
                                 found = Some(f.clone());
@@ -4946,13 +4955,13 @@ impl TypeChecker {
                 self.validate_sendable_type(v)
             }
             ConcreteType::Record(fields) => {
-                for (_, f_ty) in fields {
+                for f_ty in fields.values() {
                     self.validate_sendable_type(f_ty)?;
                 }
                 Ok(())
             }
             ConcreteType::SumType { variants, .. } => {
-                for (_, v_fields) in variants {
+                for v_fields in variants.values() {
                     match v_fields {
                         VariantFieldTypes::Unit => {}
                         VariantFieldTypes::Tuple(tys) => {
@@ -4961,7 +4970,7 @@ impl TypeChecker {
                             }
                         }
                         VariantFieldTypes::Record(fields) => {
-                            for (_, ty) in fields {
+                            for ty in fields.values() {
                                 self.validate_sendable_type(ty)?;
                             }
                         }
@@ -5139,10 +5148,10 @@ impl TypeChecker {
                 ConcreteType::List(elem),
             ) => {
                 if exp_name == "Iterator" || exp_name == "Interator" {
-                    if let Some((_, ret)) = exp_methods.get("next") {
-                        if let ConcreteType::Option(inner) = ret {
-                            return self.unify(inner, elem, context);
-                        }
+                    if let Some((_, ret)) = exp_methods.get("next")
+                        && let ConcreteType::Option(inner) = ret
+                    {
+                        return self.unify(inner, elem, context);
                     }
                     Ok(())
                 } else {

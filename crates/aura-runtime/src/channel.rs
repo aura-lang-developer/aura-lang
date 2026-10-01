@@ -156,3 +156,6 @@ impl AuraChannel {
         }
     }
 }
+
+unsafe impl Send for AuraChannel {}
+unsafe impl Sync for AuraChannel {}

@@ -272,7 +272,7 @@ impl FmtScanner {
                         self.advance();
                     } else if c == '.'
                         && !has_dot
-                        && self.peek_ahead(1).map_or(false, |d| d.is_numeric())
+                        && self.peek_ahead(1).is_some_and(|d| d.is_numeric())
                     {
                         has_dot = true;
                         num.push(c);
@@ -464,19 +464,15 @@ fn format_aura_internal(source: &str, config: &FormatConfig) -> Result<String, F
 
         match token {
             FmtTokenKind::Punctuation('}') => {
-                if indent_level > 0 {
-                    indent_level -= 1;
-                }
+                indent_level = indent_level.saturating_sub(1);
             }
             FmtTokenKind::Punctuation(']') => {
                 if inside_bracket > 0 {
                     inside_bracket -= 1;
                 }
             }
-            FmtTokenKind::Punctuation(')') => {
-                if inside_paren > 0 {
-                    inside_paren -= 1;
-                }
+            FmtTokenKind::Punctuation(')') if inside_paren > 0 => {
+                inside_paren -= 1;
             }
             _ => {}
         }
@@ -548,15 +544,21 @@ fn format_aura_internal(source: &str, config: &FormatConfig) -> Result<String, F
                             out.push(' ');
                         }
                         out.push_str(op);
-                        if let Some(next) = get_next_non_whitespace(&raw_tokens, i + 1) {
-                            if !matches!(next, FmtTokenKind::Newline) {
-                                out.push(' ');
-                            }
+                        if let Some(next) = get_next_non_whitespace(&raw_tokens, i + 1)
+                            && !matches!(next, FmtTokenKind::Newline)
+                        {
+                            out.push(' ');
                         }
                     }
-                } else if op == "!" || op == "++" || op == "--" || op == "~" {
-                    out.push_str(op);
-                } else if op == "." || op == "..." || op == "?." || op == "::" {
+                } else if op == "!"
+                    || op == "++"
+                    || op == "--"
+                    || op == "~"
+                    || op == "."
+                    || op == "..."
+                    || op == "?."
+                    || op == "::"
+                {
                     out.push_str(op);
                 } else {
                     if !out.ends_with(' ')
@@ -625,15 +627,15 @@ fn format_aura_internal(source: &str, config: &FormatConfig) -> Result<String, F
                         out.push(' ');
                     }
                     out.push('?');
-                    if let Some(next) = get_next_non_whitespace(&raw_tokens, i + 1) {
-                        if !matches!(
+                    if let Some(next) = get_next_non_whitespace(&raw_tokens, i + 1)
+                        && !matches!(
                             next,
                             FmtTokenKind::Newline
                                 | FmtTokenKind::Punctuation(':')
                                 | FmtTokenKind::Operator(_)
-                        ) {
-                            out.push(' ');
-                        }
+                        )
+                    {
+                        out.push(' ');
                     }
                 }
                 _ => {
@@ -699,10 +701,10 @@ fn format_aura_internal(source: &str, config: &FormatConfig) -> Result<String, F
                         match next_tok {
                             FmtTokenKind::IdentifierOrKeyword(_)
                             | FmtTokenKind::Number(_)
-                            | FmtTokenKind::StringLiteral(_) => {
-                                if !out.ends_with(' ') {
-                                    out.push(' ');
-                                }
+                            | FmtTokenKind::StringLiteral(_)
+                                if !out.ends_with(' ') =>
+                            {
+                                out.push(' ');
                             }
                             _ => {}
                         }
@@ -832,19 +834,15 @@ fn format_js_ts_internal(
 
         match token {
             FmtTokenKind::Punctuation('}') => {
-                if indent_level > 0 {
-                    indent_level -= 1;
-                }
+                indent_level = indent_level.saturating_sub(1);
             }
             FmtTokenKind::Punctuation(']') => {
                 if inside_bracket > 0 {
                     inside_bracket -= 1;
                 }
             }
-            FmtTokenKind::Punctuation(')') => {
-                if inside_paren > 0 {
-                    inside_paren -= 1;
-                }
+            FmtTokenKind::Punctuation(')') if inside_paren > 0 => {
+                inside_paren -= 1;
             }
             _ => {}
         }
@@ -892,9 +890,9 @@ fn format_js_ts_internal(
                 out.push_str(ident);
             }
             FmtTokenKind::Operator(op) => {
-                if op == "<" || op == ">" {
-                    out.push_str(op);
-                } else if op == "."
+                if op == "<"
+                    || op == ">"
+                    || op == "."
                     || op == "..."
                     || op == "?."
                     || op == "!"
@@ -927,10 +925,10 @@ fn format_js_ts_internal(
                     indent_level += 1;
 
                     // If single line destructuring or object e.g. ({ label, onClick })
-                    if let Some(next) = get_next_non_whitespace(&raw_tokens, i + 1) {
-                        if !matches!(next, FmtTokenKind::Newline | FmtTokenKind::Punctuation('}')) {
-                            out.push(' ');
-                        }
+                    if let Some(next) = get_next_non_whitespace(&raw_tokens, i + 1)
+                        && !matches!(next, FmtTokenKind::Newline | FmtTokenKind::Punctuation('}'))
+                    {
+                        out.push(' ');
                     }
                 }
                 '}' => {
@@ -983,15 +981,15 @@ fn format_js_ts_internal(
                         out.push(' ');
                     }
                     out.push('?');
-                    if let Some(next) = get_next_non_whitespace(&raw_tokens, i + 1) {
-                        if !matches!(
+                    if let Some(next) = get_next_non_whitespace(&raw_tokens, i + 1)
+                        && !matches!(
                             next,
                             FmtTokenKind::Newline
                                 | FmtTokenKind::Punctuation(':')
                                 | FmtTokenKind::Operator(_)
-                        ) {
-                            out.push(' ');
-                        }
+                        )
+                    {
+                        out.push(' ');
                     }
                 }
                 _ => {
@@ -1060,10 +1058,10 @@ fn format_js_ts_internal(
                         match next_tok {
                             FmtTokenKind::IdentifierOrKeyword(_)
                             | FmtTokenKind::Number(_)
-                            | FmtTokenKind::StringLiteral(_) => {
-                                if !out.ends_with(' ') {
-                                    out.push(' ');
-                                }
+                            | FmtTokenKind::StringLiteral(_)
+                                if !out.ends_with(' ') =>
+                            {
+                                out.push(' ');
                             }
                             _ => {}
                         }
@@ -1236,25 +1234,22 @@ pub fn collect_files<P: AsRef<Path>>(path: P) -> Vec<PathBuf> {
         if Language::from_path(path).is_some() {
             files.push(path.to_path_buf());
         }
-    } else if path.is_dir() {
-        if let Ok(entries) = fs::read_dir(path) {
-            for entry in entries.flatten() {
-                let entry_path = entry.path();
-                let file_name = entry_path
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or("");
-                if file_name.starts_with('.')
-                    || file_name == "node_modules"
-                    || file_name == "target"
-                {
-                    continue;
-                }
-                if entry_path.is_dir() {
-                    files.extend(collect_files(&entry_path));
-                } else if Language::from_path(&entry_path).is_some() {
-                    files.push(entry_path);
-                }
+    } else if path.is_dir()
+        && let Ok(entries) = fs::read_dir(path)
+    {
+        for entry in entries.flatten() {
+            let entry_path = entry.path();
+            let file_name = entry_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("");
+            if file_name.starts_with('.') || file_name == "node_modules" || file_name == "target" {
+                continue;
+            }
+            if entry_path.is_dir() {
+                files.extend(collect_files(&entry_path));
+            } else if Language::from_path(&entry_path).is_some() {
+                files.push(entry_path);
             }
         }
     }

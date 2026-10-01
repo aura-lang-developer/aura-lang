@@ -406,7 +406,7 @@ impl Parser {
             ));
         };
 
-        let is_exported = is_exported || name.chars().next().map_or(false, |c| c.is_uppercase());
+        let is_exported = is_exported || name.chars().next().is_some_and(|c| c.is_uppercase());
 
         Ok(FunctionDecl {
             name,
@@ -421,9 +421,11 @@ impl Parser {
     }
 
     fn parse_interface(&mut self, is_exported: bool) -> Result<InterfaceDecl, String> {
-        if self.match_token(&TokenKind::Interface) || self.match_token(&TokenKind::Trait) {}
+        if !self.match_token(&TokenKind::Interface) {
+            self.match_token(&TokenKind::Trait);
+        }
         let name = self.expect_ident()?;
-        let is_exported = is_exported || name.chars().next().map_or(false, |c| c.is_uppercase());
+        let is_exported = is_exported || name.chars().next().is_some_and(|c| c.is_uppercase());
         let type_params = self.parse_optional_type_params()?;
         self.expect(TokenKind::LBrace)?;
         let mut methods = Vec::new();
@@ -1503,40 +1505,40 @@ impl Parser {
     }
 
     fn is_record_key_token(kind: &TokenKind) -> bool {
-        match kind {
+        matches!(
+            kind,
             TokenKind::Ident(_)
-            | TokenKind::String(_)
-            | TokenKind::Type
-            | TokenKind::From
-            | TokenKind::When
-            | TokenKind::Match
-            | TokenKind::Module
-            | TokenKind::Default
-            | TokenKind::Spawn
-            | TokenKind::Routine
-            | TokenKind::Go
-            | TokenKind::Select
-            | TokenKind::While
-            | TokenKind::For
-            | TokenKind::In
-            | TokenKind::Break
-            | TokenKind::Continue
-            | TokenKind::Underscore
-            | TokenKind::Fn
-            | TokenKind::Let
-            | TokenKind::Mut
-            | TokenKind::Async
-            | TokenKind::Await
-            | TokenKind::Import
-            | TokenKind::Export
-            | TokenKind::Extern
-            | TokenKind::Trait
-            | TokenKind::Impl
-            | TokenKind::Return
-            | TokenKind::True
-            | TokenKind::False => true,
-            _ => false,
-        }
+                | TokenKind::String(_)
+                | TokenKind::Type
+                | TokenKind::From
+                | TokenKind::When
+                | TokenKind::Match
+                | TokenKind::Module
+                | TokenKind::Default
+                | TokenKind::Spawn
+                | TokenKind::Routine
+                | TokenKind::Go
+                | TokenKind::Select
+                | TokenKind::While
+                | TokenKind::For
+                | TokenKind::In
+                | TokenKind::Break
+                | TokenKind::Continue
+                | TokenKind::Underscore
+                | TokenKind::Fn
+                | TokenKind::Let
+                | TokenKind::Mut
+                | TokenKind::Async
+                | TokenKind::Await
+                | TokenKind::Import
+                | TokenKind::Export
+                | TokenKind::Extern
+                | TokenKind::Trait
+                | TokenKind::Impl
+                | TokenKind::Return
+                | TokenKind::True
+                | TokenKind::False
+        )
     }
 
     fn expect_record_key(&mut self) -> Result<String, String> {
@@ -2120,13 +2122,13 @@ mod tests {
         let module = parse_source(src).expect("failed to parse pipeline");
         assert_eq!(module.items.len(), 1);
 
-        if let Item::Function(f) = &module.items[0] {
-            if let Expr::Block(stmts) = &f.body {
-                if let Statement::Expr(Expr::Pipeline { .. }) = &stmts[0] {
-                    // Successfully parsed nested pipeline
-                } else {
-                    panic!("Expected Pipeline expr");
-                }
+        if let Item::Function(f) = &module.items[0]
+            && let Expr::Block(stmts) = &f.body
+        {
+            if let Statement::Expr(Expr::Pipeline { .. }) = &stmts[0] {
+                // Successfully parsed nested pipeline
+            } else {
+                panic!("Expected Pipeline expr");
             }
         }
     }

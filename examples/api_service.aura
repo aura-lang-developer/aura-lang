@@ -14,7 +14,24 @@ export type Session = {
 export fn sanitizeName(name: String): String =>
 `User: ${name}`
 
-export fn authenticateUser(userId: String): Task<Result <Session , ServiceError>, ServiceError> => async {
+type HttpResponse = {
+  status: Int,
+  statusText: String,
+  data: {
+    id: String,
+    name: String,
+  },
+};
+
+extern "auth" {
+  fn generateAuthToken(userId: String): String;
+}
+
+extern "http" {
+  fn httpGet(url: String): Task<HttpResponse, ServiceError>;
+}
+
+export fn authenticateUser(userId: String): Task<Result<Session, ServiceError>, ServiceError> => async {
   let token = generateAuthToken(userId);
   let response = await httpGet(`/api/v1/users/${userId}`);
 

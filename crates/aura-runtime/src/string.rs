@@ -119,9 +119,22 @@ pub extern "C" fn aura_string_contains(s: *mut AuraString, sub: *mut AuraString)
 #[unsafe(no_mangle)]
 pub extern "C" fn aura_string_cstr(s: *mut AuraString) -> *const u8 {
     if s.is_null() || unsafe { (*s).ptr.is_null() } {
-        b"\0".as_ptr()
+        c"".as_ptr() as *const u8
     } else {
         unsafe { (*s).ptr }
+    }
+}
+
+impl Drop for AuraString {
+    fn drop(&mut self) {
+        if !self.ptr.is_null() && self.len > 0 {
+            let layout = Layout::from_size_align(self.len + 1, 1).unwrap();
+            unsafe {
+                std::alloc::dealloc(self.ptr, layout);
+            }
+            self.ptr = ptr::null_mut();
+            self.len = 0;
+        }
     }
 }
 
@@ -130,11 +143,7 @@ pub extern "C" fn aura_string_free(s: *mut AuraString) {
     if !s.is_null() {
         crate::gc::unregister_valid_ptr(s as usize);
         unsafe {
-            let str_box = Box::from_raw(s);
-            if !str_box.ptr.is_null() && str_box.len > 0 {
-                let layout = Layout::from_size_align(str_box.len + 1, 1).unwrap();
-                std::alloc::dealloc(str_box.ptr, layout);
-            }
+            drop(Box::from_raw(s));
         }
     }
 }

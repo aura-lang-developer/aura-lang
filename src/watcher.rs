@@ -102,10 +102,10 @@ fn compile_and_emit(
     let _ = compile_backend(&source, base_path, dts_inputs)?;
 
     let target_path = Path::new(target_binary);
-    if let Some(parent) = target_path.parent() {
-        if !parent.as_os_str().is_empty() {
-            let _ = fs::create_dir_all(parent);
-        }
+    if let Some(parent) = target_path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        let _ = fs::create_dir_all(parent);
     }
 
     build_backend_executable(&source, target_path)?;

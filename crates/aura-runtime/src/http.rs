@@ -23,7 +23,6 @@ pub struct AuraServeMux {
     pub middlewares: Vec<HttpMiddleware>,
 }
 
-#[repr(C)]
 pub struct AuraHttpRequest {
     pub method: String,
     pub url: String,
@@ -33,7 +32,6 @@ pub struct AuraHttpRequest {
     pub query: HashMap<String, String>,
 }
 
-#[repr(C)]
 pub struct AuraHttpResponse {
     pub status: u16,
     pub headers: HashMap<String, String>,
@@ -408,10 +406,8 @@ fn handle_connection(stream: TcpStream, mux: &AuraServeMux) {
         }
 
         let mut body = vec![0u8; content_length];
-        if content_length > 0 {
-            if reader.read_exact(&mut body).is_err() {
-                break;
-            }
+        if content_length > 0 && reader.read_exact(&mut body).is_err() {
+            break;
         }
 
         let is_http_1_1 = http_version.starts_with("HTTP/1.1");
@@ -434,12 +430,12 @@ fn handle_connection(stream: TcpStream, mux: &AuraServeMux) {
 
         if chosen_route.is_none() {
             for route in &mux.routes {
-                if route.method == method {
-                    if let Some(params) = match_route(&route.pattern, path) {
-                        chosen_route = Some(route);
-                        route_params = params;
-                        break;
-                    }
+                if route.method == method
+                    && let Some(params) = match_route(&route.pattern, path)
+                {
+                    chosen_route = Some(route);
+                    route_params = params;
+                    break;
                 }
             }
         }
@@ -572,8 +568,7 @@ fn match_route(pattern: &str, path: &str) -> Option<HashMap<String, String>> {
 
     let mut params = HashMap::new();
     for (p, u) in p_segs.iter().zip(u_segs.iter()) {
-        if p.starts_with(':') {
-            let param_name = &p[1..];
+        if let Some(param_name) = p.strip_prefix(':') {
             params.insert(param_name.to_string(), u.to_string());
         } else if p != u {
             return None;
