@@ -1,0 +1,13 @@
+//aura:build pro || metrics
+// Directiva de compilación: solo se compila si se pasa la etiqueta 'pro' o 'metrics'
+//
+// Prueba sin tag (se omitirá):
+//   aurac build examples/build_tags_demo.aura -o dist/build_demo
+//
+// Prueba con tag (se compilará con éxito):
+//   aurac build examples/build_tags_demo.aura -o dist/build_demo --tags "pro"
+//   ./dist/build_demo
+
+export fn main(): Unit => {
+    println("¡Compilación exitosa con build tag 'pro' o 'metrics'!");
+}

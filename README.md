@@ -20,7 +20,7 @@ Aura compiles directly into **standalone native executable binaries** (Mach-O on
 ## 📑 Table of Contents
 
 1. [🚀 Quick Start](#-quick-start)
-   - [Building the Toolchain](#1-building-the-aura-toolchain)
+   - [Building the Toolchain with Cargo](#1-building-the-aura-toolchain-with-cargo)
    - [Your First Aura Program](#2-your-first-aura-program)
    - [Compilation and Execution Modes](#3-compilation-and-execution-modes)
 2. [✨ Key Features](#-key-features)
@@ -51,8 +51,9 @@ Aura compiles directly into **standalone native executable binaries** (Mach-O on
    - [13. Automatic FFI Header Generator (`aurac bindgen`)](#13-automatic-ffi-header-generator-aurac-bindgen)
    - [14. Context and Propagated Cancellation (`Context`)](#14-context-and-propagated-cancellation-context)
    - [15. Generics and Parametric Polymorphism](#15-generics-and-parametric-polymorphism)
-   - [16. Struct Tags and Conditional Build Tags](#16-struct-tags-and-conditional-build-tags)
+   - [16. Compilation Directives, Build Tags, and Struct Tags](#16-compilation-directives-build-tags-and-struct-tags)
    - [17. TypeScript Ingestion (`.d.ts`) and Static Embedding (`embed`)](#17-typescript-ingestion-dts-and-static-asset-embedding-embed)
+   - [18. Testing Directives, Assertions, and Benchmarking](#18-testing-directives-assertions-and-benchmarking)
 6. [🗄️ Standard Library, Web Server, and Databases](#️-standard-library-web-server-and-databases)
    - [HTTP Web Server & ServeMux Router (`net/http`)](#-http-web-server-and-routing-mux-nethttp)
    - [Prometheus Metrics and W3C Traceparent Tracing](#-prometheus-metrics-and-distributed-tracing)
@@ -82,17 +83,33 @@ Aura compiles directly into **standalone native executable binaries** (Mach-O on
 
 ## 🚀 Quick Start
 
-### 1. Building the Aura Toolchain
+### 1. Building the Aura Toolchain with Cargo
 
-Ensure you have a modern Rust toolchain installed (2024 edition):
+Aura is implemented in Rust (2024 edition) and uses Cargo as the build system and package manager for the compiler engine and its native runtime ([`crates/aura-runtime`](crates/aura-runtime)).
+
+#### A. Prerequisites
+
+Ensure you have a modern Rust toolchain installed:
+
+```bash
+rustc --version # Requires Rust 1.85+ (2024 Edition)
+cargo --version
+```
+
+#### B. Clone and Build the Complete Toolchain
 
 ```bash
 git clone https://github.com/mrojasb2000/aura-lang.git
 cd aura-lang
+
+# Optimized production compilation (Release)
 cargo build --release
+
+# Or fast development compilation (Debug)
+cargo build
 ```
 
-The compiled binaries will be placed in `target/release/`:
+The compiled binaries will be placed in `target/release/` (or `target/debug/`):
 
 - `aurac`: Core compiler, native builder, hot-runner, watcher, debugger, and playground runner.
 - `auratest`: Complete unit test, benchmark (`ns/op`), and HTML coverage suite.
@@ -100,6 +117,73 @@ The compiled binaries will be placed in `target/release/`:
 - `auralsp`: Language Server Protocol (LSP) daemon compatible with any modern editor.
 - `auramod` / `aurapkg`: Decentralized package manager (`aura.mod` and `aura.lock`).
 - `aurabindgen`: Automated FFI binding generator from C header files (`.h`).
+
+#### C. Selective Binary Compilation
+
+You can compile individual binaries using the `--bin` flag:
+
+```bash
+# Compile only the core compiler
+cargo build --release --bin aurac
+
+# Compile only the test and benchmark runner
+cargo build --release --bin auratest
+
+# Compile only the code formatter
+cargo build --release --bin aurafmt
+
+# Compile only the Language Server
+cargo build --release --bin auralsp
+```
+
+#### D. Direct Invocation via Cargo (Without modifying PATH)
+
+You can invoke the tools directly using `cargo run`, separating Aura flags with `--`:
+
+```bash
+# Build an Aura program into a standalone native binary:
+cargo run --release --bin aurac -- build examples/hello.aura -o dist/hello
+
+# Rapid hot execution:
+cargo run --bin aurac -- run examples/hello.aura
+
+# Static type checking (Hindley-Milner):
+cargo run --bin aurac -- check examples/hello.aura
+
+# Compile with conditional build tags:
+cargo run --bin aurac -- build examples/build_tags_demo.aura -o dist/build_demo --tags "pro"
+
+# Run Aura tests:
+cargo run --bin auratest -- examples/tests/
+
+# Format Aura files:
+cargo run --bin aurafmt -- -w examples/
+```
+
+#### E. Global System Installation
+
+To make all Aura commands (`aurac`, `auratest`, `aurafmt`, etc.) available globally in your shell:
+
+```bash
+cargo install --path .
+```
+
+This installs all binaries into `$HOME/.cargo/bin`. Make sure `$HOME/.cargo/bin` is in your `PATH`.
+
+#### F. Internal Compiler Verification with Cargo
+
+To verify the compiler implementation and its test suite:
+
+```bash
+# Run all unit tests for the compiler library
+cargo test --lib
+
+# Run end-to-end integration and bootstrapping tests
+cargo test --test bootstrap_tests -- --test-threads=1
+
+# Run concurrency and build tag evaluation tests
+cargo test --test build_tags_and_race_tests
+```
 
 ### 2. Your First Aura Program
 
@@ -795,18 +879,62 @@ export fn unwrapOr<T>(opt: Option<T>, fallback: T): T => {
 
 ---
 
-### 16. Struct Tags and Conditional Build Tags
+### 16. Compilation Directives, Build Tags, and Struct Tags
+
+Aura provides compile-time directives to control compilation targets, platform-specific code inclusion, and structural data serialization.
+
+#### A. Conditional Compilation Directives (`//aura:build`)
+
+Aura evaluates build directives placed at the very top of `.aura` source files (before any code or declarations). If the directive evaluates to `false` for the active build target or tags, the compiler safely skips the file during both compilation and test discovery.
+
+- **Modern Boolean Syntax (`//aura:build`)**: Supports `&&` (AND), `||` (OR), `!` (NOT), and balanced parentheses:
+  ```aura
+  //aura:build (linux && amd64) || (darwin && arm64)
+  //aura:build !windows && !wasm
+  ```
+- **Go Toolchain Compatibility (`//go:build`)**:
+  ```aura
+  //go:build linux || darwin
+  ```
+- **Legacy Go Syntax (`// +build`)**: Spaces act as OR; commas act as AND:
+  ```aura
+  // +build darwin,arm64 linux,amd64
+  ```
+
+#### B. Active Built-in and Custom Build Tags
+
+The compiler automatically activates tags based on the compilation environment:
+- **Operating Systems**: `darwin`, `macos`, `unix`, `linux`, `windows`
+- **Architectures**: `amd64`, `x86_64`, `arm64`, `aarch64`
+- **Environments**: `aura`, `es6`, `node`
+
+You can pass custom tags using the `--tags` CLI flag:
+```bash
+# Try the included example with and without matching tags:
+# 1. Without tag: file is skipped
+aurac build examples/build_tags_demo.aura -o dist/build_demo
+# ➜ ℹ Skipping 'examples/build_tags_demo.aura': build tags do not match.
+
+# 2. With matching tag: compiles successfully
+aurac build examples/build_tags_demo.aura -o dist/build_demo --tags "pro,metrics"
+./dist/build_demo
+# ➜ Output: ¡Compilación exitosa con build tag 'pro' o 'metrics'!
+
+# Typecheck with staging build tags
+aurac check examples/build_tags_demo.aura --tags "pro"
+```
+
+#### C. Struct Tags for Serialization and ORMs
+
+Struct tags allow annotating fields with metadata for JSON serialization, validation rules, or database mappings:
 
 ```aura
-// Conditional compilation build tags for platform-specific builds
-// +build darwin,arm64
-
-// Struct tags for database serialization and JSON schemas
 export type UserProfile = {
     id: Int,
     fullName: String,
     secretHash: String,
-} `json:"user_profile" db:"users"`;
+    createdAt: Int,
+} `json:"user_profile" db:"users" validate:"required"`;
 ```
 
 ---
@@ -823,6 +951,115 @@ Type-check against external NPM declarations without writing manual wrappers:
 
 ```bash
 aurac build app.aura -o app --dts ./node_modules/@types/node/index.d.ts
+```
+
+---
+
+### 18. Testing Directives, Assertions, and Benchmarking
+
+Aura provides a built-in testing, benchmarking, and code-coverage framework inspired by the Go testing model, powered by `auratest` (or `aurac test`).
+
+#### A. Test Discovery and Categorization Directives
+
+Files matching the following naming conventions are automatically discovered:
+- **Test files**: `*_test.aura`, `.test.aura`, `_spec.aura`, `test_*.aura`, or any `.aura` file located in a `tests/` directory.
+- **Automatic Categorization**:
+  - **Unit Tests (`UNIT`)**: Default for test files, or matching `*_unit_test.aura`.
+  - **Integration Tests (`INTEGRATION`)**: Files containing `_integration_test.aura` or located under an `integration/` directory.
+  - **End-to-End Tests (`E2E`)**: Files containing `_e2e_test.aura` or located under an `e2e/` directory.
+  - **Benchmarks (`BENCHMARK`)**: Functions beginning with `benchmark_`, `Benchmark`, or `bench_`.
+
+#### B. Test and Benchmark Function Signatures
+
+Test functions must be exported and can either accept a test context (`TestingT`) or run parameter-free:
+
+```aura
+// 1. Standard unit test taking TestingT
+export fn test_addition(t: TestingT) => {
+    let sum = 10 + 25;
+    t.assertEqual(sum, 35, "10 + 25 must equal 35");
+    t.assertTrue(sum > 30, "sum should be greater than 30");
+}
+
+// 2. Async test for fibers, channels, and network calls
+export async fn test_async_service(t: TestingT) => {
+    let result = await fetchUserData(101);
+    t.assertTrue(result.isOk(), "fetching user must succeed");
+}
+
+// 3. Subtests (t.run) and logical test steps (t.step)
+export fn test_order_lifecycle(t: TestingT) => {
+    t.step("Verify inventory", fn() => {
+        t.assertTrue(checkStock("SKU-100"));
+    });
+
+    t.run("VIP customer discount", fn(subT: TestingT) => {
+        let total = calculateTotal({ isVip: true }, 100.0);
+        subT.assertEqual(total, 80.0, "VIPs receive a 20% discount");
+    });
+
+    t.run("Standard customer price", fn(subT: TestingT) => {
+        let total = calculateTotal({ isVip: false }, 100.0);
+        subT.assertEqual(total, 100.0, "Regular customers pay full price");
+    });
+}
+
+// 4. Benchmark function with adaptive timing
+export fn benchmark_factorial(b: BenchmarkB) => {
+    b.resetTimer();
+    factorial(15, 1);
+}
+```
+
+#### C. Testing Context Directives (`TestingT`)
+
+The `t: TestingT` context provides standard assertion, logging, and lifecycle directives:
+
+| Method / Directive | Description |
+| :----------------- | :---------- |
+| `t.assertEqual(actual, expected, msg?)` | Asserts deep structural equality between two values. |
+| `t.assertNotEqual(actual, expected, msg?)` | Asserts that two values are not deeply equal. |
+| `t.assertTrue(condition, msg?)` | Asserts that `condition === true`. |
+| `t.assertFalse(condition, msg?)` | Asserts that `condition === false`. |
+| `t.assertDeepEqual(actual, expected, msg?)` | Alias for deep structural assertion. |
+| `t.assertThrows(fn, expectedErr?)` | Asserts that calling `fn()` throws or panics with an optional error substring. |
+| `t.step(name, fn)` | Encapsulates a distinct logical step with timing logs. |
+| `t.run(subName, fn)` | Spawns an isolated subtest with its own `TestingT` scope. |
+| `t.log(...args)` | Records formatted diagnostic messages in the test output. |
+| `t.skip(reason)` | Skips the current test at runtime with an explanation. |
+| `t.fail(reason)` | Immediately marks the test as failed. |
+
+Global assertions are also available directly without `t`: `assert(cond, msg)`, `assertTrue(cond, msg)`, `assertFalse(cond, msg)`, `assertEqual(a, b, msg)`, and `assertNotEqual(a, b, msg)`.
+
+#### D. Benchmark Context Directives (`BenchmarkB`)
+
+The `b: BenchmarkB` context manages adaptive iteration counts and throughput metrics:
+
+| Method / Directive | Description |
+| :----------------- | :---------- |
+| `b.n` | Target iteration count adaptively calibrated by the benchmark runner. |
+| `b.resetTimer()` | Resets the elapsed time and start timestamp (use after expensive setup). |
+| `b.startTimer()` | Resumes timer measurement. |
+| `b.stopTimer()` | Pauses timer measurement during non-benchmark teardown/allocations. |
+| `b.setBytes(n)` | Informs the runner of bytes processed per op to compute MB/s throughput. |
+
+#### E. Conditional Testing with Build Tags
+
+Apply conditional compilation directives to isolate slow or environment-specific test suites:
+
+```aura
+//aura:build integration && !ci_fast
+// File: tests/postgres_integration_test.aura
+
+export fn test_postgres_pool(t: TestingT) => {
+    let pool = postgres.createPool(testConfig);
+    t.assertTrue(pool.ping());
+}
+```
+
+Run test suites matching specific tags:
+```bash
+auratest --tags "integration" ./...
 ```
 
 ---
@@ -1084,6 +1321,9 @@ aurac watch main.aura --run
 
 # 9. Conditional compilation via build tags
 aurac build main.aura --tags "premium,darwin"
+
+# 10. Ingest external TypeScript type definitions (.d.ts)
+aurac build main.aura -o dist/my-app --dts node_modules/@types/node/index.d.ts
 ```
 
 ### 2. Test, Benchmark, and Coverage Runner (`auratest`)
@@ -1100,6 +1340,14 @@ auratest -v ./...
 # Filter tests by regular expression
 auratest -run TestUserAuthentication ./...
 
+# Filter tests by test category
+auratest --unit ./...
+auratest --integration ./...
+auratest --e2e ./...
+
+# Conditional testing using build tags
+auratest --tags "integration,db" ./...
+
 # Run benchmarks with operations per second (ns/op)
 auratest -bench . ./...
 
@@ -1108,6 +1356,12 @@ auratest --coverage --coverprofile=coverage.out --coverage-html=coverage.html ./
 
 # Structured JSON output for CI/CD integration
 auratest -json ./...
+
+# Stop test execution on first failure
+auratest --fail-fast ./...
+
+# Run tests with count and timeout limits
+auratest -count=2 -timeout=10000 ./...
 
 # Watch mode to re-run tests on file changes
 auratest -w ./...
@@ -1238,25 +1492,52 @@ Aura includes a **fully self-hosted compiler** written in the Aura language itse
 - [`codegen.aura`](src/aura_compiler/codegen.aura) — Code generator.
 - [`main.aura`](src/aura_compiler/main.aura) — Compiler entrypoint.
 
-### 1. Stage 1 Compilation via the Rust Reference Compiler:
+### 1. Stage 1: Compile the Self-Hosted Compiler Modules
+
+Compile the `.aura` compiler source modules into ES6 JavaScript modules:
 
 ```bash
-cargo run --bin aurac -- compile src/aura_compiler/ast.aura -o dist/ast.mjs
-cargo run --bin aurac -- compile src/aura_compiler/lexer.aura -o dist/lexer.mjs
-cargo run --bin aurac -- compile src/aura_compiler/parser.aura -o dist/parser.mjs
-cargo run --bin aurac -- compile src/aura_compiler/codegen.aura -o dist/codegen.mjs
-cargo run --bin aurac -- compile src/aura_compiler/main.aura -o dist/aurac.mjs
+mkdir -p dist
+aurac compile src/aura_compiler/ast.aura -o dist/ast.mjs
+aurac compile src/aura_compiler/lexer.aura -o dist/lexer.mjs
+aurac compile src/aura_compiler/parser.aura -o dist/parser.mjs
+aurac compile src/aura_compiler/codegen.aura -o dist/codegen.mjs
+aurac compile src/aura_compiler/main.aura -o dist/aurac.mjs
 ```
 
-### 2. Compile Aura Programs with the Self-Hosted Compiler:
+### 2. Stage 2: Compile Aura Programs with the Self-Hosted Compiler (`dist/aurac.mjs`)
+
+Use the compiled self-hosted compiler to compile Aura programs:
 
 ```bash
 node dist/aurac.mjs examples/bootstrap_demo/hello.aura -o dist/hello.js
 node dist/hello.js
-# Output: Hello from Aura self-hosted compiler!
+# Output:
+# Hello Developer from Self-Hosted Aura Compiler!
+# Sum of 1..100: 5050
 ```
 
-### 3. Automated Bootstrap Verification:
+### 3. Stage 3: Build the Self-Hosted Compiler into a Standalone Native Binary
+
+Compile the self-hosted compiler into a standalone native executable with zero external runtime dependencies:
+
+```bash
+aurac build src/aura_compiler/main.aura -o dist/aura-self-hosted
+```
+
+### 4. Stage 4: Compile Aura Programs Directly with the Native Self-Hosted Binary
+
+Run the native self-hosted compiler binary to compile any `.aura` file:
+
+```bash
+./dist/aura-self-hosted examples/hello.aura -o dist/hello_from_native.js
+node dist/hello_from_native.js
+# Output: Hello from Aura Lang!
+```
+
+### 5. Automated Bootstrap Verification
+
+Run the end-to-end automated bootstrap test suite validating all stages:
 
 ```bash
 cargo test --test bootstrap_tests -- --test-threads=1
