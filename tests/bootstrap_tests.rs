@@ -87,3 +87,64 @@ fn test_bootstrap_stage2_aura_compiler_compiles_sample_programs() {
         stdout
     );
 }
+
+#[test]
+fn test_bootstrap_stage3_native_binary_build_and_execution() {
+    let _ = fs::create_dir_all("dist");
+    let native_bin = "dist/test-self-hosted-bin";
+    let compiled_js = "dist/hello_from_native.js";
+
+    // 1. Build self-hosted compiler into a native standalone binary
+    let build_status = Command::new(env!("CARGO_BIN_EXE_aurac"))
+        .args(["build", "src/aura_compiler/main.aura", "-o", native_bin])
+        .status()
+        .expect("Failed to execute aurac build");
+
+    assert!(
+        build_status.success(),
+        "Failed to compile self-hosted compiler to standalone native binary"
+    );
+    assert!(
+        fs::metadata(native_bin).is_ok(),
+        "Native binary does not exist at {}",
+        native_bin
+    );
+
+    // 2. Run the native binary to compile examples/hello.aura
+    let run_bin_status = Command::new(format!("./{}", native_bin))
+        .args(["examples/hello.aura", "-o", compiled_js])
+        .status()
+        .expect("Failed to execute native self-hosted compiler binary");
+
+    assert!(
+        run_bin_status.success(),
+        "Native self-hosted compiler failed to compile examples/hello.aura"
+    );
+    assert!(
+        fs::metadata(compiled_js).is_ok(),
+        "Compiled JS output does not exist at {}",
+        compiled_js
+    );
+
+    // 3. Execute the JS output with node and verify output
+    let node_output = Command::new("node")
+        .arg(compiled_js)
+        .output()
+        .expect("Failed to run node on compiled output");
+
+    assert!(
+        node_output.status.success(),
+        "Node failed to execute compiled JS"
+    );
+    let stdout = String::from_utf8_lossy(&node_output.stdout);
+    assert!(
+        stdout.contains("Hello Developer from Self-Hosted Aura Compiler!"),
+        "Stdout did not match expected greeting: {}",
+        stdout
+    );
+
+    // Cleanup
+    let _ = fs::remove_file(native_bin);
+    let _ = fs::remove_file(compiled_js);
+}
+

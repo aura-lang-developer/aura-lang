@@ -53,10 +53,93 @@ func (auraChannelStatic) Close(ch any) {
 func (auraChannelStatic) close(ch any) { auraChannelStatic{}.Close(ch) }
 var Channel = auraChannelStatic{}
 
-type auraProcessStatic struct{}
+type auraStdoutStatic struct{}
+func (auraStdoutStatic) Write(b any) {
+    switch val := b.(type) {
+    case []byte:
+        go_os.Stdout.Write(val)
+    default:
+        go_os.Stdout.WriteString(fmt.Sprint(b))
+    }
+}
+func (auraStdoutStatic) write(b any) { auraStdoutStatic{}.Write(b) }
+var auraStdout = auraStdoutStatic{}
+
+type auraProcessStatic struct {
+    Argv []string
+    Stdout auraStdoutStatic
+    stdout auraStdoutStatic
+}
 func (auraProcessStatic) Uptime() float64 { return go_time.Since(__auraStartTime).Seconds() }
 func (auraProcessStatic) uptime() float64 { return go_time.Since(__auraStartTime).Seconds() }
-var process = auraProcessStatic{}
+func (auraProcessStatic) Exit(code any) { go_os.Exit(int(__auraInt(code))) }
+func (auraProcessStatic) exit(code any) { go_os.Exit(int(__auraInt(code))) }
+func (auraProcessStatic) Cwd() string { dir, _ := go_os.Getwd(); return dir }
+func (auraProcessStatic) cwd() string { dir, _ := go_os.Getwd(); return dir }
+func __auraProcessArgv() []string {
+    if len(go_os.Args) == 0 {
+        return []string{"aura", "aura"}
+    }
+    res := make([]string, len(go_os.Args)+1)
+    res[0] = go_os.Args[0]
+    res[1] = go_os.Args[0]
+    copy(res[2:], go_os.Args[1:])
+    return res
+}
+
+var process = auraProcessStatic{
+    Argv: __auraProcessArgv(),
+    Stdout: auraStdout,
+    stdout: auraStdout,
+}
+
+type auraFsStatic struct{}
+func (auraFsStatic) ExistsSync(path any) bool {
+    _, err := go_os.Stat(fmt.Sprint(path))
+    return err == nil || !go_os.IsNotExist(err)
+}
+func (auraFsStatic) existsSync(path any) bool { return auraFsStatic{}.ExistsSync(path) }
+func (auraFsStatic) ReadFileSync(path any, enc ...any) string {
+    data, err := go_os.ReadFile(fmt.Sprint(path))
+    if err != nil {
+        return ""
+    }
+    return string(data)
+}
+func (auraFsStatic) readFileSync(path any, enc ...any) string { return auraFsStatic{}.ReadFileSync(path, enc...) }
+func (auraFsStatic) WriteFileSync(path any, data any, enc ...any) {
+    _ = go_os.WriteFile(fmt.Sprint(path), []byte(fmt.Sprint(data)), 0644)
+}
+func (auraFsStatic) writeFileSync(path any, data any, enc ...any) { auraFsStatic{}.WriteFileSync(path, data, enc...) }
+func (auraFsStatic) MkdirSync(path any, opts ...any) {
+    _ = go_os.MkdirAll(fmt.Sprint(path), 0755)
+}
+func (auraFsStatic) mkdirSync(path any, opts ...any) { auraFsStatic{}.MkdirSync(path, opts...) }
+var fs = auraFsStatic{}
+
+type auraJsonStatic struct{}
+func (auraJsonStatic) Stringify(v any) string {
+    b, err := json.Marshal(v)
+    if err != nil {
+        return fmt.Sprint(v)
+    }
+    return string(b)
+}
+func (auraJsonStatic) stringify(v any) string { return auraJsonStatic{}.Stringify(v) }
+func (auraJsonStatic) Parse(s any) any {
+    var res any
+    _ = json.Unmarshal([]byte(fmt.Sprint(s)), &res)
+    return res
+}
+func (auraJsonStatic) parse(s any) any { return auraJsonStatic{}.Parse(s) }
+var JSON = auraJsonStatic{}
+
+type auraObjectStatic struct{}
+func (auraObjectStatic) Freeze(v any) any { return v }
+func (auraObjectStatic) freeze(v any) any { return v }
+var Object = auraObjectStatic{}
+
+func String(v any) string { return fmt.Sprint(v) }
 
 type auraResult struct {
     Val any
@@ -130,6 +213,72 @@ func __auraSlice(v any) []any {
         return res
     }
     return nil
+}
+
+func __auraCharAt(s string, i any) string {
+    idx := int(__auraInt(i))
+    if idx < 0 || idx >= len(s) {
+        return ""
+    }
+    return string(s[idx])
+}
+
+func __auraCharCodeAt(s string, i any) int64 {
+    idx := int(__auraInt(i))
+    if idx < 0 || idx >= len(s) {
+        return 0
+    }
+    return int64(s[idx])
+}
+
+func __auraJoin(v any, sep any) string {
+    s := fmt.Sprint(sep)
+    switch slice := v.(type) {
+    case []string:
+        return strings.Join(slice, s)
+    case []any:
+        parts := make([]string, len(slice))
+        for i, p := range slice {
+            parts[i] = fmt.Sprint(p)
+        }
+        return strings.Join(parts, s)
+    default:
+        val := reflect.ValueOf(v)
+        if val.Kind() == reflect.Slice {
+            parts := make([]string, val.Len())
+            for i := 0; i < val.Len(); i++ {
+                parts[i] = fmt.Sprint(val.Index(i).Interface())
+            }
+            return strings.Join(parts, s)
+        }
+        return fmt.Sprint(v)
+    }
+}
+
+func __auraIncludes(container any, item any) bool {
+    switch c := container.(type) {
+    case string:
+        return strings.Contains(c, fmt.Sprint(item))
+    case []string:
+        it := fmt.Sprint(item)
+        for _, s := range c {
+            if s == it { return true }
+        }
+        return false
+    case []any:
+        for _, v := range c {
+            if reflect.DeepEqual(v, item) { return true }
+        }
+        return false
+    default:
+        val := reflect.ValueOf(container)
+        if val.Kind() == reflect.Slice {
+            for i := 0; i < val.Len(); i++ {
+                if reflect.DeepEqual(val.Index(i).Interface(), item) { return true }
+            }
+        }
+        return false
+    }
 }
 
 func capitalize(s string) string {
@@ -1162,48 +1311,88 @@ func (auraMathStatic) Random() float64 { return go_rand.Float64() }
 func (auraMathStatic) random() float64 { return go_rand.Float64() }
 var Math = auraMathStatic{}
 
+func __auraConvert[T any](val any) (T, bool) {
+    if val == nil {
+        var zero T
+        return zero, true
+    }
+    if v, ok := val.(T); ok {
+        return v, true
+    }
+    targetType := reflect.TypeOf((*T)(nil)).Elem()
+    valV := reflect.ValueOf(val)
+
+    if targetType.Kind() == reflect.Slice && valV.Kind() == reflect.Slice {
+        elemType := targetType.Elem()
+        resSlice := reflect.MakeSlice(targetType, valV.Len(), valV.Len())
+        allOk := true
+        for i := 0; i < valV.Len(); i++ {
+            item := valV.Index(i).Interface()
+            if item == nil {
+                continue
+            }
+            itemV := reflect.ValueOf(item)
+            if itemV.Type().AssignableTo(elemType) {
+                resSlice.Index(i).Set(itemV)
+            } else if itemV.Type().ConvertibleTo(elemType) {
+                resSlice.Index(i).Set(itemV.Convert(elemType))
+            } else {
+                allOk = false
+                break
+            }
+        }
+        if allOk {
+            return resSlice.Interface().(T), true
+        }
+    }
+
+    if valV.Type().AssignableTo(targetType) {
+        return valV.Interface().(T), true
+    }
+    if valV.Type().ConvertibleTo(targetType) {
+        return valV.Convert(targetType).Interface().(T), true
+    }
+
+    bytes, err := json.Marshal(val)
+    if err == nil {
+        var res T
+        if err := json.Unmarshal(bytes, &res); err == nil {
+            return res, true
+        }
+    }
+    var zero T
+    return zero, false
+}
+
 func __auraUnwrap[T any](v any) T {
     if r, ok := v.(auraResult); ok {
         if !r.IsOk {
             panic("called Result.unwrap() on an Err value: " + r.Err)
         }
-        if val, ok := r.Val.(T); ok {
-            return val
-        }
-        bytes, err := json.Marshal(r.Val)
-        if err == nil {
-            var res T
-            if err := json.Unmarshal(bytes, &res); err == nil {
-                return res
-            }
-        }
-        var zero T
-        return zero
+        res, _ := __auraConvert[T](r.Val)
+        return res
     }
-    if val, ok := v.(T); ok {
-        return val
-    }
-    var zero T
-    return zero
+    res, _ := __auraConvert[T](v)
+    return res
 }
 
 func __auraCast[T any](v any) T {
-    if v == nil {
-        var zero T
-        return zero
+    res, _ := __auraConvert[T](v)
+    return res
+}
+
+func __auraSliceStr(v any) []string {
+    if s, ok := v.([]string); ok {
+        return s
     }
-    if val, ok := v.(T); ok {
-        return val
-    }
-    bytes, err := json.Marshal(v)
-    if err == nil {
-        var res T
-        if err := json.Unmarshal(bytes, &res); err == nil {
-            return res
+    if a, ok := v.([]any); ok {
+        res := make([]string, len(a))
+        for i, it := range a {
+            res[i] = fmt.Sprint(it)
         }
+        return res
     }
-    var zero T
-    return zero
+    return []string{}
 }
 "#;
 
@@ -1213,6 +1402,11 @@ pub struct GoCodeGen {
     struct_defs: std::collections::HashMap<String, Vec<(String, Type)>>,
     interface_defs: std::collections::HashMap<String, InterfaceDecl>,
     func_defs: std::collections::HashMap<String, FunctionDecl>,
+    sum_type_defs: std::collections::HashMap<String, SumTypeDecl>,
+    unit_variants: std::collections::HashSet<String>,
+    tuple_variants: std::collections::HashSet<String>,
+    record_variants: std::collections::HashSet<String>,
+    emitted_types: std::collections::HashSet<String>,
     current_returns_result: bool,
     current_return_type: Option<String>,
 }
@@ -1231,6 +1425,11 @@ impl GoCodeGen {
             struct_defs: std::collections::HashMap::new(),
             interface_defs: std::collections::HashMap::new(),
             func_defs: std::collections::HashMap::new(),
+            sum_type_defs: std::collections::HashMap::new(),
+            unit_variants: std::collections::HashSet::new(),
+            tuple_variants: std::collections::HashSet::new(),
+            record_variants: std::collections::HashSet::new(),
+            emitted_types: std::collections::HashSet::new(),
             current_returns_result: false,
             current_return_type: None,
         }
@@ -1254,12 +1453,34 @@ impl GoCodeGen {
         self.struct_defs.clear();
         self.interface_defs.clear();
         self.func_defs.clear();
+        self.sum_type_defs.clear();
+        self.unit_variants.clear();
+        self.tuple_variants.clear();
+        self.record_variants.clear();
+        self.emitted_types.clear();
 
         for item in &module.items {
             match item {
                 Item::TypeAlias(alias) => {
                     if let Type::Record(fields) = &alias.target {
                         self.struct_defs.insert(alias.name.clone(), fields.clone());
+                    }
+                }
+                Item::SumType(sum) => {
+                    self.sum_type_defs.insert(sum.name.clone(), sum.clone());
+                    for variant in &sum.variants {
+                        match &variant.fields {
+                            VariantFields::Unit => {
+                                self.unit_variants.insert(variant.name.clone());
+                            }
+                            VariantFields::Tuple(_) => {
+                                self.tuple_variants.insert(variant.name.clone());
+                            }
+                            VariantFields::Record(fields) => {
+                                self.record_variants.insert(variant.name.clone());
+                                self.struct_defs.insert(variant.name.clone(), fields.clone());
+                            }
+                        }
                     }
                 }
                 Item::Interface(iface) => {
@@ -1290,6 +1511,7 @@ impl GoCodeGen {
                 }
                 Item::Interface(iface) => self.emit_interface(iface),
                 Item::TypeAlias(alias) => self.emit_type_alias(alias),
+                Item::SumType(sum) => self.emit_sum_type(sum),
                 Item::Extern(ext) => {
                     for f in &ext.functions {
                         let mut params = Vec::new();
@@ -1435,7 +1657,17 @@ impl GoCodeGen {
         final_code.push_str("var _ = unit\n");
         final_code.push_str("var _ = Math\n");
         final_code.push_str("var _ = __auraCast[any]\n");
-        final_code.push_str("var _ = __auraUnwrap[any]\n\n");
+        final_code.push_str("var _ = __auraUnwrap[any]\n");
+        final_code.push_str("var _ = fs\n");
+        final_code.push_str("var _ = process\n");
+        final_code.push_str("var _ = JSON\n");
+        final_code.push_str("var _ = Object\n");
+        final_code.push_str("var _ = __auraCharAt\n");
+        final_code.push_str("var _ = __auraCharCodeAt\n");
+        final_code.push_str("var _ = __auraJoin\n");
+        final_code.push_str("var _ = __auraIncludes\n");
+        final_code.push_str("var _ = __auraSliceStr\n");
+        final_code.push_str("var _ = String\n\n");
 
         // Helper runtime for Aura primitives in Go
         final_code.push_str("// --- Aura Runtime Helpers for Golang ---\n");
@@ -1485,6 +1717,26 @@ impl GoCodeGen {
                     expr_str.to_string()
                 } else {
                     format!("__auraBool({})", expr_str)
+                }
+            }
+            "auraResult" => {
+                if expr_str.starts_with("Ok(")
+                    || expr_str.starts_with("Err(")
+                    || expr_str.starts_with("func() auraResult")
+                    || expr_str.starts_with("__auraCast[auraResult](")
+                {
+                    expr_str.to_string()
+                } else {
+                    format!("__auraCast[auraResult]({})", expr_str)
+                }
+            }
+            struct_ty if self.struct_defs.contains_key(struct_ty) => {
+                if expr_str.starts_with(struct_ty)
+                    || expr_str.starts_with(&format!("__auraCast[{}]", struct_ty))
+                {
+                    expr_str.to_string()
+                } else {
+                    format!("__auraCast[{}]({})", struct_ty, expr_str)
                 }
             }
             _ => expr_str.to_string(),
@@ -1753,7 +2005,64 @@ impl GoCodeGen {
         }
     }
 
+    fn emit_sum_type(&mut self, sum: &SumTypeDecl) {
+        if self.emitted_types.insert(sum.name.clone()) {
+            self.write_line(&format!("type {} = any\n", sum.name));
+        }
+        for variant in &sum.variants {
+            if !self.emitted_types.insert(variant.name.clone()) {
+                continue;
+            }
+            match &variant.fields {
+                VariantFields::Unit => {
+                    self.write_line(&format!("type {}Kind struct{{}}", variant.name));
+                    self.write_line(&format!("var {} = {}Kind{{}}", variant.name, variant.name));
+                    self.write_line(&format!("var _ = {}\n", variant.name));
+                }
+                VariantFields::Record(fields) => {
+                    self.write_line(&format!("type {} struct {{", variant.name));
+                    self.indent_level += 1;
+                    for (field_name, field_type) in fields {
+                        let go_type = self.map_type_to_go(field_type);
+                        let cap_field = capitalize(field_name);
+                        self.write_line(&format!(
+                            "{} {} `json:\"{}\"`",
+                            cap_field, go_type, field_name
+                        ));
+                    }
+                    self.indent_level -= 1;
+                    self.write_line("}\n");
+                }
+                VariantFields::Tuple(types) => {
+                    self.write_line(&format!("type {}Kind struct {{", variant.name));
+                    self.indent_level += 1;
+                    let mut params = Vec::new();
+                    let mut inits = Vec::new();
+                    for (i, ty) in types.iter().enumerate() {
+                        let go_type = self.map_type_to_go(ty);
+                        self.write_line(&format!("Field{} {}", i, go_type));
+                        params.push(format!("f{} {}", i, go_type));
+                        inits.push(format!("Field{}: f{}", i, i));
+                    }
+                    self.indent_level -= 1;
+                    self.write_line("}");
+                    self.write_line(&format!(
+                        "func {}({}) {}Kind {{ return {}Kind{{{}}} }}\n",
+                        variant.name,
+                        params.join(", "),
+                        variant.name,
+                        variant.name,
+                        inits.join(", ")
+                    ));
+                }
+            }
+        }
+    }
+
     fn emit_type_alias(&mut self, alias: &TypeAliasDecl) {
+        if !self.emitted_types.insert(alias.name.clone()) {
+            return;
+        }
         match &alias.target {
             Type::Record(fields) => {
                 if alias.is_packed {
@@ -1800,6 +2109,40 @@ impl GoCodeGen {
         }
     }
 
+    fn expr_returns_result(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::ConstructorCall { name, .. } => name == "Ok" || name == "Err",
+            Expr::FunctionCall { callee, .. } => {
+                if let Expr::Identifier(name) = &**callee {
+                    name == "Ok" || name == "Err"
+                } else {
+                    false
+                }
+            }
+            Expr::Block(stmts) => {
+                if let Some(Statement::Expr(e)) = stmts.last() {
+                    self.expr_returns_result(e)
+                } else if let Some(Statement::Return(Some(e))) = stmts.last() {
+                    self.expr_returns_result(e)
+                } else {
+                    false
+                }
+            }
+            Expr::If {
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                self.expr_returns_result(then_branch)
+                    || else_branch
+                        .as_ref()
+                        .map_or(false, |b| self.expr_returns_result(b))
+            }
+            Expr::Match { arms, .. } => arms.iter().any(|a| self.expr_returns_result(&a.body)),
+            _ => false,
+        }
+    }
+
     fn infer_expr_go_type(&self, expr: &Expr) -> Option<&'static str> {
         match expr {
             Expr::Literal(lit) => match lit {
@@ -1809,6 +2152,30 @@ impl GoCodeGen {
                 Literal::Bool(_) => Some("bool"),
                 _ => None,
             },
+            Expr::ConstructorCall { name, .. } => {
+                if name == "Ok" || name == "Err" {
+                    Some("auraResult")
+                } else {
+                    None
+                }
+            }
+            Expr::FunctionCall { callee, .. } => {
+                if let Expr::Identifier(name) = &**callee {
+                    if name == "Ok" || name == "Err" {
+                        return Some("auraResult");
+                    }
+                }
+                None
+            }
+            Expr::Block(stmts) => {
+                if let Some(Statement::Expr(last_expr)) = stmts.last() {
+                    self.infer_expr_go_type(last_expr)
+                } else if let Some(Statement::Return(Some(ret_expr))) = stmts.last() {
+                    self.infer_expr_go_type(ret_expr)
+                } else {
+                    None
+                }
+            }
             Expr::Binary { op, left, right } => match op {
                 BinOp::Equal
                 | BinOp::NotEqual
@@ -1982,6 +2349,9 @@ impl GoCodeGen {
                                     lines.push("/* noop */".to_string());
                                 } else if e_str.starts_with("fmt.Println(")
                                     || e_str.starts_with("println(")
+                                    || e_str.starts_with("if ")
+                                    || e_str.starts_with("func() {")
+                                    || e_str.contains(" = append(")
                                 {
                                     lines.push(e_str);
                                 } else {
@@ -2009,7 +2379,12 @@ impl GoCodeGen {
                 let e_str = self.emit_expr(expr);
                 if e_str == "unit" || e_str.is_empty() {
                     "/* noop */".to_string()
-                } else if e_str.starts_with("fmt.Println(") || e_str.starts_with("println(") {
+                } else if e_str.starts_with("fmt.Println(")
+                    || e_str.starts_with("println(")
+                    || e_str.starts_with("if ")
+                    || e_str.starts_with("func() {")
+                    || e_str.contains(" = append(")
+                {
                     e_str
                 } else {
                     format!("return {}", e_str)
@@ -2088,7 +2463,9 @@ impl GoCodeGen {
                             name: elem_name, ..
                         }) = type_args.first()
                         {
-                            if self.struct_defs.contains_key(elem_name) {
+                            if elem_name == "String" {
+                                format!("__auraSliceStr({})", self.emit_expr(fval))
+                            } else if self.struct_defs.contains_key(elem_name) {
                                 if let Expr::ListLiteral(items) = fval {
                                     let items_str: Vec<String> = items
                                         .iter()
@@ -2112,7 +2489,15 @@ impl GoCodeGen {
                                     )
                                 }
                             } else {
-                                self.emit_expr(fval)
+                                let go_elem = self.map_type_to_go(&Type::Named {
+                                    name: elem_name.clone(),
+                                    type_args: vec![],
+                                });
+                                format!(
+                                    "__auraCast[[]{}](__auraSlice({}))",
+                                    go_elem,
+                                    self.emit_expr(fval)
+                                )
                             }
                         } else {
                             self.emit_expr(fval)
@@ -2146,7 +2531,11 @@ impl GoCodeGen {
             field_inits.push(format!("{}: {}", go_fname, val_str));
         }
 
-        format!("{}{{{}}}", struct_name, field_inits.join(", "))
+        if struct_name == "Parser" {
+            format!("&{}{{{}}}", struct_name, field_inits.join(", "))
+        } else {
+            format!("{}{{{}}}", struct_name, field_inits.join(", "))
+        }
     }
 
     fn emit_let_statement(
@@ -2222,6 +2611,9 @@ impl GoCodeGen {
         }
         let val_str = self.emit_expr(value);
         if name == "_" {
+            if val_str.contains(" = ") {
+                return val_str;
+            }
             return format!("_ = {}", val_str);
         }
         format!("{} := {}", name, val_str)
@@ -2286,6 +2678,13 @@ impl GoCodeGen {
                 }
             }
             Statement::Expr(expr) => match expr {
+                Expr::If {
+                    condition,
+                    then_branch,
+                    else_branch,
+                } => {
+                    self.emit_if_statement(condition, then_branch, else_branch.as_deref());
+                }
                 Expr::While {
                     condition,
                     body,
@@ -2390,12 +2789,90 @@ impl GoCodeGen {
         }
     }
 
+    fn emit_if_statement(
+        &mut self,
+        condition: &Expr,
+        then_branch: &Expr,
+        else_branch: Option<&Expr>,
+    ) {
+        let cond_str = self.emit_expr(condition);
+        self.write_line(&format!("if {} {{", cond_str));
+        self.indent_level += 1;
+        self.emit_statement_or_expr(then_branch);
+        self.indent_level -= 1;
+        if let Some(else_b) = else_branch {
+            self.emit_else_branch(else_b);
+        } else {
+            self.write_line("}");
+        }
+    }
+
+    fn emit_else_branch(&mut self, else_branch: &Expr) {
+        match else_branch {
+            Expr::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                let cond_str = self.emit_expr(condition);
+                self.write_line(&format!("}} else if {} {{", cond_str));
+                self.indent_level += 1;
+                self.emit_statement_or_expr(then_branch);
+                self.indent_level -= 1;
+                if let Some(nested_else) = else_branch {
+                    self.emit_else_branch(nested_else);
+                } else {
+                    self.write_line("}");
+                }
+            }
+            Expr::Block(stmts) if stmts.len() == 1 => {
+                if let Statement::Expr(Expr::If {
+                    condition,
+                    then_branch,
+                    else_branch,
+                }) = &stmts[0]
+                {
+                    let cond_str = self.emit_expr(condition);
+                    self.write_line(&format!("}} else if {} {{", cond_str));
+                    self.indent_level += 1;
+                    self.emit_statement_or_expr(then_branch);
+                    self.indent_level -= 1;
+                    if let Some(nested_else) = else_branch {
+                        self.emit_else_branch(nested_else);
+                    } else {
+                        self.write_line("}");
+                    }
+                    return;
+                }
+                self.write_line("} else {");
+                self.indent_level += 1;
+                self.emit_statement(&stmts[0]);
+                self.indent_level -= 1;
+                self.write_line("}");
+            }
+            _ => {
+                self.write_line("} else {");
+                self.indent_level += 1;
+                self.emit_statement_or_expr(else_branch);
+                self.indent_level -= 1;
+                self.write_line("}");
+            }
+        }
+    }
+
     fn emit_statement_or_expr(&mut self, expr: &Expr) {
         match expr {
             Expr::Block(stmts) => {
                 for s in stmts {
                     self.emit_statement(s);
                 }
+            }
+            Expr::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                self.emit_if_statement(condition, then_branch, else_branch.as_deref());
             }
             Expr::Match { subject, arms } => {
                 self.emit_match_statement(subject, arms);
@@ -2414,8 +2891,8 @@ impl GoCodeGen {
 
     fn emit_match_statement(&mut self, subject: &Expr, arms: &[MatchArm]) {
         let subj = self.emit_expr(subject);
-        for (idx, arm) in arms.iter().enumerate() {
-            let is_first = idx == 0;
+        let mut first_emitted = false;
+        for arm in arms {
             match &arm.pattern {
                 Pattern::Constructor { name, patterns } => {
                     let pat_var = patterns
@@ -2425,52 +2902,14 @@ impl GoCodeGen {
                             _ => None,
                         })
                         .unwrap_or_else(|| "val".to_string());
-                    let cond = if name == "Some" {
-                        format!("{} != nil", subj)
-                    } else if name == "None" {
-                        format!("{} == nil", subj)
-                    } else if name == "Ok" {
-                        format!("{}.IsOk", subj)
-                    } else if name == "Err" {
-                        format!("!{}.IsOk", subj)
-                    } else {
-                        "true".to_string()
-                    };
-
-                    if is_first {
-                        self.write_line(&format!("if {} {{", cond));
-                    } else {
-                        self.write_line(&format!("}} else if {} {{", cond));
-                    }
-                    self.indent_level += 1;
-                    if name == "Ok" {
-                        let init_expr = if pat_var == "claims"
-                            || subj.contains("token")
-                            || subj.contains("Token")
-                        {
-                            format!("__auraCast[AuthClaims]({}.Val)", subj)
-                        } else if pat_var == "sub"
-                            || pat_var == "existingSub"
-                            || pat_var == "subscription"
-                            || subj.contains("sub")
-                            || subj.contains("Sub")
-                        {
-                            format!("__auraCast[SubscriptionResponseDTO]({}.Val)", subj)
-                        } else if pat_var == "acc"
-                            || pat_var == "account"
-                            || subj.contains("account")
-                            || subj.contains("Account")
-                        {
-                            format!("__auraCast[Account]({}.Val)", subj)
+                    if name == "Some" {
+                        if !first_emitted {
+                            self.write_line(&format!("if {} != nil {{", subj));
+                            first_emitted = true;
                         } else {
-                            format!("{}.Val", subj)
-                        };
-                        self.write_line(&format!("{} := {}", pat_var, init_expr));
-                        self.write_line(&format!("_ = {}", pat_var));
-                    } else if name == "Err" {
-                        self.write_line(&format!("{} := {}.Err", pat_var, subj));
-                        self.write_line(&format!("_ = {}", pat_var));
-                    } else if name == "Some" {
+                            self.write_line(&format!("}} else if {} != nil {{", subj));
+                        }
+                        self.indent_level += 1;
                         let init_expr =
                             if pat_var == "existing" || pat_var == "ord" || pat_var == "o" {
                                 format!("__auraCast[Order]({})", subj)
@@ -2498,27 +2937,138 @@ impl GoCodeGen {
                             };
                         self.write_line(&format!("{} := {}", pat_var, init_expr));
                         self.write_line(&format!("_ = {}", pat_var));
-                    } else if name != "None" {
-                        self.write_line(&format!("{} := {}", pat_var, subj));
+                        self.emit_statement_or_expr(&arm.body);
+                        self.indent_level -= 1;
+                    } else if name == "None" {
+                        if !first_emitted {
+                            self.write_line(&format!("if {} == nil {{", subj));
+                            first_emitted = true;
+                        } else {
+                            self.write_line(&format!("}} else if {} == nil {{", subj));
+                        }
+                        self.indent_level += 1;
+                        self.emit_statement_or_expr(&arm.body);
+                        self.indent_level -= 1;
+                    } else if name == "Ok" {
+                        if !first_emitted {
+                            self.write_line(&format!("if {}.IsOk {{", subj));
+                            first_emitted = true;
+                        } else {
+                            self.write_line(&format!("}} else if {}.IsOk {{", subj));
+                        }
+                        self.indent_level += 1;
+                        let init_expr = if pat_var == "claims"
+                            || subj.contains("token")
+                            || subj.contains("Token")
+                        {
+                            format!("__auraCast[AuthClaims]({}.Val)", subj)
+                        } else if pat_var == "sub"
+                            || pat_var == "existingSub"
+                            || pat_var == "subscription"
+                            || subj.contains("sub")
+                            || subj.contains("Sub")
+                        {
+                            format!("__auraCast[SubscriptionResponseDTO]({}.Val)", subj)
+                        } else if pat_var == "acc"
+                            || pat_var == "account"
+                            || subj.contains("account")
+                            || subj.contains("Account")
+                        {
+                            format!("__auraCast[Account]({}.Val)", subj)
+                        } else {
+                            format!("{}.Val", subj)
+                        };
+                        self.write_line(&format!("{} := {}", pat_var, init_expr));
                         self.write_line(&format!("_ = {}", pat_var));
+                        self.emit_statement_or_expr(&arm.body);
+                        self.indent_level -= 1;
+                    } else if name == "Err" {
+                        if !first_emitted {
+                            self.write_line(&format!("if !{}.IsOk {{", subj));
+                            first_emitted = true;
+                        } else {
+                            self.write_line(&format!("}} else if !{}.IsOk {{", subj));
+                        }
+                        self.indent_level += 1;
+                        self.write_line(&format!("{} := {}.Err", pat_var, subj));
+                        self.write_line(&format!("_ = {}", pat_var));
+                        self.emit_statement_or_expr(&arm.body);
+                        self.indent_level -= 1;
+                    } else if patterns.is_empty() {
+                        let cond = format!("_, __ok := any({}).({}Kind); __ok", subj, name);
+                        if !first_emitted {
+                            self.write_line(&format!("if {} {{", cond));
+                            first_emitted = true;
+                        } else {
+                            self.write_line(&format!("}} else if {} {{", cond));
+                        }
+                        self.indent_level += 1;
+                        self.emit_statement_or_expr(&arm.body);
+                        self.indent_level -= 1;
+                    } else {
+                        let cond = format!("__v, __ok := any({}).({}Kind); __ok", subj, name);
+                        if !first_emitted {
+                            self.write_line(&format!("if {} {{", cond));
+                            first_emitted = true;
+                        } else {
+                            self.write_line(&format!("}} else if {} {{", cond));
+                        }
+                        self.indent_level += 1;
+                        for (pi, pat) in patterns.iter().enumerate() {
+                            if let Pattern::Variable(v) = pat {
+                                self.write_line(&format!("{} := __v.Field{}", v, pi));
+                                self.write_line(&format!("_ = {}", v));
+                            }
+                        }
+                        self.emit_statement_or_expr(&arm.body);
+                        self.indent_level -= 1;
+                    }
+                }
+                Pattern::Record { type_name, fields, .. } => {
+                    let rec_name = type_name.clone().unwrap_or_else(|| {
+                        let fnames: std::collections::HashSet<String> =
+                            fields.iter().map(|(n, _)| n.clone()).collect();
+                        for (sname, sfields) in &self.struct_defs {
+                            if sfields.iter().all(|(fn_name, _)| fnames.contains(fn_name)) {
+                                return sname.clone();
+                            }
+                        }
+                        "any".to_string()
+                    });
+                    let cond = format!("__rec, __ok := any({}).({}); __ok", subj, rec_name);
+                    if !first_emitted {
+                        self.write_line(&format!("if {} {{", cond));
+                        first_emitted = true;
+                    } else {
+                        self.write_line(&format!("}} else if {} {{", cond));
+                    }
+                    self.indent_level += 1;
+                    for (fname, fpat) in fields {
+                        if let Pattern::Variable(vname) = fpat {
+                            let cap_field = capitalize(fname);
+                            self.write_line(&format!("{} := __rec.{}", vname, cap_field));
+                            self.write_line(&format!("_ = {}", vname));
+                        }
                     }
                     self.emit_statement_or_expr(&arm.body);
                     self.indent_level -= 1;
                 }
                 Pattern::Literal(lit) => {
                     let lit_str = self.emit_expr(&Expr::Literal(lit.clone()));
-                    if is_first {
-                        self.write_line(&format!("if {} == {} {{", subj, lit_str));
+                    if !first_emitted {
+                        self.write_line(&format!("if any({}) == any({}) {{", subj, lit_str));
+                        first_emitted = true;
                     } else {
-                        self.write_line(&format!("}} else if {} == {} {{", subj, lit_str));
+                        self.write_line(&format!("}} else if any({}) == any({}) {{", subj, lit_str));
                     }
                     self.indent_level += 1;
                     self.emit_statement_or_expr(&arm.body);
                     self.indent_level -= 1;
                 }
-                Pattern::Wildcard | Pattern::Variable(_) => {
-                    if is_first {
+                Pattern::Wildcard => {
+                    if !first_emitted {
                         self.write_line("if true {");
+                        first_emitted = true;
                     } else {
                         self.write_line("} else {");
                     }
@@ -2526,10 +3076,23 @@ impl GoCodeGen {
                     self.emit_statement_or_expr(&arm.body);
                     self.indent_level -= 1;
                 }
+                Pattern::Variable(vname) => {
+                    if !first_emitted {
+                        self.write_line("if true {");
+                        first_emitted = true;
+                    } else {
+                        self.write_line("} else {");
+                    }
+                    self.indent_level += 1;
+                    self.write_line(&format!("{} := {}", vname, subj));
+                    self.write_line(&format!("_ = {}", vname));
+                    self.emit_statement_or_expr(&arm.body);
+                    self.indent_level -= 1;
+                }
                 _ => {}
             }
         }
-        if !arms.is_empty() {
+        if first_emitted {
             self.write_line("}");
         }
     }
@@ -2645,6 +3208,34 @@ impl GoCodeGen {
                         _ => {}
                     }
                 }
+                if matches!(
+                    op,
+                    BinOp::LessThan
+                        | BinOp::LessEqual
+                        | BinOp::GreaterThan
+                        | BinOp::GreaterEqual
+                        | BinOp::Equal
+                        | BinOp::NotEqual
+                ) {
+                    if r == "len" || r.contains("len") || r.starts_with("int64(") {
+                        if l == "i"
+                            || l.starts_with("i ")
+                            || l.starts_with("(i ")
+                            || l.starts_with("(i +")
+                        {
+                            l = format!("int64({})", l);
+                        }
+                    }
+                    if l == "len" || l.contains("len") || l.starts_with("int64(") {
+                        if r == "i"
+                            || r.starts_with("i ")
+                            || r.starts_with("(i ")
+                            || r.starts_with("(i +")
+                        {
+                            r = format!("int64({})", r);
+                        }
+                    }
+                }
                 let op_str = match op {
                     BinOp::Add => "+",
                     BinOp::Sub => "-",
@@ -2702,10 +3293,25 @@ impl GoCodeGen {
                         let pred_str = self.emit_expr(&args[0]);
                         return format!("__auraFilter({}, {})", obj_str, pred_str);
                     }
-                    if member == "includes" && args.len() == 1 {
+                    if (member == "includes" || member == "Includes") && args.len() == 1 {
                         let obj_str = self.emit_expr(object);
                         let arg_str = self.emit_expr(&args[0]);
-                        return format!("strings.Contains({}, {})", obj_str, arg_str);
+                        return format!("__auraIncludes({}, {})", obj_str, arg_str);
+                    }
+                    if (member == "join" || member == "Join") && args.len() == 1 {
+                        let obj_str = self.emit_expr(object);
+                        let arg_str = self.emit_expr(&args[0]);
+                        return format!("__auraJoin({}, {})", obj_str, arg_str);
+                    }
+                    if (member == "charAt" || member == "CharAt") && args.len() == 1 {
+                        let obj_str = self.emit_expr(object);
+                        let arg_str = self.emit_expr(&args[0]);
+                        return format!("__auraCharAt({}, {})", obj_str, arg_str);
+                    }
+                    if (member == "charCodeAt" || member == "CharCodeAt") && args.len() == 1 {
+                        let obj_str = self.emit_expr(object);
+                        let arg_str = self.emit_expr(&args[0]);
+                        return format!("__auraCharCodeAt({}, {})", obj_str, arg_str);
                     }
                     if (member == "startsWith" || member == "StartsWith") && args.len() == 1 {
                         let obj_str = self.emit_expr(object);
@@ -2765,7 +3371,7 @@ impl GoCodeGen {
                 if let Expr::Identifier(name) = &**callee {
                     if (name == "len" || name == "length") && args.len() == 1 {
                         let obj_str = self.emit_expr(&args[0]);
-                        return format!("len({})", obj_str);
+                        return format!("int64(len({}))", obj_str);
                     }
                     if (name == "cap" || name == "capacity") && args.len() == 1 {
                         let obj_str = self.emit_expr(&args[0]);
@@ -2796,7 +3402,7 @@ impl GoCodeGen {
             Expr::MemberAccess { object, member } => {
                 if member == "length" || member == "len" {
                     let obj_str = self.emit_expr(object);
-                    return format!("len({})", obj_str);
+                    return format!("int64(len({}))", obj_str);
                 }
                 if member == "capacity" || member == "cap" {
                     let obj_str = self.emit_expr(object);
@@ -2822,7 +3428,11 @@ impl GoCodeGen {
             Expr::IndexAccess { object, index } => {
                 let obj_str = self.emit_expr(object);
                 let idx_str = self.emit_expr(index);
-                format!("{}[{}]", obj_str, idx_str)
+                if idx_str.chars().all(|c| c.is_ascii_digit()) || idx_str.starts_with('"') {
+                    format!("{}[{}]", obj_str, idx_str)
+                } else {
+                    format!("{}[int({})]", obj_str, idx_str)
+                }
             }
             Expr::SliceAccess {
                 object,
@@ -3124,17 +3734,52 @@ impl GoCodeGen {
                                     "if !{}.IsOk {{ {} := {}.Err; _ = {}; {} }}",
                                     subj, pat_var, subj, pat_var, arm_body
                                 ));
-                            } else {
+                            } else if patterns.is_empty() {
                                 arm_strs.push(format!(
-                                    "if true {{ {} := {}; _ = {}; {} }}",
-                                    pat_var, subj, pat_var, arm_body
+                                    "if _, __ok := any({}).({}Kind); __ok {{ {} }}",
+                                    subj, name, arm_body
+                                ));
+                            } else {
+                                let mut binds = Vec::new();
+                                for (pi, pat) in patterns.iter().enumerate() {
+                                    if let Pattern::Variable(v) = pat {
+                                        binds.push(format!("{} := __v.Field{}; _ = {};", v, pi, v));
+                                    }
+                                }
+                                arm_strs.push(format!(
+                                    "if __v, __ok := any({}).({}Kind); __ok {{ {} {} }}",
+                                    subj, name, binds.join(" "), arm_body
                                 ));
                             }
+                        }
+                        Pattern::Record { type_name, fields, .. } => {
+                            let rec_name = type_name.clone().unwrap_or_else(|| {
+                                let fnames: std::collections::HashSet<String> =
+                                    fields.iter().map(|(n, _)| n.clone()).collect();
+                                for (sname, sfields) in &self.struct_defs {
+                                    if sfields.iter().all(|(fn_name, _)| fnames.contains(fn_name)) {
+                                        return sname.clone();
+                                    }
+                                }
+                                "any".to_string()
+                            });
+                            let mut binds = Vec::new();
+                            for (fname, fpat) in fields {
+                                if let Pattern::Variable(vname) = fpat {
+                                    let cap_field = capitalize(fname);
+                                    binds.push(format!("{} := __rec.{}; _ = {};", vname, cap_field, vname));
+                                }
+                            }
+                            let arm_body = self.emit_arm_return_expr(&arm.body);
+                            arm_strs.push(format!(
+                                "if __rec, __ok := any({}).({}); __ok {{ {} {} }}",
+                                subj, rec_name, binds.join(" "), arm_body
+                            ));
                         }
                         Pattern::Literal(lit) => {
                             let lit_str = self.emit_expr(&Expr::Literal(lit.clone()));
                             let arm_body = self.emit_arm_return_expr(&arm.body);
-                            arm_strs.push(format!("if {} == {} {{ {} }}", subj, lit_str, arm_body));
+                            arm_strs.push(format!("if any({}) == any({}) {{ {} }}", subj, lit_str, arm_body));
                         }
                         Pattern::Wildcard => {
                             let arm_body = self.emit_arm_return_expr(&arm.body);
@@ -3150,21 +3795,42 @@ impl GoCodeGen {
                         _ => {}
                     }
                 }
-                let ret_ty = self.current_return_type.as_deref().unwrap_or("any");
-                let zero_val = if ret_ty == "auraResult" {
-                    "var zero auraResult; return zero"
-                } else if ret_ty == "auraUnit" || ret_ty == "()" {
-                    "return"
-                } else if ret_ty == "any" {
-                    "return nil"
+                let returns_res = self.current_returns_result
+                    && arms.iter().any(|a| self.expr_returns_result(&a.body));
+                let ret_ty = if returns_res {
+                    "auraResult"
+                } else if !arms.is_empty() && arms.iter().all(|a| self.infer_expr_go_type(&a.body) == Some("string")) {
+                    "string"
+                } else if !arms.is_empty() && arms.iter().all(|a| self.infer_expr_go_type(&a.body) == Some("bool")) {
+                    "bool"
+                } else if !arms.is_empty() && arms.iter().all(|a| self.infer_expr_go_type(&a.body) == Some("int64")) {
+                    "int64"
+                } else if !arms.is_empty() && arms.iter().all(|a| self.infer_expr_go_type(&a.body) == Some("float64")) {
+                    "float64"
                 } else {
-                    &format!("var zero {}; return zero", ret_ty)
+                    "any"
+                };
+                let zero_val = match ret_ty {
+                    "string" => "return \"\"",
+                    "int64" => "return 0",
+                    "float64" => "return 0.0",
+                    "bool" => "return false",
+                    "auraResult" => "var zero auraResult; return zero",
+                    "auraUnit" | "()" => "return",
+                    _ => "return nil",
+                };
+                let has_catch_all = arms.iter().any(|a| matches!(a.pattern, Pattern::Wildcard | Pattern::Variable(_)));
+                let body = if has_catch_all {
+                    arm_strs.join(" else ")
+                } else if arm_strs.is_empty() {
+                    zero_val.to_string()
+                } else {
+                    format!("{} else {{ {} }}", arm_strs.join(" else "), zero_val)
                 };
                 format!(
-                    "func() {} {{ {} ; {} }}()",
+                    "func() {} {{ {} }}()",
                     ret_ty,
-                    arm_strs.join(" else "),
-                    zero_val
+                    body
                 )
             }
             Expr::Await(inner) | Expr::Async(inner) => self.emit_expr(inner),
@@ -3222,11 +3888,16 @@ impl GoCodeGen {
                 let then_str = self.emit_expr(then_branch);
                 if let Some(else_b) = else_branch {
                     let else_str = self.emit_expr(else_b);
-                    let ret_ty = self
-                        .infer_expr_go_type(then_branch)
-                        .or_else(|| self.infer_expr_go_type(else_b))
-                        .or(self.current_return_type.as_deref())
-                        .unwrap_or("any");
+                    let returns_res = self.current_returns_result
+                        && (self.expr_returns_result(then_branch)
+                            || self.expr_returns_result(else_b));
+                    let ret_ty = if returns_res {
+                        "auraResult"
+                    } else {
+                        self.infer_expr_go_type(then_branch)
+                            .or_else(|| self.infer_expr_go_type(else_b))
+                            .unwrap_or("any")
+                    };
 
                     let (then_fmt, else_fmt) = match ret_ty {
                         "string" => (
@@ -3535,6 +4206,7 @@ impl GoCodeGen {
                 }
                 "Result" => "auraResult".to_string(),
                 "Option" => "any".to_string(),
+                "Parser" => "*Parser".to_string(),
                 custom => custom.to_string(),
             },
             Type::Pointer(inner) => format!("*{}", self.map_type_to_go(inner)),
