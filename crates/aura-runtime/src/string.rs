@@ -71,7 +71,7 @@ pub extern "C" fn aura_string_concat(s1: *mut AuraString, s2: *mut AuraString) -
         unsafe { (*s2).as_str() }
     };
 
-    let combined = format!("{}{}", str1, str2);
+    let combined = format!("{str1}{str2}");
     aura_string_from_rust_str(&combined)
 }
 

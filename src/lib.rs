@@ -50,7 +50,7 @@ pub use testing::{
     BenchmarkResult, CoverageReport, FileCoverage, TestCaseResult, TestConfig, TestFile,
     TestFunction, TestKind, TestStatus, TestSummary, discover_test_files, run_tests,
 };
-use typechecker::TypeChecker;
+pub use typechecker::{TypeChecker, TypeError};
 
 use std::path::{Path, PathBuf};
 

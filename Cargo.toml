@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT"
 default-run = "aurac"
+description = "Aura Language compiler and toolchain"
+repository = "https://github.com/aura-lang/aura"
 
 [workspace]
 members = [
@@ -11,14 +13,51 @@ members = [
     "crates/aura-runtime",
 ]
 
-[dependencies]
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/aura-lang/aura"
+
+[workspace.dependencies]
 aura-runtime = { path = "crates/aura-runtime" }
 cranelift-codegen = { version = "0.135.0", features = ["all-arch"] }
 cranelift-frontend = "0.135.0"
 cranelift-module = "0.135.0"
 cranelift-object = "0.135.0"
 target-lexicon = "0.13"
-object = "0.36"
+object = "0.39"
+libc = "0.2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rustc-hash = "2.1"
+
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg()'] }
+
+[workspace.lints.clippy]
+collapsible_if = "warn"
+unnecessary_map_or = "warn"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[dependencies]
+aura-runtime = { workspace = true }
+cranelift-codegen = { workspace = true }
+cranelift-frontend = { workspace = true }
+cranelift-module = { workspace = true }
+cranelift-object = { workspace = true }
+target-lexicon = { workspace = true }
+object = { workspace = true }
+rustc-hash = { workspace = true }
+
+[lints]
+workspace = true
 
 [[bin]]
 name = "aurac"
@@ -47,5 +86,3 @@ path = "src/bin/aurapkg.rs"
 [[bin]]
 name = "aurabindgen"
 path = "src/bin/aurabindgen.rs"
-
-

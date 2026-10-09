@@ -23,8 +23,7 @@ pub extern "C" fn aura_rt_start(main_fn: extern "C" fn()) {
 
     sched.spawn(main_trampoline, main_fn as *mut ());
     let num_threads = std::thread::available_parallelism()
-        .map(|p| p.get())
-        .unwrap_or(4)
+        .map_or(4, std::num::NonZero::get)
         .max(4);
     sched.run_workers(num_threads);
 }
@@ -98,17 +97,17 @@ pub extern "C" fn aura_println_str(ptr: *const u8, len: usize) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn aura_println_i64(val: i64) {
-    println!("{}", val);
+    println!("{val}");
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn aura_println_f64(val: f64) {
-    println!("{}", val);
+    println!("{val}");
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn aura_println_bool(val: bool) {
-    println!("{}", val);
+    println!("{val}");
 }
 
 #[unsafe(no_mangle)]

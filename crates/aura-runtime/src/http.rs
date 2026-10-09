@@ -115,60 +115,34 @@ extern "C" fn prometheus_metrics_handler(_req: *mut AuraHttpRequest, res: *mut A
     let s5xx = HTTP_STATUS_5XX.load(std::sync::atomic::Ordering::Relaxed);
     let active_conns = ACTIVE_CONNS.load(std::sync::atomic::Ordering::Relaxed);
 
+    use std::fmt::Write as _;
     let mut metrics_text = String::with_capacity(1024);
     metrics_text.push_str(
         "# HELP aura_http_requests_total Total number of HTTP requests processed by Aura server\n",
     );
     metrics_text.push_str("# TYPE aura_http_requests_total counter\n");
-    metrics_text.push_str(&format!("aura_http_requests_total {}\n", total_reqs));
-    metrics_text.push_str(&format!(
-        "aura_http_requests_total{{status=\"2xx\"}} {}\n",
-        s2xx
-    ));
-    metrics_text.push_str(&format!(
-        "aura_http_requests_total{{status=\"4xx\"}} {}\n",
-        s4xx
-    ));
-    metrics_text.push_str(&format!(
-        "aura_http_requests_total{{status=\"5xx\"}} {}\n",
-        s5xx
-    ));
+    let _ = writeln!(metrics_text, "aura_http_requests_total {total_reqs}");
+    let _ = writeln!(metrics_text, "aura_http_requests_total{{status=\"2xx\"}} {s2xx}");
+    let _ = writeln!(metrics_text, "aura_http_requests_total{{status=\"4xx\"}} {s4xx}");
+    let _ = writeln!(metrics_text, "aura_http_requests_total{{status=\"5xx\"}} {s5xx}");
 
     metrics_text
         .push_str("# HELP aura_http_active_connections Current active TCP client connections\n");
     metrics_text.push_str("# TYPE aura_http_active_connections gauge\n");
-    metrics_text.push_str(&format!("aura_http_active_connections {}\n", active_conns));
+    let _ = writeln!(metrics_text, "aura_http_active_connections {active_conns}");
 
     metrics_text
         .push_str("# HELP aura_scheduler_fibers Total fibers registered in Aura M:N scheduler\n");
     metrics_text.push_str("# TYPE aura_scheduler_fibers gauge\n");
-    metrics_text.push_str(&format!(
-        "aura_scheduler_fibers{{state=\"active\"}} {}\n",
-        active_fibers
-    ));
-    metrics_text.push_str(&format!(
-        "aura_scheduler_fibers{{state=\"ready\"}} {}\n",
-        ready_fibers
-    ));
-    metrics_text.push_str(&format!(
-        "aura_scheduler_fibers{{state=\"parked\"}} {}\n",
-        parked_fibers
-    ));
+    let _ = writeln!(metrics_text, "aura_scheduler_fibers{{state=\"active\"}} {active_fibers}");
+    let _ = writeln!(metrics_text, "aura_scheduler_fibers{{state=\"ready\"}} {ready_fibers}");
+    let _ = writeln!(metrics_text, "aura_scheduler_fibers{{state=\"parked\"}} {parked_fibers}");
 
     metrics_text.push_str("# HELP aura_csp_channel_operations Total CSP channel actions\n");
     metrics_text.push_str("# TYPE aura_csp_channel_operations counter\n");
-    metrics_text.push_str(&format!(
-        "aura_csp_channel_operations{{op=\"send\"}} {}\n",
-        ch_sends
-    ));
-    metrics_text.push_str(&format!(
-        "aura_csp_channel_operations{{op=\"recv\"}} {}\n",
-        ch_recvs
-    ));
-    metrics_text.push_str(&format!(
-        "aura_csp_channel_operations{{op=\"park\"}} {}\n",
-        ch_parks
-    ));
+    let _ = writeln!(metrics_text, "aura_csp_channel_operations{{op=\"send\"}} {ch_sends}");
+    let _ = writeln!(metrics_text, "aura_csp_channel_operations{{op=\"recv\"}} {ch_recvs}");
+    let _ = writeln!(metrics_text, "aura_csp_channel_operations{{op=\"park\"}} {ch_parks}");
 
     unsafe {
         (*res).status = 200;

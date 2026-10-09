@@ -3,6 +3,42 @@
 use crate::ast::*;
 use std::collections::HashMap;
 
+/// Structured type checking error conforming to modern Rust `core::error::Error`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TypeError {
+    pub message: String,
+}
+
+impl TypeError {
+    pub fn new(msg: impl Into<String>) -> Self {
+        Self {
+            message: msg.into(),
+        }
+    }
+}
+
+impl std::fmt::Display for TypeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.message)
+    }
+}
+
+impl std::error::Error for TypeError {}
+
+impl From<String> for TypeError {
+    fn from(s: String) -> Self {
+        Self { message: s }
+    }
+}
+
+impl From<&str> for TypeError {
+    fn from(s: &str) -> Self {
+        Self {
+            message: s.to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum VariantFieldTypes {
     Unit,
@@ -55,32 +91,32 @@ impl std::fmt::Display for ConcreteType {
             ConcreteType::String => write!(f, "String"),
             ConcreteType::Bool => write!(f, "Bool"),
             ConcreteType::Unit => write!(f, "()"),
-            ConcreteType::Option(inner) => write!(f, "Option<{}>", inner),
-            ConcreteType::Result(ok, err) => write!(f, "Result<{}, {}>", ok, err),
-            ConcreteType::Task(ok, err) => write!(f, "Task<{}, {}>", ok, err),
-            ConcreteType::Channel(inner) => write!(f, "Channel<{}>", inner),
-            ConcreteType::SendChannel(inner) => write!(f, "SendChannel<{}>", inner),
-            ConcreteType::RecvChannel(inner) => write!(f, "RecvChannel<{}>", inner),
-            ConcreteType::Pointer(inner) => write!(f, "*{}", inner),
-            ConcreteType::Interface { name, .. } => write!(f, "interface {}", name),
+            ConcreteType::Option(inner) => write!(f, "Option<{inner}>"),
+            ConcreteType::Result(ok, err) => write!(f, "Result<{ok}, {err}>"),
+            ConcreteType::Task(ok, err) => write!(f, "Task<{ok}, {err}>"),
+            ConcreteType::Channel(inner) => write!(f, "Channel<{inner}>"),
+            ConcreteType::SendChannel(inner) => write!(f, "SendChannel<{inner}>"),
+            ConcreteType::RecvChannel(inner) => write!(f, "RecvChannel<{inner}>"),
+            ConcreteType::Pointer(inner) => write!(f, "*{inner}"),
+            ConcreteType::Interface { name, .. } => write!(f, "interface {name}"),
 
-            ConcreteType::List(elem) => write!(f, "List<{}>", elem),
-            ConcreteType::Map(k, v) => write!(f, "Map<{}, {}>", k, v),
-            ConcreteType::Set(inner) => write!(f, "Set<{}>", inner),
+            ConcreteType::List(elem) => write!(f, "List<{elem}>"),
+            ConcreteType::Map(k, v) => write!(f, "Map<{k}, {v}>"),
+            ConcreteType::Set(inner) => write!(f, "Set<{inner}>"),
             ConcreteType::Tuple(types) => {
                 write!(f, "(")?;
                 for (i, t) in types.iter().enumerate() {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
-                    write!(f, "{}", t)?;
+                    write!(f, "{t}")?;
                 }
                 write!(f, ")")
             }
             ConcreteType::Record(fields) => {
                 write!(f, "{{ ")?;
                 for (k, v) in fields {
-                    write!(f, "{}: {}, ", k, v)?;
+                    write!(f, "{k}: {v}, ")?;
                 }
                 write!(f, "}}")
             }
@@ -93,22 +129,22 @@ impl std::fmt::Display for ConcreteType {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
-                    write!(f, "{}", p)?;
+                    write!(f, "{p}")?;
                 }
-                write!(f, ") -> {}", return_type)
+                write!(f, ") -> {return_type}")
             }
             ConcreteType::SumType {
                 name, type_args, ..
             } => {
                 if type_args.is_empty() {
-                    write!(f, "{}", name)
+                    write!(f, "{name}")
                 } else {
-                    write!(f, "{}<", name)?;
+                    write!(f, "{name}<")?;
                     for (i, p) in type_args.iter().enumerate() {
                         if i > 0 {
                             write!(f, ", ")?;
                         }
-                        write!(f, "{}", p)?;
+                        write!(f, "{p}")?;
                     }
                     write!(f, ">")
                 }

@@ -223,35 +223,35 @@ impl std::fmt::Display for Type {
         match self {
             Type::Named { name, type_args } => {
                 if type_args.is_empty() {
-                    write!(f, "{}", name)
+                    write!(f, "{name}")
                 } else {
-                    let args: Vec<String> = type_args.iter().map(|t| format!("{}", t)).collect();
-                    write!(f, "{}<{}>", name, args.join(", "))
+                    let args: Vec<String> = type_args.iter().map(|t| format!("{t}")).collect();
+                    write!(f, "{name}<{}>", args.join(", "))
                 }
             }
             Type::Record(fields) => {
                 let fs: Vec<String> = fields
                     .iter()
-                    .map(|(k, v)| format!("{}: {}", k, v))
+                    .map(|(k, v)| format!("{k}: {v}"))
                     .collect();
                 write!(f, "{{ {} }}", fs.join(", "))
             }
             Type::Tuple(elems) => {
-                let es: Vec<String> = elems.iter().map(|e| format!("{}", e)).collect();
+                let es: Vec<String> = elems.iter().map(|e| format!("{e}")).collect();
                 write!(f, "({})", es.join(", "))
             }
             Type::Function {
                 params,
                 return_type,
             } => {
-                let ps: Vec<String> = params.iter().map(|p| format!("{}", p)).collect();
-                write!(f, "fn({}) -> {}", ps.join(", "), return_type)
+                let ps: Vec<String> = params.iter().map(|p| format!("{p}")).collect();
+                write!(f, "fn({}) -> {return_type}", ps.join(", "))
             }
-            Type::Pointer(inner) => write!(f, "*{}", inner),
-            Type::SendChannel(inner) => write!(f, "chan<- {}", inner),
-            Type::RecvChannel(inner) => write!(f, "<-chan {}", inner),
+            Type::Pointer(inner) => write!(f, "*{inner}"),
+            Type::SendChannel(inner) => write!(f, "chan<- {inner}"),
+            Type::RecvChannel(inner) => write!(f, "<-chan {inner}"),
             Type::Unit => write!(f, "()"),
-            Type::TypeVar(tv) => write!(f, "{}", tv),
+            Type::TypeVar(tv) => write!(f, "{tv}"),
         }
     }
 }

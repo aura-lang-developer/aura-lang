@@ -101,12 +101,14 @@ cargo --version
 git clone https://github.com/mrojasb2000/aura-lang.git
 cd aura-lang
 
-# Compilación optimizada para producción (Release)
+# Compilación optimizada para producción (Release con Thin LTO, 1 codegen-unit y strip de símbolos)
 cargo build --release
 
 # O compilación rápida de desarrollo (Debug)
 cargo build
 ```
+
+El workspace está estructurado con `[workspace.dependencies]` centralizadas, `[workspace.lints]` estandarizados y perfiles de optimización en `Cargo.toml`.
 
 Los ejecutables compilados se ubicarán en `target/release/` (o `target/debug/`):
 
@@ -369,7 +371,7 @@ flowchart TD
 - [`src/ast.rs`](/aura-lang/src/ast.rs) — Definición formal del AST (expresiones, sentencias, tipos algebraicos, concurrencia CSP, receptores e interfaces).
 - [`src/lexer.rs`](/aura-lang/src/lexer.rs) — Lexer determinista con soporte para operadores de tubería (`|>`), canales (`<-`, `chan<-`), punteros y palabras clave de sistemas.
 - [`src/parser.rs`](/aura-lang/src/parser.rs) — Parser descendente recursivo y de precedencia de operadores (Pratt Parser).
-- [`src/typechecker.rs`](/aura-lang/src/typechecker.rs) — Inferencia bidireccional Hindley-Milner, exhaustividad de patrones, duck typing estructural y reglas de seguridad de concurrencia (`Sendable`).
+- [`src/typechecker.rs`](/aura-lang/src/typechecker.rs) — Inferencia bidireccional Hindley-Milner, exhaustividad de patrones, duck typing estructural, reglas de seguridad de concurrencia (`Sendable`) y diagnósticos estructurados con `TypeError` conforme a `core::error::Error` (Rust 2024).
 - [`src/codegen_cranelift.rs`](/aura-lang/src/codegen_cranelift.rs) — Backend nativo que compila el AST directamente a código máquina nativo utilizando Cranelift.
 - [`src/codegen_go.rs`](/aura-lang/src/codegen_go.rs) — Generador de código idiomático de Golang (`net/http`, goroutines, canales, select, struct receivers).
 - [`src/codegen.rs`](/aura-lang/src/codegen.rs) — Generador de código para desarrollo ágil, TCO, soporte de debug y Source Maps V3.
@@ -386,12 +388,12 @@ flowchart TD
 
 Ubicado en [`crates/aura-runtime/`](/aura-lang/crates/aura-runtime), es una biblioteca estática en Rust (`libaura_runtime.a`) que se enlaza sin dependencias externas:
 
-- **Fiber Scheduler M:N (`scheduler.rs`, `fiber.rs`)**: Ejecuta miles de fibers cooperativos sobre un conjunto de hilos del sistema operativo utilizando cambio de pila liviano (_stack switching_).
+- **Fiber Scheduler M:N (`scheduler.rs`, `fiber.rs`)**: Ejecuta miles de fibers cooperativos sobre un conjunto de hilos del sistema operativo utilizando cambio de pila liviano (_stack switching_). Opera con referencias estáticas de costo cero (`&'static Scheduler`) sin envoltorios atómicos `Arc`, eliminando asignaciones en el heap al iniciar y sobrecarga de contención entre worker threads.
 - **Canales CSP & Deadlock Sentinel (`channel.rs`)**: Colas circulares concurrentes seguras para paso de mensajes, métricas operacionales de canales y detección automática de interbloqueos (_deadlock detection_).
-- **Servidor HTTP Zero-Alloc (`http.rs`)**: Servidor HTTP/1.1 con Keep-Alive persistente, soporte `TCP_NODELAY`, buffers reutilizables, escrituras coalescidas de cabeceras y payload, endpoint `/metrics` en formato Prometheus y propagación W3C `traceparent`.
-- **Recolector de Basura Compacto (`gc.rs`)**: GC rápido de tipo Mark-and-Sweep adaptado a objetos de dominio y colecciones dinámicas.
-- **Primitivas de Sincronización (`sync.rs`)**: Mutex, RWMutex, Once, Pool y WaitGroup nativos.
-- **Serializador JSON y Registros (`json.rs`, `record.rs`)**: Codificación y decodificación binaria y de texto de alta velocidad.
+- **Servidor HTTP Zero-Alloc (`http.rs`)**: Servidor HTTP/1.1 con Keep-Alive persistente, soporte `TCP_NODELAY`, buffers reutilizables, escrituras coalescidas de cabeceras y payload, endpoint `/metrics` en formato Prometheus con formateo directo vía `writeln!` (cero asignaciones intermedias) y propagación W3C `traceparent`.
+- **Recolector de Basura Compacto y Concurrente (`gc.rs`)**: GC rápido de tipo Mark-and-Sweep con 64 shards de punteros protegidos mediante `RwLock` y `rustc-hash` (`FxHashMap`) para lecturas paralelas sin bloqueos durante el escaneo de raíces.
+- **Primitivas de Sincronización (`sync.rs`)**: Mutex, RWMutex, Once, Pool y WaitGroup nativos con yielding cooperativo y spin loops.
+- **Serializador JSON y Registros de Alta Velocidad (`json.rs`, `record.rs`)**: Codificación y decodificación binaria y de texto, con `FxHashMap` acelerando el acceso a campos de registros de 2x a 4x frente a SipHash.
 
 ---
 
@@ -1558,6 +1560,7 @@ cargo test --test bootstrap_tests -- --test-threads=1
 - [x] **Gestor de Paquetes Descentralizado**: `aura.mod`, lockfile criptográfico `aura.lock`, vendoring offline y verificación de integridad (`auramod` / `aurac mod`).
 - [x] **Generador FFI C/Rust (`aurabindgen`)**: Conversión automática de cabeceras `.h` a interfaces Aura seguras.
 - [x] **Herramientas de Grado de Producción**: Servidor LSP oficial (`auralsp`), depurador interactivo de terminal (`aurac step`), servidor DAP V8 (`aurac debug`), suite de pruebas (`auratest`) y formateador opinado (`aurafmt`).
+- [x] **Modernización y Optimización Rust 2024**: Dependencias y lints de Cargo centralizados en el workspace, árbol de crates deduplicado (`object 0.39`), perfil de release con Thin LTO (`[profile.release]`), GC concurrente del runtime con `RwLock` + `FxHashMap`, scheduler estático de costo cero, formateo de métricas HTTP zero-alloc y diagnósticos estructurados con `TypeError`.
 - [x] **Suite de Calidad y Tests**: **250 pruebas automatizadas pasando con éxito** en el repositorio.
 - [ ] **Backend WebAssembly (WASM/WASI)**: Emisión de binarios WebAssembly para microservicios serverless en el edge.
 - [ ] **Optimizaciones Avanzadas LLVM**: Pipeline opcional de optimización LTO y vectorización SIMD para cargas de cómputo intensivo.

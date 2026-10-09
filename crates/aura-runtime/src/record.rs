@@ -3,7 +3,7 @@
 use crate::list::{AuraList, aura_list_get, aura_list_len};
 use crate::string::{AuraString, aura_string_from_rust_str};
 use serde_json::{Map, Number, Value as JsonValue};
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::slice;
 use std::str;
 
@@ -24,14 +24,14 @@ pub const AURA_RECORD_MAGIC: u64 = 0xA052_4543_4F52_0002;
 #[derive(Debug, Clone)]
 pub struct AuraRecord {
     pub magic: u64,
-    pub fields: HashMap<String, AuraVal>,
+    pub fields: FxHashMap<String, AuraVal>,
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn aura_record_new() -> *mut AuraRecord {
     let rec = Box::new(AuraRecord {
         magic: AURA_RECORD_MAGIC,
-        fields: HashMap::new(),
+        fields: FxHashMap::default(),
     });
     let raw = Box::into_raw(rec);
     crate::gc::register_valid_ptr(raw as usize, crate::gc::TYPE_RECORD);

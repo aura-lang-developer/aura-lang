@@ -2136,7 +2136,7 @@ impl GoCodeGen {
                 self.expr_returns_result(then_branch)
                     || else_branch
                         .as_ref()
-                        .map_or(false, |b| self.expr_returns_result(b))
+                        .is_some_and(|b| self.expr_returns_result(b))
             }
             Expr::Match { arms, .. } => arms.iter().any(|a| self.expr_returns_result(&a.body)),
             _ => false,
@@ -2160,10 +2160,10 @@ impl GoCodeGen {
                 }
             }
             Expr::FunctionCall { callee, .. } => {
-                if let Expr::Identifier(name) = &**callee {
-                    if name == "Ok" || name == "Err" {
-                        return Some("auraResult");
-                    }
+                if let Expr::Identifier(name) = &**callee
+                    && (name == "Ok" || name == "Err")
+                {
+                    return Some("auraResult");
                 }
                 None
             }
@@ -3217,23 +3217,21 @@ impl GoCodeGen {
                         | BinOp::Equal
                         | BinOp::NotEqual
                 ) {
-                    if r == "len" || r.contains("len") || r.starts_with("int64(") {
-                        if l == "i"
+                    if (r == "len" || r.contains("len") || r.starts_with("int64("))
+                        && (l == "i"
                             || l.starts_with("i ")
                             || l.starts_with("(i ")
-                            || l.starts_with("(i +")
-                        {
-                            l = format!("int64({})", l);
-                        }
+                            || l.starts_with("(i +"))
+                    {
+                        l = format!("int64({l})");
                     }
-                    if l == "len" || l.contains("len") || l.starts_with("int64(") {
-                        if r == "i"
+                    if (l == "len" || l.contains("len") || l.starts_with("int64("))
+                        && (r == "i"
                             || r.starts_with("i ")
                             || r.starts_with("(i ")
-                            || r.starts_with("(i +")
-                        {
-                            r = format!("int64({})", r);
-                        }
+                            || r.starts_with("(i +"))
+                    {
+                        r = format!("int64({r})");
                     }
                 }
                 let op_str = match op {
