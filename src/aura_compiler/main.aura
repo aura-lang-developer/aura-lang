@@ -87,7 +87,7 @@ export fn compileAuraToGo(source: String, filename: String): Result<String, Stri
 export fn runCli(): () {
   let args = process.argv;
   if (args.length < 3) {
-    println("Aura Self-Hosted Compiler (v0.2.0)");
+    println("Aura Self-Hosted Compiler (v0.3.0)");
     println("Usage: node aurac.mjs <file.aura> [-o <output>] [--target <js|go>] [--check]");
     return ();
   }
