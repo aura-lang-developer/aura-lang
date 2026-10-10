@@ -101,7 +101,7 @@ cargo --version
 #### B. Clone and Build the Complete Toolchain
 
 ```bash
-git clone https://github.com/mrojasb2000/aura-lang.git
+git clone https://github.com/aura-lang-developer/aura-lang.git
 cd aura-lang
 
 # Optimized production compilation (Release with Thin LTO, 1 codegen-unit, and symbol stripping)

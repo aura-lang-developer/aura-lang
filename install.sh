@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # 🌟 Aura Language Official One-Line Installer
-# Usage: curl -fsSL https://raw.githubusercontent.com/mrojasb2000/aura-lang/main/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/aura-lang-developer/aura-lang/main/install.sh | bash
 # ==============================================================================
 
 set -e
@@ -21,7 +21,7 @@ echo "║        Ergonomic Systems Language with Zero Runtime         ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo -e "${RESET}"
 
-REPO="mrojasb2000/aura-lang"
+REPO="aura-lang-developer/aura-lang"
 AURA_DIR="${AURA_INSTALL_DIR:-$HOME/.aura}"
 BIN_DIR="$AURA_DIR/bin"
 

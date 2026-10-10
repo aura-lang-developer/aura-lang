@@ -5,7 +5,7 @@ edition = "2024"
 license = "MIT"
 default-run = "aurac"
 description = "Aura Language compiler and toolchain"
-repository = "https://github.com/aura-lang/aura"
+repository = "https://github.com/aura-lang-developer/aura-lang"
 
 [workspace]
 members = [
@@ -17,7 +17,7 @@ members = [
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
-repository = "https://github.com/aura-lang/aura"
+repository = "https://github.com/aura-lang-developer/aura-lang"
 
 [workspace.dependencies]
 aura-runtime = { path = "crates/aura-runtime" }

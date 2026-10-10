@@ -100,7 +100,7 @@ cargo --version
 #### B. Clonar y Compilar la Toolchain Completa
 
 ```bash
-git clone https://github.com/mrojasb2000/aura-lang.git
+git clone https://github.com/aura-lang-developer/aura-lang.git
 cd aura-lang
 
 # Compilación optimizada para producción (Release con Thin LTO, 1 codegen-unit y strip de símbolos)
