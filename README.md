@@ -23,21 +23,22 @@ Aura compiles directly into **standalone native executable binaries** (Mach-O on
    - [Building the Toolchain with Cargo](#1-building-the-aura-toolchain-with-cargo)
    - [Your First Aura Program](#2-your-first-aura-program)
    - [Compilation and Execution Modes](#3-compilation-and-execution-modes)
-2. [✨ Key Features](#-key-features)
-3. [⚡ Benchmarks and Empirical Performance](#-benchmarks-and-empirical-performance)
+2. [🚀 What's New in v0.2.0: Unified Native Database Subsystem & NoSQL Engines](#-whats-new-in-v020-unified-native-database-subsystem--nosql-engines)
+3. [✨ Key Features](#-key-features)
+4. [⚡ Benchmarks and Empirical Performance](#-benchmarks-and-empirical-performance)
    - [Execution Times and Peak RSS Memory](#1-execution-times-and-memory-consumption-peak-rss)
    - [Standalone Binary Sizes](#2-standalone-binary-sizes-zero-dependencies)
    - [Compilation and Static Checking Times](#3-compilation-and-static-typecheck-times)
    - [HTTP Server and REST Microservice Benchmark](#4-http-server--rest-microservice-10000-requests-concurrency--50)
    - [Compilation Throughput vs TypeScript (`tsc`)](#5-compilation-throughput-vs-typescript-tsc)
    - [How to Reproduce the Benchmark Suite](#6-how-to-run-the-benchmark-suite)
-4. [📁 Compiler and Runtime Architecture](#-compiler-and-runtime-architecture)
+5. [📁 Compiler and Runtime Architecture](#-compiler-and-runtime-architecture)
    - [Pipeline Flow Diagram](#pipeline-flow-diagram)
    - [Dual-Target Strategy: Native Binaries & JavaScript Interoperability](#dual-target-strategy-native-binaries--javascript-interoperability)
    - [Why Rust for the Implementation: Advantages and Trade-offs](#why-rust-for-the-implementation-advantages-and-trade-offs)
    - [Source Code Organization](#source-code-organization)
    - [The Standalone Native Runtime (`aura-runtime`)](#the-standalone-native-runtime-cratesaura-runtime)
-5. [📘 Complete Aura Language Guide](#-complete-aura-language-guide)
+6. [📘 Complete Aura Language Guide](#-complete-aura-language-guide)
    - [1. Comprehensive Type System](#1-comprehensive-type-system)
    - [2. Variables, Immutability, and Destructuring](#2-variables-immutability-and-destructuring)
    - [3. Control Flow, Expressions, and Labeled Loops](#3-control-flow-expressions-and-labeled-loops)
@@ -56,7 +57,7 @@ Aura compiles directly into **standalone native executable binaries** (Mach-O on
    - [16. Compilation Directives, Build Tags, and Struct Tags](#16-compilation-directives-build-tags-and-struct-tags)
    - [17. TypeScript Ingestion (`.d.ts`) and Static Embedding (`embed`)](#17-typescript-ingestion-dts-and-static-asset-embedding-embed)
    - [18. Testing Directives, Assertions, and Benchmarking](#18-testing-directives-assertions-and-benchmarking)
-6. [🗄️ Standard Library, Web Server, and Databases](#️-standard-library-web-server-and-databases)
+7. [🗄️ Standard Library, Web Server, and Databases](#️-standard-library-web-server-and-databases)
    - [HTTP Web Server & ServeMux Router (`net/http`)](#-http-web-server-and-routing-mux-nethttp)
    - [Prometheus Metrics and W3C Traceparent Tracing](#-prometheus-metrics-and-distributed-tracing)
    - [Unified Native Database Subsystem & Connection Pools](#-unified-native-database-subsystem--connection-pools)
@@ -65,14 +66,14 @@ Aura compiles directly into **standalone native executable binaries** (Mach-O on
    - [Native MySQL Driver (`mysql`)](#-native-mysql-driver-mysql)
    - [Generic SQL Interface (`database/sql` / `sql`)](#-generic-sql-interface-databasesql--sql)
    - [Native Database Driver Example Suite](#-native-database-driver-example-suite)
-   - [Native MongoDB Driver (`mongodb` / `mongo`)](#-native-mongodb-driver-mongodb--mongo)
-   - [Native Redis Client (`redis`)](#-native-redis-client-redis)
+   - [Native Redis Driver & In-Memory Cache (`redis` / `std/redis`)](#-native-redis-driver--in-memory-cache-redis--stdredis)
+   - [Native MongoDB Driver & Document Store (`mongodb` / `mongo` / `std/mongodb`)](#-native-mongodb-driver--document-store-mongodb--mongo--stdmongodb)
    - [System Modules: OS, Time, Crypto, JWT, and JSON](#-system-modules-os-time-crypto-jwt-and-json)
    - [Production REST Microservice: `bookstore_api`](#-production-rest-microservice-bookstore_api)
-7. [🐛 Interactive Debugging and Source Maps V3](#-interactive-debugging-and-source-maps-v3)
+8. [🐛 Interactive Debugging and Source Maps V3](#-interactive-debugging-and-source-maps-v3)
    - [Terminal Step-by-Step Debugger (`aurac step`)](#terminal-step-by-step-debugger-aurac-step)
    - [V8 / DAP Debugger Server (`aurac debug`)](#v8--dap-debugger-server-aurac-debug)
-8. [🛠️ Full Tooling and CLI Reference](#️-full-tooling-and-cli-reference)
+9. [🛠️ Full Tooling and CLI Reference](#️-full-tooling-and-cli-reference)
    - [Core Compiler (`aurac`)](#1-core-compiler-aurac)
    - [Test, Benchmark, and Coverage Runner (`auratest`)](#2-test-benchmark-and-coverage-runner-auratest)
    - [Opinionated Code Formatter (`aurafmt`)](#3-opinionated-code-formatter-aurafmt-gofmt-style)
@@ -80,10 +81,10 @@ Aura compiles directly into **standalone native executable binaries** (Mach-O on
    - [Decentralized Module Manager (`auramod` / `aurac mod`)](#5-decentralized-module-manager-auramod--aurac-mod)
    - [C/Rust FFI Binding Generator (`aurabindgen`)](#6-c-rust-ffi-binding-generator-aurabindgen--aurac-bindgen)
    - [Interactive Web Playground (`aurac playground`)](#7-interactive-web-playground)
-9. [🧩 Editor Configuration](#-editor-configuration)
-10. [🔄 Self-Hosted Compiler and Bootstrapping](#-self-hosted-compiler-and-bootstrapping)
-11. [🗺️ Current Status, Roadmap, and Milestones](#️-current-status-roadmap-and-milestones)
-12. [📄 License and Trademarks](#-license)
+10. [🧩 Editor Configuration](#-editor-configuration)
+11. [🔄 Self-Hosted Compiler and Bootstrapping](#-self-hosted-compiler-and-bootstrapping)
+12. [🗺️ Current Status, Roadmap, and Milestones](#️-current-status-roadmap-and-milestones)
+13. [📄 License and Trademarks](#-license)
 
 ---
 
@@ -242,6 +243,37 @@ aurac build hello.aura -o hello --target go
 # Or emit pure, inspectable Go source code:
 aurac emit-go hello.aura -o hello.go
 ```
+
+---
+
+## 🚀 What's New in v0.2.0: Unified Native Database Subsystem & NoSQL Engines
+
+Aura **v0.2.0** introduces a high-performance, strongly-typed native database subsystem designed specifically for standalone binary executables compiled directly via **Cranelift**. It operates with **zero external dynamic runtime dependencies** (no `.so` or `.dylib` library prerequisites), bundles pure-Rust network wire protocols, and integrates embedded in-memory fallback execution:
+
+### 🌟 Architectural Highlights
+
+1. **Pure-Rust Embedded & Wire Protocols (Zero External Shared Libraries)**:
+   - **Embedded SQLite 3**: Statically bundled SQLite engine supporting lightning-fast in-memory stores (`:memory:`) and persistent single-file databases.
+   - **Pure-Rust PostgreSQL Wire Protocol (3.0)**: Parameterized extended query execution (`$1, $2`), cursor streaming, and MD5 authentication without requiring `libpq`.
+   - **Pure-Rust MySQL Protocol (10)**: Prepared statement parameter binding (`?`), binary result set parsing, and SHA-1 authentication handshakes without `libmysqlclient`.
+   - **Pure-Rust Redis Client (RESP)**: Native Redis serialization protocol engine with standalone in-memory cache fallback (`:memory:`).
+   - **Pure-Rust MongoDB Document Engine**: Native document store supporting nested JSON/BSON records, dynamic query filters, atomic field updates, and multi-stage aggregation pipelines with standalone `:memory:` fallback.
+
+2. **Polymorphic Generic SQL Interface (`database/sql` / `sql`)**:
+   - Go-style connection pooling (`DB`) with configurable worker limits (`maxConns`), health checks (`db.ping()`), and deterministic cleanup (`db.close()`).
+   - Atomic ACID Transactions (`Tx`) with automatic `commit()` and `rollback()` guarantees, fully compatible with transactional `errdefer`.
+   - Strongly-typed cursor iteration (`Rows`) with zero-copy row scanners (`getInt`, `getString`, `getFloat`, `getBool`, `toRecord`, `toList`).
+
+3. **High-Performance NoSQL & Key-Value Engines**:
+   - **Redis (`std/database/redis` / `std/redis`)**: Full support for Strings (KV with TTL), Structured Hash maps (`hset`, `hget`, `hdel`, `hgetall`), Atomic counters (`incr`, `decr`), FIFO Queues and Lists (`lpush`, `rpop`, `lrange`), Key expiration (`expire`, `ttl`), and Health checks (`ping`).
+   - **MongoDB (`std/database/mongodb` / `std/mongo`)**: Full CRUD support (`insertOne`, `insertMany`, `findOne`, `find`, `updateOne`, `updateMany`, `deleteOne`, `deleteMany`, `count`), rich filter operators (`$gt`, `$gte`, `$lt`, `$lte`, `$ne`, `$in`), atomic modifiers (`$set`, `$inc`, `$unset`), and multi-stage aggregation pipelines (`$match`, `$group`, `$sum`, `$avg`).
+
+4. **Direct Cranelift Native Machine Code Emission**:
+   - 33+ C ABI runtime entrypoints registered in `libaura_runtime.a` and mapped directly into Cranelift native machine code.
+   - Transparent member access and seamless interoperability between synchronous Go-style syntax (`let res = col.insertOne({...});`) and asynchronous TypeScript-style syntax (`let res = await col.insertOne({...});`).
+
+5. **7 Production-Grade Standalone Examples**:
+   - Complete suite of runnable examples in [`examples/`](examples) demonstrating SQLite CRUD, ACID bank transactions, generic SQL connection pools, PostgreSQL order processing, MySQL inventory management, all-in-one SQL showcase, and Redis + MongoDB NoSQL workflows.
 
 ---
 

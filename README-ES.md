@@ -22,21 +22,22 @@ Aura se compila directamente a **binarios nativos ejecutables autónomos** (form
    - [Construcción de la Cadena de Herramientas con Cargo](#1-construir-la-cadena-de-herramientas-de-aura-con-cargo)
    - [Primer Programa en Aura](#2-tu-primer-programa-en-aura)
    - [Modos de Compilación y Ejecución](#3-modos-de-compilación-y-ejecución)
-2. [✨ Características Principales](#-características-principales)
-3. [⚡ Benchmarks y Rendimiento Empírico](#-benchmarks-y-rendimiento-empírico)
+2. [🚀 Novedades en v0.2.0: Subsistema Unificado de Bases de Datos Nativas y Motores NoSQL](#-novedades-en-v020-subsistema-unificado-de-bases-de-datos-nativas-y-motores-nosql)
+3. [✨ Características Principales](#-características-principales)
+4. [⚡ Benchmarks y Rendimiento Empírico](#-benchmarks-y-rendimiento-empírico)
    - [Tiempos de Ejecución y Consumo de Memoria (Peak RSS)](#1-tiempos-de-ejecución-y-consumo-de-memoria-peak-rss)
    - [Tamaño de Binarios Autónomos](#2-tamaño-de-binarios-autónomos-cero-dependencias)
    - [Tiempos de Compilación y Verificación Estática](#3-tiempos-de-compilación-y-verificación-estática)
    - [Benchmark del Servidor HTTP y Microservicio REST](#4-servidor-http--microservicio-rest-10000-requests-concurrencia--50)
    - [Throughput de Compilación frente a TypeScript (`tsc`)](#5-rendimiento-de-compilación-frente-a-typescript-tsc)
    - [Cómo Reproducir la Suite de Pruebas](#6-cómo-ejecutar-la-suite-de-benchmarks)
-4. [📁 Arquitectura del Compilador y Runtime](#-arquitectura-del-compilador-y-runtime)
+5. [📁 Arquitectura del Compilador y Runtime](#-arquitectura-del-compilador-y-runtime)
    - [Diagrama de Flujo del Pipeline](#diagrama-de-flujo-del-pipeline)
    - [Estrategia Dual-Target: Binarios Nativos e Interoperabilidad con JavaScript](#estrategia-dual-target-binarios-nativos-e-interoperabilidad-con-javascript)
    - [Por qué Rust para la Implementación: Ventajas y Compromisos](#por-qué-rust-para-la-implementación-ventajas-y-compromisos)
    - [Organización del Código Fuente](#organización-del-código-fuente)
    - [El Runtime Nativo Autónomo (`aura-runtime`)](#el-runtime-nativo-autónomo-cratesaura-runtime)
-5. [📘 Guía Completa del Lenguaje Aura](#-guía-completa-del-lenguaje-aura)
+6. [📘 Guía Completa del Lenguaje Aura](#-guía-completa-del-lenguaje-aura)
    - [1. Sistema de Tipos de Datos Completo](#1-sistema-de-tipos-de-datos-completo)
    - [2. Variables, Inmutabilidad y Desestructuración](#2-variables-inmutabilidad-y-desestructuración)
    - [3. Control de Flujo, Expresiones y Bucles Etiquetados](#3-control-de-flujo-expresiones-y-bucles-etiquetados)
@@ -55,7 +56,7 @@ Aura se compila directamente a **binarios nativos ejecutables autónomos** (form
    - [16. Directivas de Compilación, Build Tags y Struct Tags](#16-directivas-de-compilación-build-tags-y-struct-tags)
    - [17. Ingestión de TypeScript (`.d.ts`) e Inclusión Estática (`embed`)](#17-ingestión-de-typescript-dts-e-inclusión-estática-embed)
    - [18. Directivas de Prueba, Aserciones y Benchmarks](#18-directivas-de-prueba-aserciones-y-benchmarks)
-6. [🗄️ Librería Estándar, Servidor Web y Bases de Datos](#️-librería-estándar-servidor-web-y-bases-de-datos)
+7. [🗄️ Librería Estándar, Servidor Web y Bases de Datos](#️-librería-estándar-servidor-web-y-bases-de-datos)
    - [Servidor Web HTTP ServeMux (`net/http`)](#-servidor-web-http-y-mux-de-enrutamiento-nethttp)
    - [Métricas Prometheus y Trazabilidad W3C Traceparent](#-métricas-prometheus-y-trazabilidad-distribuida)
    - [Subsistema Unificado de Bases de Datos Nativas y Connection Pools](#-subsistema-unificado-de-bases-de-datos-nativas-y-connection-pools)
@@ -64,14 +65,14 @@ Aura se compila directamente a **binarios nativos ejecutables autónomos** (form
    - [Controlador Nativo de MySQL (`mysql`)](#-controlador-nativo-de-mysql-mysql)
    - [Interfaz Genérica SQL y Transacciones ACID (`database/sql` / `sql`)](#-interfaz-genérica-sql-y-transacciones-acid-databasesql--sql)
    - [Suite de Ejemplos de Drivers de Bases de Datos Nativas](#-suite-de-ejemplos-de-drivers-de-bases-de-datos-nativas)
-   - [Controlador Nativo de MongoDB (`mongodb` / `mongo`)](#-controlador-nativo-de-mongodb-mongodb--mongo)
-   - [Cliente Nativo de Redis (`redis`)](#-cliente-nativo-de-redis-redis)
+   - [Cliente y Cache Nativo de Redis (`redis` / `std/redis`)](#-cliente-y-cache-nativo-de-redis-redis--stdredis)
+   - [Controlador Nativo de MongoDB (`mongodb` / `mongo` / `std/mongodb`)](#-controlador-nativo-de-mongodb-mongodb--mongo--stdmongodb)
    - [Módulos OS, Time, Crypto, JWT y JSON](#-módulos-del-sistema-os-time-crypto-jwt-y-json)
    - [Microservicio REST de Producción: `bookstore_api`](#-microservicio-rest-de-producción-bookstore_api)
-7. [🐛 Depuración Interactiva y Source Maps V3](#-depuración-interactiva-y-source-maps-v3)
+8. [🐛 Depuración Interactiva y Source Maps V3](#-depuración-interactiva-y-source-maps-v3)
    - [Depurador Paso a Paso en Terminal (`aurac step`)](#depurador-paso-a-paso-en-terminal-aurac-step)
    - [Servidor de Depuración V8 / DAP (`aurac debug`)](#servidor-de-depuración-v8--dap-aurac-debug)
-8. [🛠️ Referencia Completa de Herramientas y CLI](#️-referencia-completa-de-herramientas-y-cli)
+9. [🛠️ Referencia Completa de Herramientas y CLI](#️-referencia-completa-de-herramientas-y-cli)
    - [Compilador Central (`aurac`)](#1-compilador-central-aurac)
    - [Runner de Pruebas, Benchmarks y Cobertura (`auratest`)](#2-runner-de-pruebas-benchmarks-y-cobertura-auratest)
    - [Formateador de Código Opinado (`aurafmt`)](#3-formateador-de-código-aurafmt-estilo-gofmt)
@@ -79,10 +80,10 @@ Aura se compila directamente a **binarios nativos ejecutables autónomos** (form
    - [Gestor Descentralizado de Módulos (`auramod` / `aurac mod`)](#5-gestor-descentralizado-de-módulos-auramod--aurac-mod)
    - [Generador de Bindings FFI C/Rust (`aurabindgen`)](#6-generador-de-bindings-ffi-aurabindgen--aurac-bindgen)
    - [Playground Web Interactivo (`aurac playground`)](#7-playground-web-interactivo)
-9. [🧩 Configuración en Editores](#-configuración-en-editores)
-10. [🔄 Compilador Self-Hosted y Bootstrapping](#-compilador-self-hosted-y-bootstrapping)
-11. [🗺️ Estado Actual, Roadmap e Hitos](#️-estado-actual-roadmap-e-hitos)
-12. [📄 Licencia y Marcas Registradas](#-licencia)
+10. [🧩 Configuración en Editores](#-configuración-en-editores)
+11. [🔄 Compilador Self-Hosted y Bootstrapping](#-compilador-self-hosted-y-bootstrapping)
+12. [🗺️ Estado Actual, Roadmap e Hitos](#️-estado-actual-roadmap-e-hitos)
+13. [📄 Licencia y Marcas Registradas](#-licencia)
 
 ---
 
@@ -241,6 +242,37 @@ aurac build hello.aura -o hello --target go
 # O generar el código fuente Go puro inspeccionable:
 aurac emit-go hello.aura -o hello.go
 ```
+
+---
+
+## 🚀 Novedades en v0.2.0: Subsistema Unificado de Bases de Datos Nativas y Motores NoSQL
+
+Aura **v0.2.0** introduce un subsistema unificado de bases de datos nativas de alto rendimiento y fuertemente tipado, diseñado específicamente para binarios ejecutables autónomos compilados directamente mediante **Cranelift**. Funciona con **cero dependencias externas dinámicas en tiempo de ejecución** (sin librerías compartidas `.so` ni `.dylib`), incorpora protocolos de red wire implementados en pure-Rust y proporciona ejecución con almacenamiento embebido en memoria de respaldo:
+
+### 🌟 Aspectos Arquitectónicos Clave
+
+1. **Protocolos Wire y Motores Embebidos en Pure-Rust (Cero Dependencias Externas)**:
+   - **SQLite 3 Embebido**: Motor SQLite compilado e integrado estáticamente con soporte para almacenamiento ultrarrápido en memoria (`:memory:`) y bases de datos en archivo único.
+   - **Protocolo Wire PostgreSQL (3.0) en Pure-Rust**: Ejecución de consultas parametrizadas extendidas (`$1, $2`), streaming de cursores y autenticación MD5 sin requerir `libpq`.
+   - **Protocolo MySQL (10) en Pure-Rust**: Binding de parámetros con sentencias preparadas (`?`), parseo binario de conjuntos de resultados y negociación SHA-1 sin requerir `libmysqlclient`.
+   - **Cliente Redis (RESP) en Pure-Rust**: Motor nativo de serialización RESP con memoria caché de respaldo embebida (`:memory:`).
+   - **Motor Documental MongoDB en Pure-Rust**: Base de datos documental nativa con soporte para registros BSON/JSON anidados, filtros dinámicos, actualizaciones atómicas y pipelines de agregación multietapa con motor embebido (`:memory:`).
+
+2. **Interfaz Genérica SQL Polimórfica (`database/sql` / `sql`)**:
+   - Pool de conexiones estilo Go (`DB`) con límite configurable de conexiones (`maxConns`), comprobaciones de salud (`db.ping()`) y limpieza determinista (`db.close()`).
+   - Transacciones ACID Atómicas (`Tx`) con garantías automáticas de `commit()` y `rollback()`, totalmente integradas con `errdefer` transaccional.
+   - Iteración de cursores fuertemente tipada (`Rows`) con extractores directos sin copias redundantes (`getInt`, `getString`, `getFloat`, `getBool`, `toRecord`, `toList`).
+
+3. **Motores NoSQL y Almacén Clave-Valor de Alto Rendimiento**:
+   - **Redis (`std/database/redis` / `std/redis`)**: Soporte completo para Cadenas Clave-Valor con TTL, Hashes estructurados (`hset`, `hget`, `hdel`, `hgetall`), Contadores atómicos (`incr`, `decr`), Colas FIFO y Listas (`lpush`, `rpop`, `lrange`), Expiración (`expire`, `ttl`) y Health checks (`ping`).
+   - **MongoDB (`std/database/mongodb` / `std/mongo`)**: Soporte CRUD exhaustivo (`insertOne`, `insertMany`, `findOne`, `find`, `updateOne`, `updateMany`, `deleteOne`, `deleteMany`, `count`), operadores avanzados de filtrado (`$gt`, `$gte`, `$lt`, `$lte`, `$ne`, `$in`), modificadores atómicos (`$set`, `$inc`, `$unset`) y pipelines de agregación multietapa (`$match`, `$group`, `$sum`, `$avg`).
+
+4. **Emisión Directa de Código Máquina Nativo Cranelift**:
+   - Más de 33 puntos de entrada C ABI registrados en `libaura_runtime.a` y mapeados directamente en el código máquina emitido por Cranelift.
+   - Acceso a miembros transparente e interoperabilidad total entre la sintaxis síncrona estilo Go (`let res = col.insertOne({...});`) y asíncrona estilo TypeScript (`let res = await col.insertOne({...});`).
+
+5. **7 Ejemplos Autónomos Listos para Producción**:
+   - Suite completa de ejemplos ejecutables en el directorio [`examples/`](examples) demostrando CRUD en SQLite, transacciones bancarias ACID, pool de conexiones SQL genérico, procesamiento de pedidos en PostgreSQL, inventario en MySQL, showcase integral SQL y flujos de trabajo NoSQL con Redis y MongoDB.
 
 ---
 
