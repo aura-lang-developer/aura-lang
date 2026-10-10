@@ -4,6 +4,47 @@ use crate::ast::*;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
+
+fn relative_path_between(target: &Path, base: &Path) -> String {
+    let target = target.canonicalize().unwrap_or_else(|_| {
+        if target.is_relative() {
+            std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")).join(target)
+        } else {
+            target.to_path_buf()
+        }
+    });
+    let base = base.canonicalize().unwrap_or_else(|_| {
+        if base.is_relative() {
+            std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")).join(base)
+        } else {
+            base.to_path_buf()
+        }
+    });
+
+    let target_comps: Vec<_> = target.components().collect();
+    let base_comps: Vec<_> = base.components().collect();
+
+    let mut common = 0;
+    while common < target_comps.len() && common < base_comps.len() && target_comps[common] == base_comps[common] {
+        common += 1;
+    }
+
+    let mut rel = PathBuf::new();
+    for _ in common..base_comps.len() {
+        rel.push("..");
+    }
+    for comp in &target_comps[common..] {
+        rel.push(comp.as_os_str());
+    }
+
+    let s = rel.to_string_lossy().replace("\\", "/");
+    if s.starts_with(".") {
+        s
+    } else {
+        format!("./{}", s)
+    }
+}
+
 fn escape_js_string(s: &str) -> String {
     let mut out = String::from("\"");
     for c in s.chars() {
@@ -3008,23 +3049,9 @@ const __aura_import = async (m) => {
         {
             let mjs_path = resolved.with_extension("mjs");
             if let Some(ref base) = self.base_path {
-                if let Ok(rel) = mjs_path.strip_prefix(base) {
-                    format!("./{}", rel.display()).replace('\\', "/")
-                } else if let Ok(cwd) = std::env::current_dir() {
-                    if let Ok(rel) = mjs_path.strip_prefix(&cwd) {
-                        format!("./{}", rel.display()).replace('\\', "/")
-                    } else {
-                        mjs_path.to_string_lossy().replace('\\', "/")
-                    }
-                } else {
-                    mjs_path.to_string_lossy().replace('\\', "/")
-                }
+                relative_path_between(&mjs_path, base)
             } else if let Ok(cwd) = std::env::current_dir() {
-                if let Ok(rel) = mjs_path.strip_prefix(&cwd) {
-                    format!("./{}", rel.display()).replace('\\', "/")
-                } else {
-                    mjs_path.to_string_lossy().replace('\\', "/")
-                }
+                relative_path_between(&mjs_path, &cwd)
             } else {
                 mjs_path.to_string_lossy().replace('\\', "/")
             }
