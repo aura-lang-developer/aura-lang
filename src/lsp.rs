@@ -925,9 +925,16 @@ impl DocumentState {
             "List",
             "Array",
             "Iterator",
-            "Interator",
             "Map",
             "Set",
+            "Request",
+            "HttpRequest",
+            "Response",
+            "HttpResponse",
+            "ResponseWriter",
+            "Server",
+            "ServeMux",
+            "Handler",
         ];
         for ty in builtin_types {
             items.push(CompletionItem {
@@ -2321,17 +2328,23 @@ fn get_builtin_hover(name: &str) -> Option<String> {
         "openFile" => {
             "### `openFile` *(Built-in Function)*\n\nOpens a filesystem file returning a file handle wrapped in `Result<File, Error>`.\n\n```aura\nopenFile(path: String, mode?: String): Result<File, Error>\n```\n\n---\n#### 📥 Parameters\n* `path` (`String`): Path to file.\n* `mode` (`String`, optional): Access mode (`\"r\"`, `\"w\"`, `\"a\"`, default `\"r\"`).\n\n---\n#### 📤 Returns\n* `Result<File, Error>`."
         }
-        "Server" => {
-            "### `Server` *(Native HTTP Server)*\n\nNative high-performance HTTP web server instance.\n\n```aura\nServer.new(addr: String): Server\n```\n\nSupports routing, middleware chains, OpenAPI 3.0 / Swagger UI auto-generation, and fiber concurrency.\n\n---\n#### 📥 Parameters\n* `addr` (`String`): TCP bind address (e.g. `\":8080\"`).\n\n---\n#### 💡 Example\n```aura\nlet server = Server.new(\":8080\");\nserver.handle(\"/api/users\", handleUsers);\nserver.enableSwagger(\"/swagger\");\nserver.listen();\n```"
+        "Server" | "ServeMux" => {
+            "### `Server` / `ServeMux` *(Native HTTP Server)*\n\nNative high-performance HTTP web server instance.\n\n```aura\nServer.new(addr: String): Server\n```\n\nSupports routing, middleware chains, OpenAPI 3.0 / Swagger UI auto-generation, and fiber concurrency.\n\n---\n#### 📥 Parameters\n* `addr` (`String`): TCP bind address (e.g. `\":8080\"`).\n\n---\n#### 💡 Example\n```aura\nlet server = Server.new(\":8080\");\nserver.handle(\"/api/users\", handleUsers);\nserver.enableSwagger(\"/swagger\");\nserver.listen();\n```"
         }
-        "Request" => {
-            "### `Request` *(HTTP Request)*\n\nRepresents an incoming HTTP request.\n\n```aura\ntype Request = {\n    method: String,\n    url: String,\n    headers: Map<String, String>,\n    body: String\n}\n```"
+        "Request" | "HttpRequest" => {
+            "### `Request` / `HttpRequest` *(HTTP Request)*\n\nRepresents an incoming HTTP request.\n\n```aura\ninterface Request {\n    method: String,\n    url: String,\n    path: String,\n    host: String,\n    body: String,\n    param(name: String): String,\n    pathValue(name: String): String,\n    query(name: String): String,\n    header(name: String): String,\n    parseJson(): Result<Any, String>\n}\n```"
         }
-        "Response" => {
-            "### `Response` *(HTTP Response)*\n\nHTTP response constructor.\n\n```aura\nResponse.json(data: Any, status: Int = 200): Response\nResponse.html(html: String, status: Int = 200): Response\nResponse.text(text: String, status: Int = 200): Response\n```\n\n---\n#### 📥 Parameters\n* `data` (`Any`): Payload serialized as JSON.\n* `status` (`Int`, optional): HTTP status code (default 200)."
+        "Response" | "HttpResponse" => {
+            "### `Response` / `HttpResponse` *(HTTP Response)*\n\nHTTP response representation and constructor.\n\n```aura\nResponse.json(data: Any, status: Int = 200): Response\nResponse.html(html: String, status: Int = 200): Response\nResponse.text(text: String, status: Int = 200): Response\nResponse.error(msg: String, status: Int = 500): Response\nResponse.redirect(url: String, status: Int = 302): Response\n```\n\n---\n#### 📥 Parameters\n* `data` (`Any`): Payload serialized as JSON.\n* `status` (`Int`, optional): HTTP status code (default 200)."
+        }
+        "ResponseWriter" => {
+            "### `ResponseWriter` *(Go-style HTTP Response Writer)*\n\nInterface used by HTTP handlers to construct an HTTP response.\n\n```aura\ninterface ResponseWriter {\n    json(data: Any, status?: Int): Unit,\n    text(msg: String, status?: Int): Unit,\n    html(content: String, status?: Int): Unit,\n    error(msg: String, status?: Int): Unit,\n    redirect(url: String, status?: Int): Unit,\n    setHeader(key: String, val: String): Unit,\n    writeString(s: String): Unit\n}\n```"
+        }
+        "Handler" => {
+            "### `Handler` *(HTTP Handler Interface)*\n\nStandard interface for HTTP request handlers.\n\n```aura\ninterface Handler {\n    serveHTTP(w: ResponseWriter, req: Request): Unit\n}\n```"
         }
         "http" => {
-            "### `http` *(Native Server & Client)*\n\n```aura\nimport { Server, Request, Response } from \"net/http\";\n```\n\nStandard library module for high-performance HTTP networking."
+            "### `http` *(Native Server & Client)*\n\n```aura\nimport { Server, Request, Response, ResponseWriter } from \"net/http\";\n```\n\nStandard library module for high-performance HTTP networking."
         }
         "pg" | "postgres" => {
             "### `pg` *(Native Database Driver)*\n\n```aura\npg::connect(url: String): Result<PgClient, Error>\n```\n\nPostgreSQL database driver with connection pooling and transactions."

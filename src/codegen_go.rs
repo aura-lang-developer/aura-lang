@@ -378,17 +378,130 @@ func __auraBool(v any) bool {
 
 type auraResponse struct {
     w go_http.ResponseWriter
+    Status int
 }
-func (r *auraResponse) SetHeader(k, v string) { r.w.Header().Set(k, v) }
-func (r *auraResponse) setHeader(k, v string) { r.w.Header().Set(k, v) }
-func (r *auraResponse) Header() go_http.Header { return r.w.Header() }
-func (r *auraResponse) Write(b []byte) (int, error) { return r.w.Write(b) }
-func (r *auraResponse) WriteHeader(status int) { r.w.WriteHeader(status) }
+func (r *auraResponse) SetHeader(k, v string) { if r != nil && r.w != nil { r.w.Header().Set(k, v) } }
+func (r *auraResponse) setHeader(k, v string) { r.SetHeader(k, v) }
+func (r *auraResponse) Header() go_http.Header { if r != nil && r.w != nil { return r.w.Header() }; return make(go_http.Header) }
+func (r *auraResponse) header() go_http.Header { return r.Header() }
+func (r *auraResponse) Write(b []byte) (int, error) { if r != nil && r.w != nil { return r.w.Write(b) }; return 0, nil }
+func (r *auraResponse) write(b []byte) (int, error) { return r.Write(b) }
+func (r *auraResponse) WriteHeader(status int) { if r != nil && r.w != nil { r.Status = status; r.w.WriteHeader(status) } }
+func (r *auraResponse) writeHeader(status int) { r.WriteHeader(status) }
+func (r *auraResponse) WriteString(s string) (int, error) { return r.Write([]byte(s)) }
+func (r *auraResponse) writeString(s string) (int, error) { return r.WriteString(s) }
+func (r *auraResponse) End(args ...any) {
+    if r != nil && r.w != nil && len(args) > 0 {
+        r.w.Write([]byte(fmt.Sprint(args[0])))
+    }
+}
+func (r *auraResponse) end(args ...any) { r.End(args...) }
+
+func (r *auraResponse) Json(args ...any) {
+    if r == nil || r.w == nil { return }
+    status := 200
+    var data any
+    if len(args) == 1 {
+        data = args[0]
+    } else if len(args) >= 2 {
+        if st, ok := args[0].(int); ok {
+            status = st
+            data = args[1]
+        } else if st, ok := args[0].(int64); ok {
+            status = int(st)
+            data = args[1]
+        } else if st, ok := args[1].(int); ok {
+            data = args[0]
+            status = st
+        } else if st, ok := args[1].(int64); ok {
+            data = args[0]
+            status = int(st)
+        } else {
+            data = args[0]
+        }
+    }
+    r.w.Header().Set("Content-Type", "application/json; charset=utf-8")
+    r.w.WriteHeader(status)
+    json.NewEncoder(r.w).Encode(data)
+}
+func (r *auraResponse) json(args ...any) { r.Json(args...) }
+
+func (r *auraResponse) Text(args ...any) {
+    if r == nil || r.w == nil { return }
+    status := 200
+    msg := ""
+    if len(args) == 1 {
+        msg = fmt.Sprint(args[0])
+    } else if len(args) >= 2 {
+        if st, ok := args[0].(int); ok {
+            status = st
+            msg = fmt.Sprint(args[1])
+        } else if st, ok := args[0].(int64); ok {
+            status = int(st)
+            msg = fmt.Sprint(args[1])
+        } else {
+            msg = fmt.Sprint(args[0])
+            if st, ok := args[1].(int); ok { status = st }
+            if st, ok := args[1].(int64); ok { status = int(st) }
+        }
+    }
+    r.w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+    r.w.WriteHeader(status)
+    r.w.Write([]byte(msg))
+}
+func (r *auraResponse) text(args ...any) { r.Text(args...) }
+
+func (r *auraResponse) Html(args ...any) {
+    if r == nil || r.w == nil { return }
+    status := 200
+    content := ""
+    if len(args) == 1 {
+        content = fmt.Sprint(args[0])
+    } else if len(args) >= 2 {
+        if st, ok := args[0].(int); ok {
+            status = st
+            content = fmt.Sprint(args[1])
+        } else if st, ok := args[0].(int64); ok {
+            status = int(st)
+            content = fmt.Sprint(args[1])
+        } else {
+            content = fmt.Sprint(args[0])
+            if st, ok := args[1].(int); ok { status = st }
+            if st, ok := args[1].(int64); ok { status = int(st) }
+        }
+    }
+    r.w.Header().Set("Content-Type", "text/html; charset=utf-8")
+    r.w.WriteHeader(status)
+    r.w.Write([]byte(content))
+}
+func (r *auraResponse) html(args ...any) { r.Html(args...) }
+
+func (r *auraResponse) Error(msg string, status ...int) {
+    if r == nil || r.w == nil { return }
+    st := 500
+    if len(status) > 0 { st = status[0] }
+    go_http.Error(r.w, msg, st)
+}
+func (r *auraResponse) error(msg string, status ...int) { r.Error(msg, status...) }
+
+func (r *auraResponse) Redirect(url string, status ...int) {
+    if r == nil || r.w == nil { return }
+    st := 302
+    if len(status) > 0 { st = status[0] }
+    r.w.Header().Set("Location", url)
+    r.w.WriteHeader(st)
+}
+func (r *auraResponse) redirect(url string, status ...int) { r.Redirect(url, status...) }
 
 type auraRequest struct {
     r *go_http.Request
     Method string
     Url string
+    Path string
+    Host string
+    Proto string
+    RemoteAddr string
+    Body string
 }
 func (r *auraRequest) GetHeader(k string) string {
     if r != nil && r.r != nil {
@@ -399,6 +512,43 @@ func (r *auraRequest) GetHeader(k string) string {
 func (r *auraRequest) getHeader(k string) string { return r.GetHeader(k) }
 func (r *auraRequest) Header(k string) string { return r.GetHeader(k) }
 func (r *auraRequest) header(k string) string { return r.GetHeader(k) }
+func (r *auraRequest) PathValue(k string) string {
+    if r != nil && r.r != nil {
+        return r.r.PathValue(k)
+    }
+    return ""
+}
+func (r *auraRequest) pathValue(k string) string { return r.PathValue(k) }
+func (r *auraRequest) Param(k string) string { return r.PathValue(k) }
+func (r *auraRequest) param(k string) string { return r.PathValue(k) }
+func (r *auraRequest) Query(k string) string {
+    if r != nil && r.r != nil {
+        return r.r.URL.Query().Get(k)
+    }
+    return ""
+}
+func (r *auraRequest) query(k string) string { return r.Query(k) }
+func (r *auraRequest) ParseJson() auraResult {
+    if r == nil || r.r == nil {
+        if r != nil && r.Body != "" {
+            var val any
+            if err := json.Unmarshal([]byte(r.Body), &val); err == nil {
+                return Ok(val)
+            }
+        }
+        return Err("Invalid request")
+    }
+    bodyBytes, err := io.ReadAll(r.r.Body)
+    if err != nil {
+        return Err(err.Error())
+    }
+    var val any
+    if err := json.Unmarshal(bodyBytes, &val); err != nil {
+        return Err(err.Error())
+    }
+    return Ok(val)
+}
+func (r *auraRequest) parseJson() auraResult { return r.ParseJson() }
 
 type auraRouteInfo struct {
     Method string
@@ -485,7 +635,22 @@ func (m *auraMux) route(method, pattern string, args ...any) {
     }
     goPattern := method + " " + strings.Join(parts, "/")
     m.mux.HandleFunc(goPattern, func(w go_http.ResponseWriter, r *go_http.Request) {
-        reqObj := &auraRequest{r: r, Method: r.Method, Url: r.URL.String()}
+        var bodyStr string
+        if r.Body != nil {
+            b, _ := io.ReadAll(r.Body)
+            bodyStr = string(b)
+            r.Body = io.NopCloser(bytes.NewBuffer(b))
+        }
+        reqObj := &auraRequest{
+            r: r,
+            Method: r.Method,
+            Url: r.URL.String(),
+            Path: r.URL.Path,
+            Host: r.Host,
+            Proto: r.Proto,
+            RemoteAddr: r.RemoteAddr,
+            Body: bodyStr,
+        }
         resObj := &auraResponse{w: w}
         var runMw func(idx int)
         runMw = func(idx int) {
@@ -495,17 +660,61 @@ func (m *auraMux) route(method, pattern string, args ...any) {
                 switch h := handler.(type) {
                 case func(*auraRequest, *auraResponse):
                     h(reqObj, resObj)
+                case func(*auraResponse, *auraRequest):
+                    h(resObj, reqObj)
                 case func(*auraRequest, *auraResponse) any:
-                    h(reqObj, resObj)
+                    res := h(reqObj, resObj)
+                    __auraFlushResponse(w, res)
+                case func(*auraResponse, *auraRequest) any:
+                    res := h(resObj, reqObj)
+                    __auraFlushResponse(w, res)
+                case func(*auraRequest) any:
+                    res := h(reqObj)
+                    __auraFlushResponse(w, res)
                 case func(any, any):
                     h(reqObj, resObj)
                 case func(any, any) any:
-                    h(reqObj, resObj)
+                    res := h(reqObj, resObj)
+                    __auraFlushResponse(w, res)
+                case func(any) any:
+                    res := h(reqObj)
+                    __auraFlushResponse(w, res)
                 }
             }
         }
         runMw(0)
     })
+}
+
+func __auraFlushResponse(w go_http.ResponseWriter, res any) {
+    if res == nil { return }
+    if _, ok := res.(*auraResponse); ok {
+        return
+    }
+    if resMap, ok := res.(map[string]any); ok {
+        status := 200
+        if st, ok := resMap["status"].(int); ok { status = st }
+        if st, ok := resMap["status"].(int64); ok { status = int(st) }
+        if headers, ok := resMap["headers"].(map[string]any); ok {
+            for k, v := range headers {
+                w.Header().Set(k, fmt.Sprint(v))
+            }
+        }
+        if body, ok := resMap["body"]; ok {
+            if w.Header().Get("Content-Type") == "" {
+                w.Header().Set("Content-Type", "application/json; charset=utf-8")
+            }
+            w.WriteHeader(status)
+            if s, ok := body.(string); ok {
+                w.Write([]byte(s))
+            } else {
+                json.NewEncoder(w).Encode(body)
+            }
+            return
+        }
+        w.WriteHeader(status)
+        return
+    }
 }
 
 func (m *auraMux) Get(p string, args ...any) { m.get(p, args...) }
@@ -1196,6 +1405,92 @@ var http = auraHttpStatic{
     StatusInternalServerError: 500,
 }
 
+type ResponseWriter = auraResponse
+type Handler interface {
+    ServeHTTP(w *auraResponse, req *auraRequest)
+}
+
+type auraResponseStatic struct{}
+func (auraResponseStatic) Json(data any, status ...int) map[string]any {
+    st := 200
+    if len(status) > 0 { st = status[0] }
+    b, _ := json.Marshal(data)
+    headers := map[string]any{"Content-Type": "application/json; charset=utf-8"}
+    return map[string]any{"status": st, "headers": headers, "body": string(b), "data": data}
+}
+func (auraResponseStatic) json(data any, status ...int) map[string]any {
+    return auraResponseStatic{}.Json(data, status...)
+}
+func (auraResponseStatic) Text(text string, status ...int) map[string]any {
+    st := 200
+    if len(status) > 0 { st = status[0] }
+    headers := map[string]any{"Content-Type": "text/plain; charset=utf-8"}
+    return map[string]any{"status": st, "headers": headers, "body": text}
+}
+func (auraResponseStatic) text(text string, status ...int) map[string]any {
+    return auraResponseStatic{}.Text(text, status...)
+}
+func (auraResponseStatic) Html(html string, status ...int) map[string]any {
+    st := 200
+    if len(status) > 0 { st = status[0] }
+    headers := map[string]any{"Content-Type": "text/html; charset=utf-8"}
+    return map[string]any{"status": st, "headers": headers, "body": html}
+}
+func (auraResponseStatic) html(html string, status ...int) map[string]any {
+    return auraResponseStatic{}.Html(html, status...)
+}
+func (auraResponseStatic) Error(msg string, status ...int) map[string]any {
+    st := 500
+    if len(status) > 0 { st = status[0] }
+    headers := map[string]any{"Content-Type": "text/plain; charset=utf-8"}
+    return map[string]any{"status": st, "headers": headers, "body": msg}
+}
+func (auraResponseStatic) error(msg string, status ...int) map[string]any {
+    return auraResponseStatic{}.Error(msg, status...)
+}
+func (auraResponseStatic) Redirect(url string, status ...int) map[string]any {
+    st := 302
+    if len(status) > 0 { st = status[0] }
+    headers := map[string]any{"Location": url}
+    return map[string]any{"status": st, "headers": headers, "body": ""}
+}
+func (auraResponseStatic) redirect(url string, status ...int) map[string]any {
+    return auraResponseStatic{}.Redirect(url, status...)
+}
+
+type auraRequestStatic struct{}
+func (auraRequestStatic) New(url string, method ...string) *auraRequest {
+    m := "GET"
+    if len(method) > 0 { m = method[0] }
+    u, _ := go_url.Parse(url)
+    return &auraRequest{r: &go_http.Request{Method: m, URL: u}, Method: m, Url: url}
+}
+func (auraRequestStatic) new(url string, method ...string) *auraRequest {
+    return auraRequestStatic{}.New(url, method...)
+}
+func (auraRequestStatic) Get(url string) *auraRequest {
+    return auraRequestStatic{}.New(url, "GET")
+}
+func (auraRequestStatic) get(url string) *auraRequest {
+    return auraRequestStatic{}.New(url, "GET")
+}
+func (auraRequestStatic) Post(url string, body ...string) *auraRequest {
+    req := auraRequestStatic{}.New(url, "POST")
+    if len(body) > 0 { req.Body = body[0] }
+    return req
+}
+func (auraRequestStatic) post(url string, body ...string) *auraRequest {
+    return auraRequestStatic{}.Post(url, body...)
+}
+
+type auraServerStatic struct{}
+func (auraServerStatic) New(addr ...string) *auraMux {
+    return &auraMux{mux: go_http.NewServeMux(), docOverrides: make(map[string]map[string]any)}
+}
+func (auraServerStatic) new(addr ...string) *auraMux {
+    return auraServerStatic{}.New(addr...)
+}
+
 type auraCryptoStatic struct{}
 func (auraCryptoStatic) HmacSha256(data, secret string) string {
     h := hmac.New(sha256.New, []byte(secret))
@@ -1616,6 +1911,7 @@ impl GoCodeGen {
         final_code.push_str("package main\n\n");
 
         final_code.push_str("import (\n");
+        final_code.push_str("    \"bytes\"\n");
         final_code.push_str("    \"crypto/hmac\"\n");
         final_code.push_str("    \"crypto/sha256\"\n");
         final_code.push_str("    \"encoding/base64\"\n");
@@ -1626,6 +1922,7 @@ impl GoCodeGen {
         final_code.push_str("    go_math \"math\"\n");
         final_code.push_str("    go_rand \"math/rand\"\n");
         final_code.push_str("    go_http \"net/http\"\n");
+        final_code.push_str("    go_url \"net/url\"\n");
         final_code.push_str("    go_os \"os\"\n");
         final_code.push_str("    \"reflect\"\n");
         final_code.push_str("    \"strconv\"\n");
@@ -1636,6 +1933,8 @@ impl GoCodeGen {
         final_code.push_str(")\n\n");
 
         // Suppress unused imports
+        final_code.push_str("var _ = bytes.NewBuffer\n");
+        final_code.push_str("var _ = go_url.Parse\n");
         final_code.push_str("var _ = go_runtime.Gosched\n");
         final_code.push_str("var _ = hmac.New\n");
         final_code.push_str("var _ = sha256.New\n");
@@ -1672,6 +1971,29 @@ impl GoCodeGen {
         // Helper runtime for Aura primitives in Go
         final_code.push_str("// --- Aura Runtime Helpers for Golang ---\n");
         final_code.push_str(AURA_GO_RUNTIME);
+        final_code.push_str("\n");
+
+        if !self.struct_defs.contains_key("Server")
+            && !self.sum_type_defs.contains_key("Server")
+            && !self.interface_defs.contains_key("Server")
+        {
+            final_code.push_str("var Server = auraServerStatic{}\n");
+            final_code.push_str("var ServeMux = auraServerStatic{}\n");
+        }
+        if !self.struct_defs.contains_key("Request")
+            && !self.sum_type_defs.contains_key("Request")
+            && !self.interface_defs.contains_key("Request")
+        {
+            final_code.push_str("var Request = auraRequestStatic{}\n");
+            final_code.push_str("var HttpRequest = auraRequestStatic{}\n");
+        }
+        if !self.struct_defs.contains_key("Response")
+            && !self.sum_type_defs.contains_key("Response")
+            && !self.interface_defs.contains_key("Response")
+        {
+            final_code.push_str("var Response = auraResponseStatic{}\n");
+            final_code.push_str("var HttpResponse = auraResponseStatic{}\n");
+        }
         final_code.push_str("\n\n");
 
         final_code.push_str(&body_output);
@@ -4205,6 +4527,29 @@ impl GoCodeGen {
                 "Result" => "auraResult".to_string(),
                 "Option" => "any".to_string(),
                 "Parser" => "*Parser".to_string(),
+                "Request" | "HttpRequest" | "http.Request" | "http.HttpRequest" => {
+                    if self.struct_defs.contains_key(name) {
+                        name.to_string()
+                    } else {
+                        "*auraRequest".to_string()
+                    }
+                }
+                "Response" | "HttpResponse" | "http.Response" | "http.HttpResponse" => {
+                    if self.struct_defs.contains_key(name) {
+                        name.to_string()
+                    } else {
+                        "*auraResponse".to_string()
+                    }
+                }
+                "ResponseWriter" | "http.ResponseWriter" => "*auraResponse".to_string(),
+                "ServeMux" | "http.Server" | "http.ServeMux" => "*auraMux".to_string(),
+                "Server" => {
+                    if self.struct_defs.contains_key("Server") {
+                        "Server".to_string()
+                    } else {
+                        "*auraMux".to_string()
+                    }
+                }
                 custom => custom.to_string(),
             },
             Type::Pointer(inner) => format!("*{}", self.map_type_to_go(inner)),
