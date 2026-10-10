@@ -2672,7 +2672,7 @@ impl GoCodeGen {
                                 } else if e_str.starts_with("fmt.Println(")
                                     || e_str.starts_with("println(")
                                     || e_str.starts_with("if ")
-                                    || e_str.starts_with("func() {")
+                                    || (e_str.starts_with("func() {") && !e_str.ends_with("}()"))
                                     || e_str.contains(" = append(")
                                 {
                                     lines.push(e_str);
@@ -2704,7 +2704,7 @@ impl GoCodeGen {
                 } else if e_str.starts_with("fmt.Println(")
                     || e_str.starts_with("println(")
                     || e_str.starts_with("if ")
-                    || e_str.starts_with("func() {")
+                    || (e_str.starts_with("func() {") && !e_str.ends_with("}()"))
                     || e_str.contains(" = append(")
                 {
                     e_str
@@ -2853,7 +2853,7 @@ impl GoCodeGen {
             field_inits.push(format!("{}: {}", go_fname, val_str));
         }
 
-        if struct_name == "Parser" {
+        if struct_name == "Parser" || struct_name == "TypeEnv" {
             format!("&{}{{{}}}", struct_name, field_inits.join(", "))
         } else {
             format!("{}{{{}}}", struct_name, field_inits.join(", "))
@@ -2905,6 +2905,13 @@ impl GoCodeGen {
             if ty_name == "Int" || ty_name == "Int64" {
                 let val_str = self.emit_expr(value);
                 return format!("var {} int64 = {}", name, val_str);
+            }
+            if self.sum_type_defs.contains_key(ty_name)
+                || self.interface_defs.contains_key(ty_name)
+            {
+                let go_ty = self.map_type_to_go(ty);
+                let val_str = self.emit_expr(value);
+                return format!("var {} {} = {}", name, go_ty, val_str);
             }
             if ty_name == "Channel"
                 && let Expr::FunctionCall { args, .. } = value
@@ -3365,6 +3372,7 @@ impl GoCodeGen {
                         self.write_line(&format!("}} else if {} {{", cond));
                     }
                     self.indent_level += 1;
+                    self.write_line("_ = __rec;");
                     for (fname, fpat) in fields {
                         if let Pattern::Variable(vname) = fpat {
                             let cap_field = capitalize(fname);
@@ -4092,7 +4100,7 @@ impl GoCodeGen {
                             }
                             let arm_body = self.emit_arm_return_expr(&arm.body);
                             arm_strs.push(format!(
-                                "if __rec, __ok := any({}).({}); __ok {{ {} {} }}",
+                                "if __rec, __ok := any({}).({}); __ok {{ _ = __rec; {} {} }}",
                                 subj, rec_name, binds.join(" "), arm_body
                             ));
                         }
@@ -4527,6 +4535,7 @@ impl GoCodeGen {
                 "Result" => "auraResult".to_string(),
                 "Option" => "any".to_string(),
                 "Parser" => "*Parser".to_string(),
+                "TypeEnv" => "*TypeEnv".to_string(),
                 "Request" | "HttpRequest" | "http.Request" | "http.HttpRequest" => {
                     if self.struct_defs.contains_key(name) {
                         name.to_string()

@@ -1568,59 +1568,107 @@ Utiliza el plugin empaquetado en [`editors/zed/`](editors/zed).
 
 ## 🔄 Compilador Self-Hosted y Bootstrapping
 
-Aura cuenta con un **compilador completamente auto-alojado** (*self-hosted*) escrito en el propio lenguaje Aura, ubicado en [`src/aura_compiler/`](src/aura_compiler):
+Aura cuenta con un **compilador completamente auto-alojado** (*self-hosted*) escrito en el propio lenguaje Aura, ubicado en [`src/aura_compiler/`](src/aura_compiler). Incorpora las 4 fases fundamentales de la ingeniería de compiladores:
 
-- [`ast.aura`](src/aura_compiler/ast.aura) — Definición formal del AST escrita en Aura.
-- [`lexer.aura`](src/aura_compiler/lexer.aura) — Analizador léxico determinista.
-- [`parser.aura`](src/aura_compiler/parser.aura) — Parser Pratt descendente recursivo.
-- [`codegen.aura`](src/aura_compiler/codegen.aura) — Generador de código.
-- [`main.aura`](src/aura_compiler/main.aura) — Punto de entrada del compilador self-hosted.
+- [`ast.aura`](src/aura_compiler/ast.aura) — Definiciones formales del AST, tabla de símbolos (`SymbolTable`) para internado de cadenas (*string interning*), rangos fuente (`Span`) y registros de diagnóstico.
+- [`diagnostics.aura`](src/aura_compiler/diagnostics.aura) — Formateador de diagnósticos para terminal (estilo Rust/Ariadne) y distancia de Levenshtein para sugerencias automáticas (*"¿Quisiste decir '...'?"*).
+- [`lexer.aura`](src/aura_compiler/lexer.aura) — Analizador léxico determinista y generador de flujo de tokens.
+- [`parser.aura`](src/aura_compiler/parser.aura) — Parser Pratt descendente recursivo con precedencia de operadores.
+- [`typechecker.aura`](src/aura_compiler/typechecker.aura) — Analizador semántico estático e inferencia de tipos Hindley-Milner completo en Aura puro.
+- [`codegen.aura`](src/aura_compiler/codegen.aura) — Generador de código JavaScript / Node.js ES6 de alto rendimiento.
+- [`codegen_go.aura`](src/aura_compiler/codegen_go.aura) — Transpilador directo a Go que emite código fuente Go 1.21+ idiomático y listo para compilar.
+- [`main.aura`](src/aura_compiler/main.aura) — Punto de entrada del pipeline del compilador con opciones CLI multiobjetivo (`--target js|go`, `--check`).
 
-### 1. Etapa 1: Compilar los módulos del compilador escrito en Aura
+---
 
-Compila los módulos fuente `.aura` del compilador hacia JavaScript ES6 / módulos `.mjs`:
+### 🏛️ Fases de Mejoras Arquitectónicas
+
+El compilador auto-alojado implementa cuatro fases de mejora modulares:
+
+```mermaid
+graph TD
+    A["Código Fuente Aura (.aura)"] --> B["Lexer (lexer.aura)"]
+    B --> C["Pratt Parser (parser.aura)"]
+    C --> D["AST + SymbolTable (ast.aura)"]
+    D --> E["Typechecker Semántico (typechecker.aura)"]
+    E -->|--check| F["Diagnósticos y Sugerencias Fuzzy (diagnostics.aura)"]
+    E -->|--target js| G["CodeGen JavaScript (codegen.aura)"]
+    E -->|--target go| H["CodeGen Golang (codegen_go.aura)"]
+    G --> I["dist/*.mjs (Node.js / Web)"]
+    H --> J["Binario Nativo Autónomo (go build)"]
+```
+
+#### Fase 1: Typechecker Semántico en Aura Puro ([`typechecker.aura`](src/aura_compiler/typechecker.aura))
+- **Representación de Tipos Semánticos (`SemanticType`)**: Jerarquía formal de tipos con soporte para `STyInt`, `STyFloat`, `STyString`, `STyBool`, `STyUnit`, `STyAny`, `STyOption`, `STyResult`, `STyList`, `STyRecord`, `STyTuple`, `STyFunction`, `STySum`, `STyChannel` y `STyCustom`.
+- **Entorno de Tipos Léxico (`TypeEnv`)**: Rastreo de asignaciones de variables (`bindVar`), firmas de funciones (`bindFunction`), variantes de tipos suma (`SemanticSumType`) y alias de tipos (`SemanticTypeAlias`).
+- **Verificación de Expresiones y Sentencias**: Comprobación de operadores aritméticos/lógicos binarios, unificación de ramas en `if/else`, condiciones booleanas en bucles `while`, tipos de iteración en colecciones `for-in` y consistencia exhaustiva de brazos en `match`.
+- **Inmutabilidad Estricta y Validación de Firmas**: Validación de variables inmutables vs mutables (`let` vs `let mut`), reasignaciones (`checkAssign`), anotaciones de tipo (`checkLetAnnotation`) y tipos de retorno en funciones (`checkReturnType`).
+
+#### Fase 2: Generador de Código Nativo Golang ([`codegen_go.aura`](src/aura_compiler/codegen_go.aura))
+- **Transpilación AST a Go 1.21+**: Convierte el AST de Aura en código fuente Go limpio e idiomático, listo para `go build`.
+- **Mapeo Directo de Tipos**: Mapeo de tipos Aura a Go (`Int` $\rightarrow$ `int64`, `Float` $\rightarrow$ `float64`, `String` $\rightarrow$ `string`, `Bool` $\rightarrow$ `bool`, `Option<T>` $\rightarrow$ `*T`, `List<T>` $\rightarrow$ `[]T`, `Channel<T>` $\rightarrow$ `chan T`).
+- **Visibilidad y Control de Flujo**: Capitalización automática a mayúscula para símbolos exportados, compilación de coincidencia de patrones a sentencias `switch` de Go y agregación de sentencias a nivel de módulo dentro de `func main()` o `func init()`.
+
+#### Fase 3: Internado de Cadenas, Diagnósticos Ricos y Búsqueda Levenshtein ([`ast.aura`](src/aura_compiler/ast.aura), [`diagnostics.aura`](src/aura_compiler/diagnostics.aura))
+- **Tabla de Símbolos (`SymbolTable`)**: Internado de cadenas (*string interning* con `internSymbol`, `lookupSymbol`) para reutilización eficiente de memoria en identificadores.
+- **Formateo de Diagnósticos Ricos**: Salida de errores estilo Ariadne con niveles de severidad (`DiagError`, `DiagWarning`, `DiagInfo`, `DiagHint`), códigos de error (`E0308`, `E0425`, `E0384`, `E0004`), notas de ayuda y contexto de línea de código.
+- **Resolución Difusa de Identificadores**: Algoritmo de distancia Levenshtein de cero asignaciones (`findClosestMatch`) que calcula distancia de edición $\le 3$ para brindar sugerencias automáticas (*"¿Quisiste decir 'msg'?"*) en identificadores no resueltos.
+
+#### Fase 4: Pipeline Multiobjetivo y Bootstrap de 5 Etapas ([`main.aura`](src/aura_compiler/main.aura), [`tests/bootstrap_tests.rs`](tests/bootstrap_tests.rs))
+- **Pipeline CLI Multiobjetivo**: Opciones completas de CLI con soporte para `--target js` (por defecto), `--target go`, modo rápido de solo verificación de tipos `--check`, y ruta de salida personalizada `-o <path>`.
+- **Bootstrapping en Triple Etapa**: Valida que el compilador Rust compila el compilador Aura $\rightarrow$ el compilador Aura compila programas Aura $\rightarrow$ el compilador Aura se compila a sí mismo en un ejecutable nativo autónomo de **6.43 MB** (Mach-O / ELF).
+
+---
+
+### 🚀 Flujo de Bootstrapping y Uso de la CLI
+
+#### 1. Etapa 1: Compilar los 8 Módulos del Compilador Self-Hosted
+Compila los módulos del compilador escrito en Aura utilizando el compilador de referencia en Rust (`aurac`):
 
 ```bash
 mkdir -p dist
 aurac compile src/aura_compiler/ast.aura -o dist/ast.mjs
+aurac compile src/aura_compiler/diagnostics.aura -o dist/diagnostics.mjs
 aurac compile src/aura_compiler/lexer.aura -o dist/lexer.mjs
 aurac compile src/aura_compiler/parser.aura -o dist/parser.mjs
+aurac compile src/aura_compiler/typechecker.aura -o dist/typechecker.mjs
 aurac compile src/aura_compiler/codegen.aura -o dist/codegen.mjs
+aurac compile src/aura_compiler/codegen_go.aura -o dist/codegen_go.mjs
 aurac compile src/aura_compiler/main.aura -o dist/aurac.mjs
 ```
 
-### 2. Etapa 2: Compilar programas Aura utilizando el compilador Self-Hosted (`dist/aurac.mjs`)
-
-Utiliza el compilador generado para procesar programas escritos en Aura:
-
+#### 2. Etapa 2: Compilar Programas con el Compilador JS Self-Hosted (`dist/aurac.mjs`)
 ```bash
-node dist/aurac.mjs examples/bootstrap_demo/hello.aura -o dist/hello.js
+# Compilar a JavaScript
+node dist/aurac.mjs examples/bootstrap_demo/hello.aura -o dist/hello.js --target js
 node dist/hello.js
 # Salida:
 # Hello Developer from Self-Hosted Aura Compiler!
 # Sum of 1..100: 5050
+
+# Modo rápido de solo verificación estática de tipos
+node dist/aurac.mjs examples/bootstrap_demo/hello.aura --check
+# Salida: ✓ Checked 'examples/bootstrap_demo/hello.aura': 0 errors
+
+# Compilar a código fuente Golang
+node dist/aurac.mjs examples/bootstrap_demo/hello.aura -o dist/hello.go --target go
 ```
 
-### 3. Etapa 3: Compilar el compilador Self-Hosted a binario nativo autónomo
-
-Construye un ejecutable nativo independiente del compilador self-hosted sin dependencias externas:
+#### 3. Etapa 3: Compilar el Compilador Self-Hosted a Binario Nativo Autónomo
+Construye un binario nativo independiente con cero dependencias externas:
 
 ```bash
 aurac build src/aura_compiler/main.aura -o dist/aura-self-hosted
 ```
 
-### 4. Etapa 4: Compilar código Aura directamente con el binario nativo Self-Hosted
-
-Ejecuta el binario nativo para compilar cualquier archivo `.aura`:
-
+#### 4. Etapa 4: Compilar Código Aura Directamente con el Binario Nativo
 ```bash
 ./dist/aura-self-hosted examples/hello.aura -o dist/hello_from_native.js
 node dist/hello_from_native.js
-# Salida: Hello from Aura Lang!
+# Salida: Hello Developer from Self-Hosted Aura Compiler!
 ```
 
-### 5. Verificación Automatizada del Ciclo de Bootstrapping
-
+#### 5. Etapa 5: Suite de Pruebas Automatizadas de Bootstrapping (5 Etapas)
 Ejecuta la suite integral de pruebas de bootstrapping que valida de extremo a extremo las etapas:
 
 ```bash

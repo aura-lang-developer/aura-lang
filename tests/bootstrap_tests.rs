@@ -9,9 +9,12 @@ fn run_stage1_compilation() {
         let _ = fs::create_dir_all("dist");
         let modules = [
             ("src/aura_compiler/ast.aura", "dist/ast.mjs"),
+            ("src/aura_compiler/diagnostics.aura", "dist/diagnostics.mjs"),
             ("src/aura_compiler/lexer.aura", "dist/lexer.mjs"),
             ("src/aura_compiler/parser.aura", "dist/parser.mjs"),
+            ("src/aura_compiler/typechecker.aura", "dist/typechecker.mjs"),
             ("src/aura_compiler/codegen.aura", "dist/codegen.mjs"),
+            ("src/aura_compiler/codegen_go.aura", "dist/codegen_go.mjs"),
             ("src/aura_compiler/main.aura", "dist/aurac.mjs"),
         ];
 
@@ -147,4 +150,69 @@ fn test_bootstrap_stage3_native_binary_build_and_execution() {
     let _ = fs::remove_file(native_bin);
     let _ = fs::remove_file(compiled_js);
 }
+
+#[test]
+fn test_bootstrap_stage4_typechecking_mode() {
+    run_stage1_compilation();
+
+    let check_status = Command::new("node")
+        .args([
+            "dist/aurac.mjs",
+            "examples/bootstrap_demo/hello.aura",
+            "--check",
+        ])
+        .output()
+        .expect("Failed to execute node dist/aurac.mjs --check");
+
+    assert!(
+        check_status.status.success(),
+        "Self-hosted typechecker failed on hello.aura"
+    );
+    let stdout = String::from_utf8_lossy(&check_status.stdout);
+    assert!(
+        stdout.contains("0 errors"),
+        "Stdout missing 0 errors: {}",
+        stdout
+    );
+}
+
+#[test]
+fn test_bootstrap_stage5_go_target_codegen() {
+    run_stage1_compilation();
+
+    let go_out = "dist/hello_self_hosted.go";
+    let compile_status = Command::new("node")
+        .args([
+            "dist/aurac.mjs",
+            "examples/bootstrap_demo/hello.aura",
+            "-o",
+            go_out,
+            "--target",
+            "go",
+        ])
+        .status()
+        .expect("Failed to execute node dist/aurac.mjs --target go");
+
+    assert!(
+        compile_status.success(),
+        "Self-hosted Go codegen failed"
+    );
+    assert!(
+        fs::metadata(go_out).is_ok(),
+        "Generated Go file does not exist"
+    );
+
+    let go_code = fs::read_to_string(go_out).unwrap();
+    assert!(
+        go_code.contains("package main"),
+        "Generated Go code missing package main"
+    );
+    assert!(
+        go_code.contains("func main()"),
+        "Generated Go code missing func main"
+    );
+
+    let _ = fs::remove_file(go_out);
+}
+
 

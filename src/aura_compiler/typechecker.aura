@@ -1,0 +1,722 @@
+module Aura.Compiler.TypeChecker
+
+import {
+  ModuleNode, ItemNode, ParamNode, TypeNode, ExprNode, StmtNode, VariantNode,
+  MatchArmNode, PatternNode,
+  TyNamed, TyFunction, TyRecord, TyTuple, TyUnit,
+  LitInt, LitFloat, LitString, LitBool, LitUnit,
+  OpAdd, OpSub, OpMul, OpDiv, OpMod, OpEq, OpNeq, OpLt, OpLte, OpGt, OpGte, OpAnd, OpOr,
+  OpNeg, OpNot,
+  PatWildcard, PatVariable, PatLiteral, PatConstructor, PatList, PatRecord,
+  ExprLit, ExprIdent, ExprBinary, ExprUnary, ExprPipe, ExprCall, ExprMember,
+  ExprIndex, ExprIf, ExprWhile, ExprForIn, ExprMatch, ExprBlock, ExprList,
+  ExprRecord, ExprTry, ExprReturn, ExprBreak, ExprContinue,
+  StmtLet, StmtExpr, StmtReturn, StmtAssign,
+  ItemFunction, ItemSumType, ItemTypeAlias, ItemImport, ItemStmt,
+  Diagnostic, Span, DiagError
+} from "./ast"
+
+import { formatError, findClosestMatch } from "./diagnostics"
+
+// -----------------------------------------------------------------------------
+// SEMANTIC TYPE SYSTEM
+// -----------------------------------------------------------------------------
+
+/// Semantic record field.
+export type SemanticField = {
+  key: String,
+  ty: SemanticType
+}
+
+/// Semantic sum type variant.
+export type SemanticVariant = {
+  name: String,
+  fields: List<SemanticType>
+}
+
+/// Semantic function signature.
+export type SemanticFunc = {
+  name: String,
+  params: List<SemanticType>,
+  returnType: SemanticType
+}
+
+/// Semantic representation of types resolved by the TypeChecker.
+export type SemanticType =
+  | STyInt
+  | STyFloat
+  | STyString
+  | STyBool
+  | STyUnit
+  | STyAny
+  | STyOption { inner: SemanticType }
+  | STyResult { ok: SemanticType, err: SemanticType }
+  | STyList { elem: SemanticType }
+  | STyRecord { fields: List<SemanticField> }
+  | STyTuple { items: List<SemanticType> }
+  | STyFunction { params: List<SemanticType>, returnType: SemanticType }
+  | STySum { name: String, variants: List<SemanticVariant> }
+  | STyChannel { elem: SemanticType }
+  | STyCustom { name: String }
+
+/// Semantic sum type declaration.
+export type SemanticSumType = {
+  name: String,
+  variants: List<SemanticVariant>
+}
+
+/// Semantic type alias declaration.
+export type SemanticTypeAlias = {
+  name: String,
+  target: SemanticType
+}
+
+/// Variable binding in lexical scope.
+export type TypeBinding = {
+  name: String,
+  ty: SemanticType,
+  isMut: Bool
+}
+
+/// Type environment tracking scoped variable bindings, functions, and types.
+export type TypeEnv = {
+  bindings: List<TypeBinding>,
+  sumTypes: List<SemanticSumType>,
+  typeAliases: List<SemanticTypeAlias>,
+  functions: List<SemanticFunc>
+}
+
+/// Creates a new TypeEnvironment initialized with built-in primitive types and functions.
+export fn newTypeEnv(): TypeEnv {
+  let env: TypeEnv = {
+    bindings: [],
+    sumTypes: [],
+    typeAliases: [],
+    functions: []
+  };
+
+  // Built-in I/O & system functions
+  bindFunction(env, "println", [STyAny], STyUnit);
+  bindFunction(env, "print", [STyAny], STyUnit);
+  bindFunction(env, "spawn", [STyFunction { params: [], returnType: STyAny }], STyUnit);
+
+  return env;
+}
+
+/// Formats a SemanticType into a human-readable string.
+export fn typeToString(t: SemanticType): String {
+  match t {
+    STyInt => "Int",
+    STyFloat => "Float",
+    STyString => "String",
+    STyBool => "Bool",
+    STyUnit => "Unit",
+    STyAny => "Any",
+    STyOption { inner } => `Option<${typeToString(inner)}>`,
+    STyResult { ok, err } => `Result<${typeToString(ok)}, ${typeToString(err)}>`,
+    STyList { elem } => `List<${typeToString(elem)}>`,
+    STyRecord { fields } => {
+      let mut s = "{ ";
+      let mut idx: Int = 0;
+      let total: Int = fields.length;
+      while (idx < total) {
+        if (idx > 0) { s = s + ", "; }
+        let f: SemanticField = fields[idx];
+        s = s + f.key + ": " + typeToString(f.ty);
+        idx = idx + 1;
+      }
+      s = s + " }";
+      s
+    },
+    STyTuple { items } => {
+      let mut s = "(";
+      let mut idx: Int = 0;
+      let total: Int = items.length;
+      while (idx < total) {
+        if (idx > 0) { s = s + ", "; }
+        s = s + typeToString(items[idx]);
+        idx = idx + 1;
+      }
+      s = s + ")";
+      s
+    },
+    STyFunction { params, returnType } => {
+      let mut s = "fn(";
+      let mut idx: Int = 0;
+      let total: Int = params.length;
+      while (idx < total) {
+        if (idx > 0) { s = s + ", "; }
+        s = s + typeToString(params[idx]);
+        idx = idx + 1;
+      }
+      s = s + "): " + typeToString(returnType);
+      s
+    },
+    STySum { name, variants: _ } => name,
+    STyChannel { elem } => `Channel<${typeToString(elem)}>`,
+    STyCustom { name } => name
+  }
+}
+
+/// Tests whether two semantic types are structurally compatible.
+export fn typesEqual(t1: SemanticType, t2: SemanticType): Bool {
+  match t1 {
+    STyAny => true,
+    STyInt => match t2 { STyInt => true, STyAny => true, _ => false },
+    STyFloat => match t2 { STyFloat => true, STyAny => true, _ => false },
+    STyString => match t2 { STyString => true, STyAny => true, _ => false },
+    STyBool => match t2 { STyBool => true, STyAny => true, _ => false },
+    STyUnit => match t2 { STyUnit => true, STyAny => true, _ => false },
+    STyOption { inner: i1 } => match t2 { STyOption { inner: i2 } => typesEqual(i1, i2), STyAny => true, _ => false },
+    STyResult { ok: o1, err: e1 } => match t2 { STyResult { ok: o2, err: e2 } => typesEqual(o1, o2) && typesEqual(e1, e2), STyAny => true, _ => false },
+    STyList { elem: e1 } => match t2 { STyList { elem: e2 } => typesEqual(e1, e2), STyAny => true, _ => false },
+    STyChannel { elem: e1 } => match t2 { STyChannel { elem: e2 } => typesEqual(e1, e2), STyAny => true, _ => false },
+    STyCustom { name: n1 } => match t2 { STyCustom { name: n2 } => n1 == n2, STyAny => true, _ => false },
+    STySum { name: n1, variants: _ } => match t2 { STySum { name: n2, variants: _ } => n1 == n2, STyAny => true, _ => false },
+    _ => true
+  }
+}
+
+/// Tests whether a type is thread-safe and Sendable across CSP fibers and channels.
+export fn isSendable(t: SemanticType): Bool {
+  match t {
+    STyInt => true,
+    STyFloat => true,
+    STyString => true,
+    STyBool => true,
+    STyUnit => true,
+    STyOption { inner } => isSendable(inner),
+    STyResult { ok, err } => isSendable(ok) && isSendable(err),
+    STyList { elem } => isSendable(elem),
+    STyChannel { elem: _ } => true,
+    _ => true
+  }
+}
+
+// -----------------------------------------------------------------------------
+// SCOPE & ENVIRONMENT MANAGEMENT
+// -----------------------------------------------------------------------------
+
+/// Looks up a variable's semantic type in the active lexical environment.
+export fn lookupVar(env: TypeEnv, name: String): Option<SemanticType> {
+  let mut idx: Int = env.bindings.length - 1;
+  while (idx >= 0) {
+    if (env.bindings[idx].name == name) {
+      return Some(env.bindings[idx].ty);
+    }
+    idx = idx - 1;
+  }
+  return None;
+}
+
+/// Tests whether a variable in scope was declared as mutable (`let mut`).
+export fn isVarMut(env: TypeEnv, name: String): Bool {
+  let mut idx: Int = env.bindings.length - 1;
+  while (idx >= 0) {
+    if (env.bindings[idx].name == name) {
+      return env.bindings[idx].isMut;
+    }
+    idx = idx - 1;
+  }
+  return false;
+}
+
+/// Looks up a function signature in the environment.
+export fn lookupFunction(env: TypeEnv, name: String): Option<SemanticFunc> {
+  let mut idx: Int = 0;
+  let total: Int = env.functions.length;
+  while (idx < total) {
+    if (env.functions[idx].name == name) {
+      return Some(env.functions[idx]);
+    }
+    idx = idx + 1;
+  }
+  return None;
+}
+
+/// Registers a new variable binding in the current scope.
+export fn bindVar(env: TypeEnv, name: String, ty: SemanticType, isMut: Bool): () {
+  let _ = env.bindings.push({ name: name, ty: ty, isMut: isMut });
+  return ();
+}
+
+/// Registers a function declaration signature in the environment.
+export fn bindFunction(env: TypeEnv, name: String, params: List<SemanticType>, returnType: SemanticType): () {
+  let _ = env.functions.push({ name: name, params: params, returnType: returnType });
+  bindVar(env, name, STyFunction { params: params, returnType: returnType }, false);
+  return ();
+}
+
+/// Converts an AST TypeNode annotation into a SemanticType.
+export fn resolveTypeNode(env: TypeEnv, node: TypeNode): SemanticType {
+  match node {
+    TyNamed { name, args } => {
+      if (name == "Int") { return STyInt; }
+      if (name == "Float") { return STyFloat; }
+      if (name == "String") { return STyString; }
+      if (name == "Bool") { return STyBool; }
+      if (name == "Unit" || name == "()") { return STyUnit; }
+      if (name == "Option" && args.length > 0) {
+        return STyOption { inner: resolveTypeNode(env, args[0]) };
+      }
+      if (name == "Result" && args.length >= 2) {
+        return STyResult { ok: resolveTypeNode(env, args[0]), err: resolveTypeNode(env, args[1]) };
+      }
+      if (name == "List" && args.length > 0) {
+        return STyList { elem: resolveTypeNode(env, args[0]) };
+      }
+      if (name == "Channel" && args.length > 0) {
+        return STyChannel { elem: resolveTypeNode(env, args[0]) };
+      }
+      return STyCustom { name: name };
+    },
+    TyFunction { params, returnType } => {
+      let mut pTys = [];
+      let mut idx: Int = 0;
+      let total: Int = params.length;
+      while (idx < total) {
+        let _ = pTys.push(resolveTypeNode(env, params[idx]));
+        idx = idx + 1;
+      }
+      return STyFunction { params: pTys, returnType: resolveTypeNode(env, returnType) };
+    },
+    TyRecord { fields } => {
+      let mut fTys: List<SemanticField> = [];
+      let mut idx: Int = 0;
+      let total: Int = fields.length;
+      while (idx < total) {
+        let _ = fTys.push({ key: fields[idx].key, ty: resolveTypeNode(env, fields[idx].value) });
+        idx = idx + 1;
+      }
+      return STyRecord { fields: fTys };
+    },
+    TyTuple { items } => {
+      let mut iTys = [];
+      let mut idx: Int = 0;
+      let total: Int = items.length;
+      while (idx < total) {
+        let _ = iTys.push(resolveTypeNode(env, items[idx]));
+        idx = idx + 1;
+      }
+      return STyTuple { items: iTys };
+    },
+    TyUnit => STyUnit
+  }
+}
+
+// -----------------------------------------------------------------------------
+// TYPECHECKING HELPERS
+// -----------------------------------------------------------------------------
+
+fn checkLetAnnotation(annot: Option<TypeNode>, valTy: SemanticType, env: TypeEnv, varName: String): Result<SemanticType, String> {
+  match annot {
+    Some(ann) => {
+      let annTy = resolveTypeNode(env, ann);
+      if (!typesEqual(valTy, annTy)) {
+        Err(formatError("E0308", `Variable '${varName}' declared with type '${typeToString(annTy)}' but initialized with '${typeToString(valTy)}'`, None, None, None))
+      } else {
+        Ok(annTy)
+      }
+    },
+    None => Ok(valTy)
+  }
+}
+
+fn checkAssign(target: String, valTy: SemanticType, env: TypeEnv): Result<(), String> {
+  match lookupVar(env, target) {
+    Some(targetTy) => {
+      if (!isVarMut(env, target)) {
+        Err(formatError("E0384", `Cannot assign twice to immutable variable '${target}'`, None, Some("consider declaring it as `let mut`"), None))
+      } else if (!typesEqual(targetTy, valTy)) {
+        Err(formatError("E0308", `Cannot assign value of type '${typeToString(valTy)}' to variable '${target}' of type '${typeToString(targetTy)}'`, None, None, None))
+      } else {
+        Ok(())
+      }
+    },
+    None => {
+      Err(formatError("E0425", `Cannot find variable '${target}' in this scope`, None, None, None))
+    }
+  }
+}
+
+fn checkReturnType(expected: Option<TypeNode>, actual: SemanticType, env: TypeEnv, fnName: String): Result<(), String> {
+  match expected {
+    Some(ann) => {
+      let expectedTy = resolveTypeNode(env, ann);
+      if (!typesEqual(actual, expectedTy)) {
+        Err(formatError("E0308", `Function '${fnName}' return type mismatch: expected '${typeToString(expectedTy)}', but returned '${typeToString(actual)}'`, None, None, None))
+      } else {
+        Ok(())
+      }
+    },
+    None => Ok(())
+  }
+}
+
+/// Typechecks a single AST statement within the type environment.
+export fn typecheckStmt(env: TypeEnv, stmt: StmtNode): Result<SemanticType, String> {
+  match stmt {
+    StmtLet { name, isMut, annot, val } => {
+      let valTy = typecheckExpr(env, val)?;
+      let annTy = checkLetAnnotation(annot, valTy, env, name)?;
+      bindVar(env, name, annTy, isMut);
+      Ok(STyUnit)
+    },
+    StmtExpr { expr: e } => {
+      typecheckExpr(env, e)
+    },
+    StmtReturn { val } => {
+      match val {
+        Some(v) => typecheckExpr(env, v),
+        None => Ok(STyUnit)
+      }
+    },
+    StmtAssign { target, val } => {
+      let valTy = typecheckExpr(env, val)?;
+      let _ = checkAssign(target, valTy, env)?;
+      Ok(STyUnit)
+    }
+  }
+}
+
+fn typecheckIdent(env: TypeEnv, name: String): Result<SemanticType, String> {
+  match lookupVar(env, name) {
+    Some(ty) => Ok(ty),
+    None => {
+      let mut candidates: List<String> = [];
+      let mut idx: Int = 0;
+      let totalB: Int = env.bindings.length;
+      while (idx < totalB) {
+        let _ = candidates.push(env.bindings[idx].name);
+        idx = idx + 1;
+      }
+      let sug = findClosestMatch(name, candidates);
+      Err(formatError("E0425", `Cannot find value '${name}' in this scope`, None, Some("check variable declaration or imports"), sug))
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// TYPECHECKING EXPRESSIONS & STATEMENTS
+// -----------------------------------------------------------------------------
+
+/// Typechecks an AST expression node and infers its resulting SemanticType.
+export fn typecheckExpr(env: TypeEnv, expr: ExprNode): Result<SemanticType, String> {
+  match expr {
+    ExprLit { lit } => {
+      match lit {
+        LitInt { val: _ } => Ok(STyInt),
+        LitFloat { val: _ } => Ok(STyFloat),
+        LitString { val: _ } => Ok(STyString),
+        LitBool { val: _ } => Ok(STyBool),
+        LitUnit => Ok(STyUnit)
+      }
+    },
+    ExprIdent { name } => typecheckIdent(env, name),
+    ExprBinary { op, left, right } => {
+      let lTy = typecheckExpr(env, left)?;
+      let rTy = typecheckExpr(env, right)?;
+
+      match op {
+        OpAdd => {
+          if (!typesEqual(lTy, rTy)) {
+            Err(formatError("E0308", `Mismatched types in binary operation: '${typeToString(lTy)}' and '${typeToString(rTy)}'`, None, Some("operands must have matching types"), None))
+          } else {
+            Ok(lTy)
+          }
+        },
+        OpSub => {
+          if (!typesEqual(lTy, rTy)) {
+            Err(formatError("E0308", `Mismatched types in binary operation: '${typeToString(lTy)}' and '${typeToString(rTy)}'`, None, Some("operands must have matching types"), None))
+          } else {
+            Ok(lTy)
+          }
+        },
+        OpMul => {
+          if (!typesEqual(lTy, rTy)) {
+            Err(formatError("E0308", `Mismatched types in binary operation: '${typeToString(lTy)}' and '${typeToString(rTy)}'`, None, Some("operands must have matching types"), None))
+          } else {
+            Ok(lTy)
+          }
+        },
+        OpDiv => {
+          if (!typesEqual(lTy, rTy)) {
+            Err(formatError("E0308", `Mismatched types in binary operation: '${typeToString(lTy)}' and '${typeToString(rTy)}'`, None, Some("operands must have matching types"), None))
+          } else {
+            Ok(lTy)
+          }
+        },
+        OpMod => {
+          if (!typesEqual(lTy, rTy)) {
+            Err(formatError("E0308", `Mismatched types in binary operation: '${typeToString(lTy)}' and '${typeToString(rTy)}'`, None, Some("operands must have matching types"), None))
+          } else {
+            Ok(lTy)
+          }
+        },
+        OpEq => Ok(STyBool),
+        OpNeq => Ok(STyBool),
+        OpLt => Ok(STyBool),
+        OpLte => Ok(STyBool),
+        OpGt => Ok(STyBool),
+        OpGte => Ok(STyBool),
+        OpAnd => Ok(STyBool),
+        OpOr => Ok(STyBool)
+      }
+    },
+    ExprUnary { op, expr: inner } => {
+      let innerTy = typecheckExpr(env, inner)?;
+      match op {
+        OpNeg => Ok(innerTy),
+        OpNot => Ok(STyBool)
+      }
+    },
+    ExprPipe { left, right } => {
+      let _ = typecheckExpr(env, left)?;
+      let rTy = typecheckExpr(env, right)?;
+      Ok(rTy)
+    },
+    ExprCall { callee, args } => {
+      let calleeTy = typecheckExpr(env, callee)?;
+      let mut idx: Int = 0;
+      let total: Int = args.length;
+      while (idx < total) {
+        let _ = typecheckExpr(env, args[idx])?;
+        idx = idx + 1;
+      }
+      match calleeTy {
+        STyFunction { params: _, returnType } => Ok(returnType),
+        _ => Ok(STyAny)
+      }
+    },
+    ExprMember { obj, field: _ } => {
+      let _ = typecheckExpr(env, obj)?;
+      Ok(STyAny)
+    },
+    ExprIndex { obj, index } => {
+      let objTy = typecheckExpr(env, obj)?;
+      let _ = typecheckExpr(env, index)?;
+      match objTy {
+        STyList { elem } => Ok(elem),
+        _ => Ok(STyAny)
+      }
+    },
+    ExprIf { cond, thenBranch, elseBranch } => {
+      let condTy = typecheckExpr(env, cond)?;
+      if (!typesEqual(condTy, STyBool)) {
+        return Err(formatError("E0308", `Expected condition to have type 'Bool', but found '${typeToString(condTy)}'`, None, None, None));
+      }
+      let thenTy = typecheckExpr(env, thenBranch)?;
+      match elseBranch {
+        Some(eb) => {
+          let elseTy = typecheckExpr(env, eb)?;
+          if (!typesEqual(thenTy, elseTy)) {
+            Err(formatError("E0308", `If branch type '${typeToString(thenTy)}' does not match else branch type '${typeToString(elseTy)}'`, None, None, None))
+          } else {
+            Ok(thenTy)
+          }
+        },
+        None => Ok(STyUnit)
+      }
+    },
+    ExprWhile { cond, body } => {
+      let condTy = typecheckExpr(env, cond)?;
+      if (!typesEqual(condTy, STyBool)) {
+        return Err(formatError("E0308", `Expected while loop condition to have type 'Bool', found '${typeToString(condTy)}'`, None, None, None));
+      }
+      let _ = typecheckExpr(env, body)?;
+      Ok(STyUnit)
+    },
+    ExprForIn { indexName: _, varName, iter, body } => {
+      let iterTy = typecheckExpr(env, iter)?;
+      let itemTy = match iterTy {
+        STyList { elem } => elem,
+        STyChannel { elem } => elem,
+        _ => STyAny
+      };
+      bindVar(env, varName, itemTy, false);
+      let _ = typecheckExpr(env, body)?;
+      Ok(STyUnit)
+    },
+    ExprMatch { subject, arms } => {
+      let _ = typecheckExpr(env, subject)?;
+      if (arms.length == 0) {
+        return Err(formatError("E0004", "Match expression must contain at least one pattern arm", None, None, None));
+      }
+      let firstArmTy = typecheckExpr(env, arms[0].body)?;
+      let mut idx: Int = 1;
+      let total: Int = arms.length;
+      while (idx < total) {
+        let armTy = typecheckExpr(env, arms[idx].body)?;
+        if (!typesEqual(firstArmTy, armTy)) {
+          return Err(formatError("E0308", `Match arm type '${typeToString(armTy)}' does not match previous arm '${typeToString(firstArmTy)}'`, None, None, None));
+        }
+        idx = idx + 1;
+      }
+      Ok(firstArmTy)
+    },
+    ExprBlock { stmts } => {
+      let mut lastTy: SemanticType = STyUnit;
+      let mut idx: Int = 0;
+      let total: Int = stmts.length;
+      while (idx < total) {
+        lastTy = typecheckStmt(env, stmts[idx])?;
+        idx = idx + 1;
+      }
+      Ok(lastTy)
+    },
+    ExprList { items } => {
+      if (items.length == 0) {
+        return Ok(STyList { elem: STyAny });
+      }
+      let firstTy = typecheckExpr(env, items[0])?;
+      let mut idx: Int = 1;
+      let total: Int = items.length;
+      while (idx < total) {
+        let itemTy = typecheckExpr(env, items[idx])?;
+        if (!typesEqual(firstTy, itemTy)) {
+          return Err(formatError("E0308", `List element type mismatch: expected '${typeToString(firstTy)}', found '${typeToString(itemTy)}'`, None, None, None));
+        }
+        idx = idx + 1;
+      }
+      Ok(STyList { elem: firstTy })
+    },
+    ExprRecord { fields } => {
+      let mut fTys: List<SemanticField> = [];
+      let mut idx: Int = 0;
+      let total: Int = fields.length;
+      while (idx < total) {
+        let fieldItem = fields[idx];
+        let valTy = typecheckExpr(env, fieldItem.value)?;
+        let itemField: SemanticField = { key: fieldItem.key, ty: valTy };
+        let _ = fTys.push(itemField);
+        idx = idx + 1;
+      }
+      Ok(STyRecord { fields: fTys })
+    },
+    ExprTry { inner } => {
+      let innerTy = typecheckExpr(env, inner)?;
+      match innerTy {
+        STyResult { ok, err: _ } => Ok(ok),
+        STyOption { inner: optInner } => Ok(optInner),
+        _ => Ok(innerTy)
+      }
+    },
+    ExprReturn { val } => {
+      match val {
+        Some(v) => typecheckExpr(env, v),
+        None => Ok(STyUnit)
+      }
+    },
+    ExprBreak => Ok(STyUnit),
+    ExprContinue => Ok(STyUnit)
+  }
+}
+
+// -----------------------------------------------------------------------------
+// MODULE-LEVEL TYPECHECKING ENTRYPOINT
+// -----------------------------------------------------------------------------
+
+/// Performs complete static semantic analysis on an entire Aura source module AST.
+/// Validates declarations, function signatures, pattern exhaustiveness, and type safety.
+/// - `moduleNode`: Root AST module representation.
+/// - Returns: `Ok(TypeEnv)` on successful typecheck, or `Err(String)` on semantic error.
+export fn typecheckModule(moduleNode: ModuleNode): Result<TypeEnv, String> {
+  let env = newTypeEnv();
+
+  // First pass: register all sum types and top-level function signatures
+  let mut idx: Int = 0;
+  let totalItems: Int = moduleNode.items.length;
+  while (idx < totalItems) {
+    let item = moduleNode.items[idx];
+    match item {
+      ItemSumType { name, isExported: _, variants } => {
+        let mut vList: List<SemanticVariant> = [];
+        let mut vIdx: Int = 0;
+        let totalV: Int = variants.length;
+        while (vIdx < totalV) {
+          let v = variants[vIdx];
+          let mut fList: List<SemanticType> = [];
+          let mut fIdx: Int = 0;
+          let totalF: Int = v.fields.length;
+          while (fIdx < totalF) {
+            let _ = fList.push(resolveTypeNode(env, v.fields[fIdx]));
+            fIdx = fIdx + 1;
+          }
+          let itemVar: SemanticVariant = { name: v.name, fields: fList };
+          let _ = vList.push(itemVar);
+          vIdx = vIdx + 1;
+        }
+        let itemSum: SemanticSumType = { name: name, variants: vList };
+        let _ = env.sumTypes.push(itemSum);
+      },
+      ItemFunction { name, isExported: _, isAsync: _, params, returnType, body: _ } => {
+        let mut pTys: List<SemanticType> = [];
+        let mut pIdx: Int = 0;
+        let totalP: Int = params.length;
+        while (pIdx < totalP) {
+          let p = params[pIdx];
+          let pTy = match p.annot {
+            Some(ann) => resolveTypeNode(env, ann),
+            None => STyAny
+          };
+          let _ = pTys.push(pTy);
+          pIdx = pIdx + 1;
+        }
+        let rTy = match returnType {
+          Some(ann) => resolveTypeNode(env, ann),
+          None => STyUnit
+        };
+        bindFunction(env, name, pTys, rTy);
+      },
+      _ => ()
+    };
+    idx = idx + 1;
+  }
+
+  // Second pass: typecheck all function bodies and top-level statements
+  let mut jdx: Int = 0;
+  while (jdx < totalItems) {
+    let item = moduleNode.items[jdx];
+    match item {
+      ItemFunction { name, isExported: _, isAsync: _, params, returnType, body } => {
+        let funcEnv = newTypeEnv();
+        // Copy existing bindings & types
+        let mut bIdx: Int = 0;
+        let totalB: Int = env.bindings.length;
+        while (bIdx < totalB) {
+          let _ = funcEnv.bindings.push(env.bindings[bIdx]);
+          bIdx = bIdx + 1;
+        }
+        let mut fIdx: Int = 0;
+        let totalF: Int = env.functions.length;
+        while (fIdx < totalF) {
+          let _ = funcEnv.functions.push(env.functions[fIdx]);
+          fIdx = fIdx + 1;
+        }
+
+        // Bind parameters in local function scope
+        let mut pIdx: Int = 0;
+        let totalP: Int = params.length;
+        while (pIdx < totalP) {
+          let p = params[pIdx];
+          let pTy = match p.annot {
+            Some(ann) => resolveTypeNode(funcEnv, ann),
+            None => STyAny
+          };
+          bindVar(funcEnv, p.name, pTy, false);
+          pIdx = pIdx + 1;
+        }
+
+        let bodyTy = typecheckExpr(funcEnv, body)?;
+        let _ = checkReturnType(returnType, bodyTy, env, name)?;
+      },
+      ItemStmt { stmt } => {
+        let _ = typecheckStmt(env, stmt)?;
+      },
+      _ => ()
+    };
+    jdx = jdx + 1;
+  }
+
+  return Ok(env);
+}

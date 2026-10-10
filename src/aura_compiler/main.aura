@@ -2,43 +2,83 @@ module Aura.Compiler.Main
 
 import { tokenize } from "./lexer"
 import { parseModule } from "./parser"
+import { typecheckModule } from "./typechecker"
 import { generate } from "./codegen"
+import { generateGo } from "./codegen_go"
+import { formatDiagnostic, error } from "./diagnostics"
+import { Diagnostic, DiagError } from "./ast"
 
 // -----------------------------------------------------------------------------
 // DESIGN PATTERN: PIPELINE PATTERN (AURA SELF-HOSTED COMPILER)
 // -----------------------------------------------------------------------------
 
-/// Compiler pipeline context representing a compilation task with input source code.
-/// - `source`: The Aura source text string being processed.
+/// Compiler pipeline configuration options.
+export type CompilerOptions = {
+  target: String,     // "js" | "go"
+  checkOnly: Bool,    // Fast static analysis without codegen
+  filename: String
+}
+
+/// Compiler pipeline context representing a compilation task with input source code and options.
 export type CompilerPipeline = {
-  source: String
+  source: String,
+  options: CompilerOptions
 }
 
-/// Factory constructor creating a new CompilerPipeline for the specified source code.
-/// - `source`: UTF-8 Aura source string.
-/// - Returns: Initialized `CompilerPipeline` instance.
-export fn newPipeline(source: String): CompilerPipeline {
-  return { source: source };
+/// Factory constructor creating a new CompilerPipeline for the specified source code and target.
+export fn newPipeline(source: String, target: String, checkOnly: Bool, filename: String): CompilerPipeline {
+  return {
+    source: source,
+    options: {
+      target: target,
+      checkOnly: checkOnly,
+      filename: filename
+    }
+  };
 }
 
-/// Executes all stages of the self-hosted compilation pipeline:
+/// Executes all stages of the enhanced self-hosted compilation pipeline:
 /// 1. Tokenization (`tokenize`)
 /// 2. Parsing (`parseModule`)
-/// 3. Code Generation (`generate`)
+/// 3. Semantic Typechecking (`typecheckModule`)
+/// 4. Multi-Target Code Generation (`generate` for JS or `generateGo` for Go)
 /// - `pipeline`: The active compiler pipeline instance.
-/// - Returns: `Ok(String)` containing generated JavaScript code, or `Err(String)` on syntax error.
+/// - Returns: `Ok(String)` containing generated target code, or `Err(String)` formatted diagnostic.
 export fn executePipeline(pipeline: CompilerPipeline): Result<String, String> {
+  // 1. Lexical Analysis
   let tokens = tokenize(pipeline.source)?;
+
+  // 2. Syntax Analysis (Pratt Parser)
   let moduleNode = parseModule(tokens)?;
-  let jsCode = generate(moduleNode);
-  return Ok(jsCode);
+
+  // 3. Static Semantic Analysis & Typechecking
+  let tc = typecheckModule(moduleNode);
+  match tc {
+    Ok(env) => {
+      // 4. Multi-Target Code Generation
+      if (pipeline.options.checkOnly) {
+        return Ok("✓ Typecheck clean. Zero errors found.");
+      }
+      if (pipeline.options.target == "go") {
+        return Ok(generateGo(moduleNode));
+      }
+      return Ok(generate(moduleNode));
+    },
+    Err(err) => {
+      return Err(err);
+    }
+  }
 }
 
-/// Compiles Aura source code directly to ES6 JavaScript code.
-/// - `source`: UTF-8 Aura source code string.
-/// - Returns: `Ok(String)` with generated JavaScript code, or `Err(String)` on error.
+/// Compiles Aura source code with default JS target and typechecking.
 export fn compileAura(source: String): Result<String, String> {
-  let pipeline = newPipeline(source);
+  let pipeline = newPipeline(source, "js", false, "input.aura");
+  return executePipeline(pipeline);
+}
+
+/// Compiles Aura source code to Go target.
+export fn compileAuraToGo(source: String, filename: String): Result<String, String> {
+  let pipeline = newPipeline(source, "go", false, filename);
   return executePipeline(pipeline);
 }
 
@@ -48,16 +88,36 @@ export fn runCli(): () {
   let args = process.argv;
   if (args.length < 3) {
     println("Aura Self-Hosted Compiler (v0.2.0)");
-    println("Usage: node aurac.mjs <file.aura> [-o <output.js>]");
+    println("Usage: node aurac.mjs <file.aura> [-o <output>] [--target <js|go>] [--check]");
     return ();
   }
 
   let filename = args[2];
   let mut outputFilename = "output.js";
+  let mut target = "js";
+  let mut checkOnly = false;
 
-  if (args.length >= 5 && args[3] == "-o") {
-    outputFilename = args[4];
-  } else if (filename.endsWith(".aura")) {
+  let mut i = 3;
+  while (i < args.length) {
+    let arg = args[i];
+    if (arg == "-o" && i + 1 < args.length) {
+      outputFilename = args[i + 1];
+      i = i + 1;
+    } else if (arg == "--target" && i + 1 < args.length) {
+      target = args[i + 1];
+      i = i + 1;
+    } else if (arg == "-t" && i + 1 < args.length) {
+      target = args[i + 1];
+      i = i + 1;
+    } else if (arg == "--check") {
+      checkOnly = true;
+    }
+    i = i + 1;
+  }
+
+  if (target == "go" && outputFilename == "output.js") {
+    outputFilename = filename.replace(".aura", ".go");
+  } else if (filename.endsWith(".aura") && outputFilename == "output.js") {
     outputFilename = filename.replace(".aura", ".js");
   }
 
@@ -68,15 +128,20 @@ export fn runCli(): () {
   }
 
   let source = fs.readFileSync(filename, "utf8");
-  let result = compileAura(source);
+  let pipeline = newPipeline(source, target, checkOnly, filename);
+  let result = executePipeline(pipeline);
 
   match result {
     Ok(code) => {
-      fs.writeFileSync(outputFilename, code);
-      println(`✓ Successfully compiled '${filename}' -> '${outputFilename}'`);
+      if (checkOnly) {
+        println(`✓ Checked '${filename}': 0 errors`);
+      } else {
+        fs.writeFileSync(outputFilename, code);
+        println(`✓ Successfully compiled '${filename}' -> '${outputFilename}' (target: ${target})`);
+      }
     },
     Err(err) => {
-      println(`✕ Compilation error in '${filename}': ${err}`);
+      println(`✕ Compilation error in '${filename}':\n${err}`);
       process.exit(1);
     }
   }

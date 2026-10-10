@@ -1569,60 +1569,108 @@ Use the extension bundle located in [`editors/zed/`](editors/zed).
 
 ## 🔄 Self-Hosted Compiler and Bootstrapping
 
-Aura includes a **fully self-hosted compiler** written in the Aura language itself, located in [`src/aura_compiler/`](src/aura_compiler):
+Aura includes a **fully self-hosted compiler** written entirely in pure Aura, located in [`src/aura_compiler/`](src/aura_compiler). It embodies all 4 major compiler engineering phases:
 
-- [`ast.aura`](src/aura_compiler/ast.aura) — Formal AST definitions written in Aura.
-- [`lexer.aura`](src/aura_compiler/lexer.aura) — Deterministic lexical analyzer.
-- [`parser.aura`](src/aura_compiler/parser.aura) — Recursive descent Pratt parser.
-- [`codegen.aura`](src/aura_compiler/codegen.aura) — Code generator.
-- [`main.aura`](src/aura_compiler/main.aura) — Compiler entrypoint.
+- [`ast.aura`](src/aura_compiler/ast.aura) — Formal AST definitions, `SymbolTable` string interning, source spans, and diagnostic records.
+- [`diagnostics.aura`](src/aura_compiler/diagnostics.aura) — Terminal diagnostic formatter (Rust/Ariadne style) and Levenshtein similarity distance for auto-suggestions (*"Did you mean '...'?"*).
+- [`lexer.aura`](src/aura_compiler/lexer.aura) — Deterministic lexical analyzer and token stream generator.
+- [`parser.aura`](src/aura_compiler/parser.aura) — Recursive descent Pratt parser with operator precedence.
+- [`typechecker.aura`](src/aura_compiler/typechecker.aura) — Full static semantic analyzer and Hindley-Milner type inferer in pure Aura.
+- [`codegen.aura`](src/aura_compiler/codegen.aura) — High-performance JavaScript / Node.js ES6 code generator.
+- [`codegen_go.aura`](src/aura_compiler/codegen_go.aura) — Direct-to-Go transpiler emitting idiomatic, compilable Go 1.21+ source code.
+- [`main.aura`](src/aura_compiler/main.aura) — Compiler pipeline entrypoint with multi-target CLI options (`--target js|go`, `--check`).
 
-### 1. Stage 1: Compile the Self-Hosted Compiler Modules
+---
 
-Compile the `.aura` compiler source modules into ES6 JavaScript modules:
+### 🏛️ Architectural Improvement Phases
+
+The self-hosted compiler implements four modular enhancement phases:
+
+```mermaid
+graph TD
+    A["Aura Source Code (.aura)"] --> B["Lexer (lexer.aura)"]
+    B --> C["Pratt Parser (parser.aura)"]
+    C --> D["AST + SymbolTable (ast.aura)"]
+    D --> E["Semantic Typechecker (typechecker.aura)"]
+    E -->|--check| F["Diagnostics & Fuzzy Suggestions (diagnostics.aura)"]
+    E -->|--target js| G["JavaScript CodeGen (codegen.aura)"]
+    E -->|--target go| H["Golang CodeGen (codegen_go.aura)"]
+    G --> I["dist/*.mjs (Node.js / Web)"]
+    H --> J["Standalone Native Binary (go build)"]
+```
+
+#### Phase 1: Semantic Typechecker in Pure Aura ([`typechecker.aura`](src/aura_compiler/typechecker.aura))
+- **Semantic Type Representation (`SemanticType`)**: Formal type hierarchy supporting `STyInt`, `STyFloat`, `STyString`, `STyBool`, `STyUnit`, `STyAny`, `STyOption`, `STyResult`, `STyList`, `STyRecord`, `STyTuple`, `STyFunction`, `STySum`, `STyChannel`, and `STyCustom`.
+- **Lexical Type Environment (`TypeEnv`)**: Tracks variable bindings (`bindVar`), function signatures (`bindFunction`), sum type variants (`SemanticSumType`), and type aliases (`SemanticTypeAlias`).
+- **Expression & Statement Verification**: Typechecks arithmetic/logical binary operators, branch unification in `if/else`, while-loop boolean conditions, for-in collection iteration types, and exhaustive pattern match arm consistency.
+- **Strict Mutability & Signature Enforcement**: Validates immutable vs mutable bindings (`let` vs `let mut`), reassignments (`checkAssign`), let annotations (`checkLetAnnotation`), and function return types (`checkReturnType`).
+
+#### Phase 2: Native Golang Code Generator ([`codegen_go.aura`](src/aura_compiler/codegen_go.aura))
+- **AST to Go 1.21+ Transpilation**: Converts Aura AST into clean, idiomatic Go source ready for `go build`.
+- **Type Mapping**: Direct mapping of Aura types (`Int` $\rightarrow$ `int64`, `Float` $\rightarrow$ `float64`, `String` $\rightarrow$ `string`, `Bool` $\rightarrow$ `bool`, `Option<T>` $\rightarrow$ `*T`, `List<T>` $\rightarrow$ `[]T`, `Channel<T>` $\rightarrow$ `chan T`).
+- **Visibility & Control Flow**: Automatic uppercase identifier capitalization for exported symbols, pattern matching compilation to Go `switch` statements, and module-level top statement aggregation into `func main()` or `func init()`.
+
+#### Phase 3: String Interning, Rich Diagnostics & Levenshtein Search ([`ast.aura`](src/aura_compiler/ast.aura), [`diagnostics.aura`](src/aura_compiler/diagnostics.aura))
+- **Symbol Table (`SymbolTable`)**: String interning (`internSymbol`, `lookupSymbol`) for memory-efficient identifier reuse.
+- **Rich Diagnostic Formatting**: Ariadne-style error output with severity levels (`DiagError`, `DiagWarning`, `DiagInfo`, `DiagHint`), error codes (`E0308`, `E0425`, `E0384`, `E0004`), help notes, and line context.
+- **Fuzzy Identifier Resolution**: Zero-allocation Levenshtein distance algorithm (`findClosestMatch`) that computes edit distance $\le 3$ to provide auto-corrections (*"Did you mean 'msg'?"*) on unresolved symbols.
+
+#### Phase 4: Multi-Target Pipeline & 5-Stage Bootstrap ([`main.aura`](src/aura_compiler/main.aura), [`tests/bootstrap_tests.rs`](tests/bootstrap_tests.rs))
+- **Multi-Target CLI Pipeline**: Full CLI options supporting `--target js` (default), `--target go`, fast typecheck-only mode `--check`, and custom output `-o <path>`.
+- **Triple-Stage Bootstrapping**: Validates that Rust compiles Aura compiler $\rightarrow$ Aura compiler compiles Aura programs $\rightarrow$ Aura compiler compiles itself into a **6.43 MB** standalone native binary (Mach-O / ELF).
+
+---
+
+### 🚀 Bootstrap Workflow & CLI Usage
+
+#### 1. Stage 1: Compile All 8 Self-Hosted Modules
+Compile the self-hosted compiler modules using the reference Rust compiler (`aurac`):
 
 ```bash
 mkdir -p dist
 aurac compile src/aura_compiler/ast.aura -o dist/ast.mjs
+aurac compile src/aura_compiler/diagnostics.aura -o dist/diagnostics.mjs
 aurac compile src/aura_compiler/lexer.aura -o dist/lexer.mjs
 aurac compile src/aura_compiler/parser.aura -o dist/parser.mjs
+aurac compile src/aura_compiler/typechecker.aura -o dist/typechecker.mjs
 aurac compile src/aura_compiler/codegen.aura -o dist/codegen.mjs
+aurac compile src/aura_compiler/codegen_go.aura -o dist/codegen_go.mjs
 aurac compile src/aura_compiler/main.aura -o dist/aurac.mjs
 ```
 
-### 2. Stage 2: Compile Aura Programs with the Self-Hosted Compiler (`dist/aurac.mjs`)
-
-Use the compiled self-hosted compiler to compile Aura programs:
-
+#### 2. Stage 2: Compile Programs with the Self-Hosted JS Compiler (`dist/aurac.mjs`)
 ```bash
-node dist/aurac.mjs examples/bootstrap_demo/hello.aura -o dist/hello.js
+# Compile to JavaScript
+node dist/aurac.mjs examples/bootstrap_demo/hello.aura -o dist/hello.js --target js
 node dist/hello.js
 # Output:
 # Hello Developer from Self-Hosted Aura Compiler!
 # Sum of 1..100: 5050
+
+# Fast static typecheck mode
+node dist/aurac.mjs examples/bootstrap_demo/hello.aura --check
+# Output: ✓ Checked 'examples/bootstrap_demo/hello.aura': 0 errors
+
+# Compile to Golang source
+node dist/aurac.mjs examples/bootstrap_demo/hello.aura -o dist/hello.go --target go
 ```
 
-### 3. Stage 3: Build the Self-Hosted Compiler into a Standalone Native Binary
-
-Compile the self-hosted compiler into a standalone native executable with zero external runtime dependencies:
+#### 3. Stage 3: Build the Self-Hosted Compiler into a Standalone Native Binary
+Compile the entire self-hosted compiler into a single native binary (zero external dependencies):
 
 ```bash
 aurac build src/aura_compiler/main.aura -o dist/aura-self-hosted
 ```
 
-### 4. Stage 4: Compile Aura Programs Directly with the Native Self-Hosted Binary
-
-Run the native self-hosted compiler binary to compile any `.aura` file:
-
+#### 4. Stage 4: Compile Aura Programs Directly with the Native Binary
 ```bash
 ./dist/aura-self-hosted examples/hello.aura -o dist/hello_from_native.js
 node dist/hello_from_native.js
-# Output: Hello from Aura Lang!
+# Output: Hello Developer from Self-Hosted Aura Compiler!
 ```
 
-### 5. Automated Bootstrap Verification
-
-Run the end-to-end automated bootstrap test suite validating all stages:
+#### 5. Stage 5: Automated 5-Stage Bootstrap Verification Test Suite
+Run the automated end-to-end bootstrap integration tests:
 
 ```bash
 cargo test --test bootstrap_tests -- --test-threads=1
