@@ -1,0 +1,240 @@
+// =============================================================================
+// Aura Language: Stored Procedures & Database Functions Integration Demo
+// =============================================================================
+// This example demonstrates how to define, call, and extract results from
+// Stored Procedures (CALL) and Database Functions (SELECT) across native
+// PostgreSQL, MySQL, and SQLite drivers with zero external dependencies.
+// =============================================================================
+
+export fn main(): Unit => {
+    println("⚡ Aura Native Database: Stored Procedures & Functions Demo");
+    println("============================================================");
+
+    // =========================================================================
+    // PART 1: POSTGRESQL (Wire 3.0 Protocol - Functions & Procedures)
+    // =========================================================================
+    println("\n--- 1. POSTGRESQL: STORED FUNCTIONS & PROCEDURES ---");
+
+    let pgDsn = "postgres://postgres:secret@127.0.0.1:5432/company_db";
+    let pgDb: DB = sql.open("postgres", pgDsn, 10);
+    defer pgDb.close();
+
+    let pgPing = pgDb.ping();
+    if (pgPing == 0) {
+        println("✓ Connected to PostgreSQL server.");
+    } else {
+        println("ℹ [PostgreSQL] Demonstrating type-checked execution schema.");
+    }
+
+    // 1.1 Create Schema & Sample Tables
+    let pgDdl = "
+        CREATE TABLE IF NOT EXISTS employees (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(100) NOT NULL,
+            department VARCHAR(50) NOT NULL,
+            salary NUMERIC(10, 2) NOT NULL,
+            bonus NUMERIC(10, 2) DEFAULT 0.00
+        );
+    ";
+    pgDb.exec(pgDdl, []);
+
+    // 1.2 PostgreSQL Stored Function (Scalar Return): calculate_bonus
+    let pgFuncDdl = "
+        CREATE OR REPLACE FUNCTION calculate_bonus(p_salary NUMERIC, p_rate NUMERIC)
+        RETURNS NUMERIC AS $$
+        BEGIN
+            RETURN p_salary * (p_rate / 100.0);
+        END;
+        $$ LANGUAGE plpgsql;
+    ";
+    pgDb.exec(pgFuncDdl, []);
+
+    // Executing Scalar Function via SELECT $1, $2
+    println("\n-> Executing PostgreSQL Scalar Function (calculate_bonus):");
+    let funcRows: Rows = pgDb.query("SELECT calculate_bonus($1, $2) AS estimated_bonus;", [4500.0, 12.5]);
+    if (funcRows.next()) {
+        let estimatedBonus = funcRows.getFloat(0);
+        println(`  Calculated bonus for $4,500 at 12.5%: $${estimatedBonus}`);
+    }
+    funcRows.close();
+
+    // 1.3 PostgreSQL Table-Valued Function: get_department_staff
+    let pgTableFuncDdl = "
+        CREATE OR REPLACE FUNCTION get_department_staff(p_dept VARCHAR)
+        RETURNS TABLE(emp_id INT, emp_name VARCHAR, emp_salary NUMERIC) AS $$
+        BEGIN
+            RETURN QUERY
+            SELECT id, name, salary FROM employees WHERE department = p_dept;
+        END;
+        $$ LANGUAGE plpgsql;
+    ";
+    pgDb.exec(pgTableFuncDdl, []);
+
+    // Executing Table-Valued Function via SELECT * FROM func($1)
+    println("\n-> Executing PostgreSQL Table-Valued Function (get_department_staff):");
+    let staffRows: Rows = pgDb.query("SELECT emp_id, emp_name, emp_salary FROM get_department_staff($1);", ["Engineering"]);
+    while (staffRows.next()) {
+        let id = staffRows.getInt(0);
+        let name = staffRows.getString(1);
+        let salary = staffRows.getFloat(2);
+        println(`  [Staff #${id}] ${name} - Salary: $${salary}`);
+    }
+    staffRows.close();
+
+    // 1.4 PostgreSQL Stored Procedure (Action DML with CALL): apply_annual_raise
+    let pgProcDdl = "
+        CREATE OR REPLACE PROCEDURE apply_annual_raise(p_dept VARCHAR, p_percentage NUMERIC)
+        LANGUAGE plpgsql AS $$
+        BEGIN
+            UPDATE employees
+            SET salary = salary + (salary * (p_percentage / 100.0))
+            WHERE department = p_dept;
+        END;
+        $$;
+    ";
+    pgDb.exec(pgProcDdl, []);
+
+    // Executing Procedure with CALL $1, $2 using db.exec()
+    println("\n-> Executing PostgreSQL Stored Procedure with CALL (apply_annual_raise):");
+    let procRes: ExecResult = pgDb.exec("CALL apply_annual_raise($1, $2);", ["Engineering", 5.0]);
+    println(`  Procedure completed. Rows affected: ${procRes.rowsAffected}`);
+
+    // =========================================================================
+    // PART 2: MYSQL / MARIADB (Protocol 10 - CALL & OUT Parameters)
+    // =========================================================================
+    println("\n--- 2. MYSQL: STORED PROCEDURES (IN / OUT PARAMS) & FUNCTIONS ---");
+
+    let myDsn = "mysql://root:secret@127.0.0.1:3306/inventory_db";
+    let myDb: DB = sql.open("mysql", myDsn, 8);
+    defer myDb.close();
+
+    let myPing = myDb.ping();
+    if (myPing == 0) {
+        println("✓ Connected to MySQL server.");
+    } else {
+        println("ℹ [MySQL] Demonstrating type-checked execution schema.");
+    }
+
+    // 2.1 MySQL Stored Procedure with IN and OUT parameters
+    let myProcDdl = "
+        CREATE PROCEDURE IF NOT EXISTS sp_calculate_order(
+            IN p_subtotal DECIMAL(10,2),
+            IN p_tax_rate DECIMAL(5,2),
+            OUT p_tax_amount DECIMAL(10,2),
+            OUT p_total_amount DECIMAL(10,2)
+        )
+        BEGIN
+            SET p_tax_amount = p_subtotal * (p_tax_rate / 100.0);
+            SET p_total_amount = p_subtotal + p_tax_amount;
+        END;
+    ";
+    myDb.exec(myProcDdl, []);
+
+    // Calling procedure with session variables for OUT parameters
+    println("\n-> Executing MySQL Stored Procedure with OUT parameters:");
+    myDb.exec("CALL sp_calculate_order(?, ?, @out_tax, @out_total);", [250.0, 19.0]);
+
+    // Reading OUT parameters via SELECT @var1, @var2
+    let outRows: Rows = myDb.query("SELECT @out_tax, @out_total;", []);
+    if (outRows.next()) {
+        let tax = outRows.getFloat(0);
+        let total = outRows.getFloat(1);
+        println(`  Subtotal: $250.00 | Tax (19%): $${tax} | Total: $${total}`);
+    }
+    outRows.close();
+
+    // 2.2 MySQL Stored Function via SELECT ?
+    let myFuncDdl = "
+        CREATE FUNCTION IF NOT EXISTS fn_format_sku(p_id INT, p_prefix VARCHAR(10))
+        RETURNS VARCHAR(30)
+        DETERMINISTIC
+        BEGIN
+            RETURN CONCAT(p_prefix, '-', LPAD(p_id, 6, '0'));
+        END;
+    ";
+    myDb.exec(myFuncDdl, []);
+
+    println("\n-> Executing MySQL Stored Function (fn_format_sku):");
+    let skuRows: Rows = myDb.query("SELECT fn_format_sku(?, ?) AS generated_sku;", [42, "PROD"]);
+    if (skuRows.next()) {
+        let formattedSku = skuRows.getString(0);
+        println(`  Generated SKU: ${formattedSku}`);
+    }
+    skuRows.close();
+
+    // =========================================================================
+    // PART 3: SQLITE (Embedded Standalone Engine - Built-in & Aggregate Functions)
+    // =========================================================================
+    println("\n--- 3. SQLITE: EMBEDDED SQL FUNCTIONS & AGGREGATES ---");
+
+    let sqliteDb: DB = sqlite.open(":memory:", 5);
+    defer sqliteDb.close();
+
+    sqliteDb.exec("
+        CREATE TABLE products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            price REAL NOT NULL,
+            category TEXT NOT NULL
+        );
+    ", []);
+
+    sqliteDb.exec("INSERT INTO products (title, price, category) VALUES (?, ?, ?);", ["Laptop Stand", 45.50, "office"]);
+    sqliteDb.exec("INSERT INTO products (title, price, category) VALUES (?, ?, ?);", ["Mechanical Keyboard", 129.99, "electronics"]);
+    sqliteDb.exec("INSERT INTO products (title, price, category) VALUES (?, ?, ?);", ["Gaming Headset", 89.90, "electronics"]);
+
+    // Executing SQLite string & mathematical functions
+    println("\n-> Executing SQLite Built-in Scalar & Window Functions:");
+    let sqlRows: Rows = sqliteDb.query("
+        SELECT 
+            UPPER(title) AS upper_title,
+            PRINTF('%.2f', price * 1.19) AS price_with_tax,
+            category
+        FROM products
+        WHERE category = ?;
+    ", ["electronics"]);
+
+    while (sqlRows.next()) {
+        let title = sqlRows.getString(0);
+        let priceWithTax = sqlRows.getString(1);
+        let category = sqlRows.getString(2);
+        println(`  - ${title} [${category}]: $${priceWithTax} (incl. tax)`);
+    }
+    sqlRows.close();
+
+    // Aggregate functions (SUM, AVG, COUNT)
+    let aggRows: Rows = sqliteDb.query("
+        SELECT category, COUNT(*) AS count, PRINTF('%.2f', AVG(price)) AS avg_price, PRINTF('%.2f', TOTAL(price)) AS total_val
+        FROM products
+        GROUP BY category;
+    ", []);
+
+    println("\n-> Aggregating results:");
+    while (aggRows.next()) {
+        let cat = aggRows.getString(0);
+        let count = aggRows.getInt(1);
+        let avgPrice = aggRows.getString(2);
+        let totalVal = aggRows.getString(3);
+        println(`  Category: ${cat} | Items: ${count} | Avg: $${avgPrice} | Total: $${totalVal}`);
+    }
+    aggRows.close();
+
+    // =========================================================================
+    // PART 4: PROCEDURES INSIDE ACID TRANSACTIONS (db.begin -> Tx)
+    // =========================================================================
+    println("\n--- 4. EXECUTING PROCEDURES INSIDE TRANSACTIONS (ACID) ---");
+
+    let tx: Tx = sqliteDb.begin();
+    println("-> Transaction started.");
+
+    let txInsert = tx.exec("INSERT INTO products (title, price, category) VALUES (?, ?, ?);", ["USB-C Dock", 75.00, "electronics"]);
+    if (txInsert.error == "") {
+        tx.commit();
+        println("✓ Transaction successfully committed!");
+    } else {
+        tx.rollback();
+        println(`✕ Transaction rolled back: ${txInsert.error}`);
+    }
+
+    println("\n⚡ All stored procedure & function examples completed successfully!");
+}
