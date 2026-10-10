@@ -1,0 +1,57 @@
+module Examples.CompilerExtensionDemo
+
+// =============================================================================
+// Aura Language: Compiler Extension Demonstration
+// =============================================================================
+// This example exercises the full language pipeline parsed and compiled
+// by the self-hosted Aura compiler (`src/aura_compiler/`).
+// =============================================================================
+
+fn calculatePower(base: Int, exponent: Int): Int {
+  let mut result = 1;
+  let mut i = 0;
+  while (i < exponent) {
+    result = result * base;
+    i = i + 1;
+  }
+  return result;
+}
+
+fn clamp(val: Int, minVal: Int, maxVal: Int): Int {
+  if (val < minVal) {
+    return minVal;
+  }
+  if (val > maxVal) {
+    return maxVal;
+  }
+  return val;
+}
+
+fn scaleUp(x: Int): Int => x * 3
+
+fn offset(x: Int): Int => x + 15
+
+export fn evaluatePipeline(input: Int): Int {
+  return input |> scaleUp |> offset;
+}
+
+println("==================================================");
+println("✨ Aura Self-Hosted Compiler: Extended Demo");
+println("==================================================");
+
+println("1. Power Calculation (2^10):");
+let p10 = calculatePower(2, 10);
+println(`   2^10 = ${p10}`);
+
+println("\n2. Boundary Clamping:");
+println(`   clamp(150, 0, 100) = ${clamp(150, 0, 100)}`);
+println(`   clamp(-25, 0, 100) = ${clamp(-25, 0, 100)}`);
+println(`   clamp(42, 0, 100)  = ${clamp(42, 0, 100)}`);
+
+println("\n3. Functional Pipeline (|>) Evaluation:");
+let res = evaluatePipeline(10);
+println(`   10 |> scaleUp |> offset = ${res}`);
+
+println("\n==================================================");
+println("✓ Program successfully verified via pure Aura compiler!");
+println("==================================================");

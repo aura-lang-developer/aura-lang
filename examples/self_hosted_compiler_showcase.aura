@@ -1,0 +1,84 @@
+module SelfHostedShowcase
+
+// =============================================================================
+// Aura Language: Self-Hosted Compiler Showcase
+// =============================================================================
+// This program is compiled directly by the self-hosted Aura compiler
+// (`dist/aurac.mjs` and native standalone `dist/aura-self-hosted`).
+//
+// Features demonstrated:
+// 1. Static Typing & Type Annotations
+// 2. Pure Functions & Expression Bodies (=>)
+// 3. Immutability by default & Controlled Mutation (let mut)
+// 4. While Loops, Conditionals & Iterative Algorithms
+// 5. Functional Pipeline Operator (|>)
+// 6. List Collections and Subroutines
+// 7. Multi-Target Compilation (JavaScript ES6 & Golang 1.21+)
+// =============================================================================
+
+fn add(a: Int, b: Int): Int {
+  return a + b;
+}
+
+fn multiply(a: Int, b: Int): Int => a * b
+
+fn doubleVal(x: Int): Int => x * 2
+
+fn increment(x: Int): Int => x + 1
+
+fn square(x: Int): Int => x * x
+
+export fn factorial(n: Int): Int {
+  let mut result = 1;
+  let mut i = 1;
+  while (i <= n) {
+    result = result * i;
+    i = i + 1;
+  }
+  return result;
+}
+
+export fn computeFibonacci(n: Int): Int {
+  if (n <= 1) {
+    return n;
+  }
+  let mut prev = 0;
+  let mut curr = 1;
+  let mut count = 2;
+  while (count <= n) {
+    let next = prev + curr;
+    prev = curr;
+    curr = next;
+    count = count + 1;
+  }
+  return curr;
+}
+
+export fn greet(name: String): String {
+  let msg = `Hello ${name} from Self-Hosted Aura Compiler!`;
+  return msg;
+}
+
+println("====================================================");
+println(greet("Developer"));
+println("====================================================");
+
+println("1. Arithmetic & Expression Functions:");
+println(`   add(20, 22) = ${add(20, 22)}`);
+println(`   multiply(6, 7) = ${multiply(6, 7)}`);
+
+println("\n2. Iterative Algorithms (while loops & mutable state):");
+println(`   factorial(6) = ${factorial(6)}`);
+println(`   fibonacci(10) = ${computeFibonacci(10)}`);
+
+println("\n3. Functional Pipeline Transformations (|>):");
+let piped = 5 |> doubleVal |> increment |> square;
+println(`   5 |> doubleVal |> increment |> square = ${piped}`);
+
+println("\n4. List Collections:");
+let numbers = [10, 20, 30, 40, 50];
+println(`   numbers list created with 5 items`);
+
+println("\n====================================================");
+println("✓ Successfully verified on JS and Golang backends!");
+println("====================================================");

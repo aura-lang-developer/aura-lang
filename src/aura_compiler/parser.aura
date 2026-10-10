@@ -240,14 +240,45 @@ export fn parsePostfixExpr(p: Parser): Result<ExprNode, String> {
   return Ok(expr);
 }
 
+/// Parses unary prefix expressions (`-` and `!`).
+/// - `p`: Parser instance.
+/// - Returns: `Ok(ExprNode)` representing the unary expression or inner postfix.
+export fn parseUnaryExpr(p: Parser): Result<ExprNode, String> {
+  if (peek(p) == TBang || peek(p) == TMinus) {
+    let opTok = advance(p);
+    let sub = parseUnaryExpr(p)?;
+    let op = if (opTok == TBang) { OpNot } else { OpNeg };
+    return Ok(ExprUnary { op: op, expr: sub });
+  }
+  return parsePostfixExpr(p);
+}
+
+/// Parses binary multiplicative expressions (`*`, `/`, and `%`).
+/// - `p`: Parser instance.
+/// - Returns: `Ok(ExprNode)` representing the multiplicative expression tree.
+export fn parseMultiplicativeExpr(p: Parser): Result<ExprNode, String> {
+  let mut left = parseUnaryExpr(p)?;
+  while (peek(p) == TStar || peek(p) == TSlash || peek(p) == TPercent) {
+    let opTok = advance(p);
+    let right = parseUnaryExpr(p)?;
+    let op = match opTok {
+      TStar => OpMul,
+      TSlash => OpDiv,
+      _ => OpMod
+    };
+    left = ExprBinary { op: op, left: left, right: right };
+  }
+  return Ok(left);
+}
+
 /// Parses binary additive expressions (`+` and `-`).
 /// - `p`: Parser instance.
 /// - Returns: `Ok(ExprNode)` representing the binary addition/subtraction tree, or `Err` on error.
 export fn parseAdditiveExpr(p: Parser): Result<ExprNode, String> {
-  let mut left = parsePostfixExpr(p)?;
+  let mut left = parseMultiplicativeExpr(p)?;
   while (peek(p) == TPlus || peek(p) == TMinus) {
     let opTok = advance(p);
-    let right = parsePostfixExpr(p)?;
+    let right = parseMultiplicativeExpr(p)?;
     let op = if (opTok == TPlus) { OpAdd } else { OpSub };
     left = ExprBinary { op: op, left: left, right: right };
   }
@@ -275,13 +306,37 @@ export fn parseComparisonExpr(p: Parser): Result<ExprNode, String> {
   return Ok(left);
 }
 
+/// Parses logical AND expressions (`&&`).
+/// - `p`: Parser instance.
+/// - Returns: `Ok(ExprNode)` representing the logical AND expression tree.
+export fn parseLogicalAndExpr(p: Parser): Result<ExprNode, String> {
+  let mut left = parseComparisonExpr(p)?;
+  while (matchToken(p, TAndAnd)) {
+    let right = parseComparisonExpr(p)?;
+    left = ExprBinary { op: OpAnd, left: left, right: right };
+  }
+  return Ok(left);
+}
+
+/// Parses logical OR expressions (`||`).
+/// - `p`: Parser instance.
+/// - Returns: `Ok(ExprNode)` representing the logical OR expression tree.
+export fn parseLogicalOrExpr(p: Parser): Result<ExprNode, String> {
+  let mut left = parseLogicalAndExpr(p)?;
+  while (matchToken(p, TOrOr)) {
+    let right = parseLogicalAndExpr(p)?;
+    left = ExprBinary { op: OpOr, left: left, right: right };
+  }
+  return Ok(left);
+}
+
 /// Parses pipeline chaining expressions (`|>`).
 /// - `p`: Parser instance.
 /// - Returns: `Ok(ExprNode)` representing the chained pipeline expression.
 export fn parsePipeExpr(p: Parser): Result<ExprNode, String> {
-  let mut left = parseComparisonExpr(p)?;
+  let mut left = parseLogicalOrExpr(p)?;
   while (matchToken(p, TPipe)) {
-    let right = parseComparisonExpr(p)?;
+    let right = parseLogicalOrExpr(p)?;
     left = ExprPipe { left: left, right: right };
   }
   return Ok(left);
@@ -404,7 +459,12 @@ export fn parseModule(tokens: List<Token>): Result<ModuleNode, String> {
   let mut modName = None;
 
   if (matchToken(p, TModule)) {
-    let mn = expectIdent(p)?;
+    let mut mn = expectIdent(p)?;
+    while (matchToken(p, TDot)) {
+      let sub = expectIdent(p)?;
+      mn = mn + "." + sub;
+    }
+    let _ = matchToken(p, TSemicolon);
     modName = Some(mn);
   }
 
