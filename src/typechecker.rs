@@ -2687,6 +2687,233 @@ impl TypeEnv {
             .insert("postgres".to_string(), pg_module_type.clone());
         env.variables.insert("pg".to_string(), pg_module_type);
 
+        // --- Native SQL & SQLite Database Standard Library Integration ---
+        let mut sql_rows_methods = HashMap::new();
+        sql_rows_methods.insert(
+            "next".to_string(),
+            ConcreteType::Function {
+                params: vec![],
+                return_type: Box::new(ConcreteType::Bool),
+            },
+        );
+        sql_rows_methods.insert(
+            "getInt".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Int],
+                return_type: Box::new(ConcreteType::Int),
+            },
+        );
+        sql_rows_methods.insert(
+            "getString".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Int],
+                return_type: Box::new(ConcreteType::String),
+            },
+        );
+        sql_rows_methods.insert(
+            "getFloat".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Int],
+                return_type: Box::new(ConcreteType::Float),
+            },
+        );
+        sql_rows_methods.insert(
+            "getBool".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Int],
+                return_type: Box::new(ConcreteType::Bool),
+            },
+        );
+        sql_rows_methods.insert(
+            "get".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Any],
+                return_type: Box::new(ConcreteType::Any),
+            },
+        );
+        sql_rows_methods.insert(
+            "toRecord".to_string(),
+            ConcreteType::Function {
+                params: vec![],
+                return_type: Box::new(ConcreteType::Any),
+            },
+        );
+        sql_rows_methods.insert(
+            "toList".to_string(),
+            ConcreteType::Function {
+                params: vec![],
+                return_type: Box::new(ConcreteType::List(Box::new(ConcreteType::Any))),
+            },
+        );
+        sql_rows_methods.insert(
+            "error".to_string(),
+            ConcreteType::Function {
+                params: vec![],
+                return_type: Box::new(ConcreteType::String),
+            },
+        );
+        sql_rows_methods.insert(
+            "close".to_string(),
+            ConcreteType::Function {
+                params: vec![],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        let sql_rows_type = ConcreteType::Record(sql_rows_methods);
+        env.types
+            .insert("SqlRows".to_string(), sql_rows_type.clone());
+        env.types
+            .insert("Rows".to_string(), sql_rows_type.clone());
+
+        let mut sql_exec_result_fields = HashMap::new();
+        sql_exec_result_fields.insert("rowsAffected".to_string(), ConcreteType::Int);
+        sql_exec_result_fields.insert("lastInsertId".to_string(), ConcreteType::Int);
+        sql_exec_result_fields.insert("error".to_string(), ConcreteType::String);
+        let sql_exec_result_type = ConcreteType::Record(sql_exec_result_fields);
+        env.types
+            .insert("SqlExecResult".to_string(), sql_exec_result_type.clone());
+        env.types
+            .insert("ExecResult".to_string(), sql_exec_result_type.clone());
+
+        let mut sql_tx_methods = HashMap::new();
+        sql_tx_methods.insert(
+            "query".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::Any],
+                return_type: Box::new(sql_rows_type.clone()),
+            },
+        );
+        sql_tx_methods.insert(
+            "exec".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::Any],
+                return_type: Box::new(sql_exec_result_type.clone()),
+            },
+        );
+        sql_tx_methods.insert(
+            "execute".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::Any],
+                return_type: Box::new(sql_exec_result_type.clone()),
+            },
+        );
+        sql_tx_methods.insert(
+            "commit".to_string(),
+            ConcreteType::Function {
+                params: vec![],
+                return_type: Box::new(ConcreteType::Int),
+            },
+        );
+        sql_tx_methods.insert(
+            "rollback".to_string(),
+            ConcreteType::Function {
+                params: vec![],
+                return_type: Box::new(ConcreteType::Int),
+            },
+        );
+        sql_tx_methods.insert(
+            "close".to_string(),
+            ConcreteType::Function {
+                params: vec![],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        let sql_tx_type = ConcreteType::Record(sql_tx_methods);
+        env.types
+            .insert("SqlTx".to_string(), sql_tx_type.clone());
+        env.types
+            .insert("Tx".to_string(), sql_tx_type.clone());
+
+        let mut sql_db_methods = HashMap::new();
+        sql_db_methods.insert(
+            "query".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::Any],
+                return_type: Box::new(sql_rows_type.clone()),
+            },
+        );
+        sql_db_methods.insert(
+            "exec".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::Any],
+                return_type: Box::new(sql_exec_result_type.clone()),
+            },
+        );
+        sql_db_methods.insert(
+            "execute".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::Any],
+                return_type: Box::new(sql_exec_result_type),
+            },
+        );
+        sql_db_methods.insert(
+            "begin".to_string(),
+            ConcreteType::Function {
+                params: vec![],
+                return_type: Box::new(sql_tx_type),
+            },
+        );
+        sql_db_methods.insert(
+            "ping".to_string(),
+            ConcreteType::Function {
+                params: vec![],
+                return_type: Box::new(ConcreteType::Int),
+            },
+        );
+        sql_db_methods.insert(
+            "close".to_string(),
+            ConcreteType::Function {
+                params: vec![],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        let sql_db_type = ConcreteType::Record(sql_db_methods);
+        env.types
+            .insert("SqlDB".to_string(), sql_db_type.clone());
+        env.types
+            .insert("DB".to_string(), sql_db_type.clone());
+        env.types
+            .insert("SqlPool".to_string(), sql_db_type.clone());
+
+        let mut sqlite_module_methods = HashMap::new();
+        sqlite_module_methods.insert(
+            "open".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Any],
+                return_type: Box::new(sql_db_type.clone()),
+            },
+        );
+        sqlite_module_methods.insert(
+            "connect".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Any],
+                return_type: Box::new(sql_db_type.clone()),
+            },
+        );
+        let sqlite_module_type = ConcreteType::Record(sqlite_module_methods);
+        env.types
+            .insert("SqliteModule".to_string(), sqlite_module_type.clone());
+        env.variables
+            .insert("sqlite".to_string(), sqlite_module_type.clone());
+        env.variables
+            .insert("sqlite3".to_string(), sqlite_module_type);
+
+        let mut sql_module_methods = HashMap::new();
+        sql_module_methods.insert(
+            "open".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::Any],
+                return_type: Box::new(sql_db_type.clone()),
+            },
+        );
+        let sql_module_type = ConcreteType::Record(sql_module_methods);
+        env.types
+            .insert("SqlModule".to_string(), sql_module_type.clone());
+        env.variables
+            .insert("sql".to_string(), sql_module_type.clone());
+        env.variables
+            .insert("db".to_string(), sql_module_type);
+
         // MongoDB Database Standard Library Integration
         let mut mongo_insert_result_fields = HashMap::new();
         mongo_insert_result_fields.insert("insertedId".to_string(), ConcreteType::Any);

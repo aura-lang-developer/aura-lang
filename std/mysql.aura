@@ -1,0 +1,2 @@
+// Aura Standard Library: std/mysql (Top-level alias)
+export { open, connect } from "./database/mysql/mysql";

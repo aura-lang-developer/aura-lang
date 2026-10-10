@@ -1,0 +1,14 @@
+// Aura Standard Library: database/postgres
+// Native PostgreSQL wire protocol database driver.
+
+import { DB, Rows, Tx, ExecResult } from "../sql/sql";
+
+/// Connects to a PostgreSQL database using a DSN or connection URI.
+export fn open(dsn: String = "postgres://postgres@127.0.0.1:5432/postgres", maxConns: Int = 10): DB => {
+    sql.open("postgres", dsn, maxConns)
+}
+
+/// Alias for open()
+export fn connect(dsn: String = "postgres://postgres@127.0.0.1:5432/postgres", maxConns: Int = 10): DB => {
+    sql.open("postgres", dsn, maxConns)
+}

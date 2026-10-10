@@ -58,8 +58,12 @@ Aura se compila directamente a **binarios nativos ejecutables autónomos** (form
 6. [🗄️ Librería Estándar, Servidor Web y Bases de Datos](#️-librería-estándar-servidor-web-y-bases-de-datos)
    - [Servidor Web HTTP ServeMux (`net/http`)](#-servidor-web-http-y-mux-de-enrutamiento-nethttp)
    - [Métricas Prometheus y Trazabilidad W3C Traceparent](#-métricas-prometheus-y-trazabilidad-distribuida)
-   - [Controlador Nativo de PostgreSQL (`pg` / `postgres`)](#-controlador-nativo-de-postgresql-pg--postgres)
+   - [Subsistema Unificado de Bases de Datos Nativas y Connection Pools](#-subsistema-unificado-de-bases-de-datos-nativas-y-connection-pools)
+   - [Controlador Nativo Embebido de SQLite (`sqlite`)](#-controlador-nativo-embebido-de-sqlite-sqlite)
+   - [Controlador Nativo de PostgreSQL (`postgres` / `pg`)](#-controlador-nativo-de-postgresql-postgres--pg)
    - [Controlador Nativo de MySQL (`mysql`)](#-controlador-nativo-de-mysql-mysql)
+   - [Interfaz Genérica SQL y Transacciones ACID (`database/sql` / `sql`)](#-interfaz-genérica-sql-y-transacciones-acid-databasesql--sql)
+   - [Suite de Ejemplos de Drivers de Bases de Datos Nativas](#-suite-de-ejemplos-de-drivers-de-bases-de-datos-nativas)
    - [Controlador Nativo de MongoDB (`mongodb` / `mongo`)](#-controlador-nativo-de-mongodb-mongodb--mongo)
    - [Cliente Nativo de Redis (`redis`)](#-cliente-nativo-de-redis-redis)
    - [Módulos OS, Time, Crypto, JWT y JSON](#-módulos-del-sistema-os-time-crypto-jwt-y-json)
@@ -1203,51 +1207,161 @@ El servidor HTTP incorpora soporte nativo para monitoreo en producción:
 
 ---
 
-### 🐘 Controlador Nativo de PostgreSQL (`pg` / `postgres`)
+### 🗄️ Subsistema Unificado de Bases de Datos Nativas y Connection Pools
+
+Aura incorpora un subsistema de bases de datos nativas de alto rendimiento fuertemente tipado, diseñado para binarios ejecutables autónomos compilados directamente mediante **Cranelift**. No requiere **ninguna dependencia dinámica externa** (cero librerías `.so` o `.dylib`) y sigue el estándar de gestión de pools de conexiones y recursos de Go `database/sql`.
+
+#### Puntos Destacados de la Arquitectura
+- **Motor SQLite Embebido**: Motor C de SQLite 3 integrado estáticamente, con soporte de bases de datos en memoria (`:memory:`) y en ficheros de disco.
+- **Protocolo de Red PostgreSQL 3.0 (Pure-Rust)**: Cliente TCP nativo con soporte de autenticación Cleartext y MD5, consultas parametrizadas (extended query) y decodificación de filas en streaming.
+- **Protocolo de Red MySQL 10 (Pure-Rust)**: Cliente TCP nativo con soporte de handshake y autenticación SHA-1 scramble, binding de parámetros en sentencias preparadas y parseo de conjuntos de resultados.
+- **Connection Pooling Concurrente y Seguro (`DB`)**: Pool de conexiones automático con límites máximos configurables (`maxConns`), comprobación de salud (`db.ping()`) y limpieza determinista (`db.close()`).
+- **Transacciones ACID (`Tx`)**: Control completo del ciclo de vida transaccional (`db.begin()`, `tx.commit()`, `tx.rollback()`) reutilizando de forma polimórfica la conexión activa.
+- **Extractores de Columnas Fuertemente Tipados (`Rows`)**: Iteración rápida con cursor (`rows.next()`), lectura con tipo (`getInt`, `getString`, `getFloat`, `getBool`) y conversión directa a registros/mapas (`rows.toRecord()`, `rows.toList()`).
+
+---
+
+### 🪶 Controlador Nativo Embebido de SQLite (`sqlite`)
+
+SQLite está embebido directamente en el binario del runtime de Aura:
 
 ```aura
-let db: PgPool = postgres.createPool({
-    host: "localhost",
-    port: 5432,
-    user: "postgres",
-    password: "secret_password",
-    database: "orders_db"
-});
+import { open } from "std/database/sqlite";
 
-async fn getActiveUsers(): Task<(), String> {
-    let res = await db.query("SELECT id, name, email FROM users WHERE active = $1", [true]);
-    match res {
-        Ok(rows) => for u in rows { println(`- ${u.name} (${u.email})`); },
-        Err(err) => println(`Error SQL: ${err}`)
-    }
+// Abrir base de datos en memoria o archivo con pool de 5 conexiones
+let db: DB = sqlite.open(":memory:", 5);
+defer db.close();
+
+// Ejecución de esquema DDL
+let ddl = "CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, balance INT);";
+let schemaRes: ExecResult = db.exec(ddl, []);
+println(`Esquema creado. Filas afectadas: ${schemaRes.rowsAffected}`);
+
+// Sentencias INSERT parametrizadas (protegidas contra inyección SQL)
+let insertRes = db.exec("INSERT INTO users (name, balance) VALUES (?, ?);", ["Alice", 2500]);
+println(`Usuario insertado con ID: ${insertRes.lastInsertId}`);
+
+// Consultas parametrizadas e iteración de cursor
+let rows: Rows = db.query("SELECT id, name, balance FROM users WHERE balance >= ?;", [1000]);
+defer rows.close();
+
+while (rows.next()) {
+    let id = rows.getInt(0);
+    let name = rows.getString(1);
+    let balance = rows.getInt(2);
+    println(`[Usuario #${id}] ${name} -> Saldo: $${balance}`);
+}
+```
+
+---
+
+### 🐘 Controlador Nativo de PostgreSQL (`postgres` / `pg`)
+
+Cliente TCP pure-Rust con el protocolo de red PostgreSQL 3.0:
+
+```aura
+import { open } from "std/database/postgres";
+
+// Conectar a servidor PostgreSQL local o remoto
+let db: DB = postgres.open("postgres://postgres:secret@localhost:5432/orders_db", 10);
+defer db.close();
+
+// Consultas parametrizadas con marcadores de posición $1, $2
+let rows = db.query("SELECT id, name, email FROM users WHERE active = $1;", [true]);
+defer rows.close();
+
+while (rows.next()) {
+    let id = rows.getInt(0);
+    let name = rows.getString(1);
+    let email = rows.getString(2);
+    println(`- Usuario ${id}: ${name} <${email}>`);
 }
 
-// Transacciones ACID automáticas
-async fn transferBalance(txFn: PgTransaction): Task<(), String> {
-    await db.transaction(fn(tx: PgTransaction) => {
-        tx.execute("UPDATE accounts SET balance = balance - 100 WHERE id = $1", [1]);
-        tx.execute("UPDATE accounts SET balance = balance + 100 WHERE id = $2", [2]);
-    });
-}
+// Conversión de la fila actual o dataset completo a registros dinámicos de Aura
+let userRecord = rows.toRecord();
+println(`Nombre del usuario: ${userRecord.name}`);
 ```
 
 ---
 
 ### 🐬 Controlador Nativo de MySQL (`mysql`)
 
-```aura
-let pool: MysqlPool = mysql.open("mysql://root:secret@127.0.0.1:3306/tienda_db");
+Cliente TCP pure-Rust con el protocolo de red MySQL 10:
 
-async fn insertarProducto(nombre: String, precio: Float): Task<Int, String> {
-    let res = await pool.execute("INSERT INTO productos (nombre, precio) VALUES (?, ?)", [nombre, precio]);
-    match res {
-        Ok(info) => {
-            println(`Insertado ID: ${info.insertId}, Afectados: ${info.affectedRows}`);
-            info.insertId
-        },
-        Err(e) => -1
-    }
+```aura
+import { open } from "std/database/mysql";
+
+let db: DB = mysql.open("mysql://root:secret@127.0.0.1:3306/tienda_db", 10);
+defer db.close();
+
+let res: ExecResult = db.exec("INSERT INTO productos (nombre, precio) VALUES (?, ?);", ["Teclado Mecánico", 129]);
+println(`ID del producto insertado: ${res.lastInsertId}, Afectados: ${res.rowsAffected}`);
+```
+
+---
+
+### 🔄 Interfaz Genérica SQL y Transacciones ACID (`database/sql` / `sql`)
+
+Aura ofrece una interfaz genérica unificada inspirada en `database/sql` de Go que permite intercambiar motores y garantizar transacciones atómicas ACID:
+
+```aura
+import { open, DB, Tx, Rows, ExecResult } from "std/database/sql";
+
+// Apertura polimórfica mediante el identificador de driver: "sqlite", "postgres", "mysql"
+let db: DB = sql.open("sqlite", ":memory:", 5);
+defer db.close();
+
+// Inicializar tabla de cuentas bancarias
+db.exec("CREATE TABLE accounts (id INT PRIMARY KEY, balance INT);", []);
+db.exec("INSERT INTO accounts (id, balance) VALUES (1, 1000), (2, 500);", []);
+
+// Iniciar una Transacción Atómica ACID
+let tx: Tx = db.begin();
+
+// Transferir $200 de la Cuenta 1 a la Cuenta 2
+tx.exec("UPDATE accounts SET balance = balance - 200 WHERE id = 1;", []);
+tx.exec("UPDATE accounts SET balance = balance + 200 WHERE id = 2;", []);
+
+// Confirmación atómica (retorna 0 en éxito, -1 en caso de error)
+let status = tx.commit();
+if (status == 0) {
+    println("✓ Transferencia confirmada exitosamente!");
+} else {
+    tx.rollback();
+    println("✕ Falló la transferencia, rollback ejecutado!");
 }
+```
+
+---
+
+### 📚 Suite de Ejemplos de Drivers de Bases de Datos Nativas
+
+Aura incluye un catálogo completo de ejemplos de bases de datos autónomos en el directorio [`examples/`](examples) que demuestran todos los aspectos del subsistema nativo:
+
+| Archivo de Ejemplo | Backend / Paradigma | Aspectos Clave Demostrados | Comando de Ejecución |
+| :--- | :--- | :--- | :--- |
+| [`examples/db_sqlite_crud.aura`](examples/db_sqlite_crud.aura) | **SQLite** (Embebido) | Creación de esquemas DDL, `INSERT` parametrizado, escaneo `SELECT` con cursor, `UPDATE`, `DELETE` y métricas del pool | `aurac build examples/db_sqlite_crud.aura -o dist/sqlite_crud --standalone && ./dist/sqlite_crud` |
+| [`examples/db_transactions_bank.aura`](examples/db_transactions_bank.aura) | **Transacciones ACID** (`Tx`) | Transferencias financieras multisentencia, `commit()` atómico, `rollback()` automático ante fallos e integridad de saldos | `aurac build examples/db_transactions_bank.aura -o dist/bank_tx --standalone && ./dist/bank_tx` |
+| [`examples/db_generic_sql_pool.aura`](examples/db_generic_sql_pool.aura) | **SQL Genérico** (`sql.open`) | Despacho de drivers agnóstico a la base de datos, health check con `ping()`, consultas agregadas (`COUNT`, `AVG`, `GROUP BY`) y gestión del ciclo de vida del pool | `aurac build examples/db_generic_sql_pool.aura -o dist/sql_pool --standalone && ./dist/sql_pool` |
+| [`examples/db_postgres_microservice.aura`](examples/db_postgres_microservice.aura) | **PostgreSQL** (Wire 3.0) | Cliente TCP pure-Rust, sintaxis de parámetros extendidos `$1, $2`, y flujo de procesamiento de pedidos | `aurac check examples/db_postgres_microservice.aura` |
+| [`examples/db_mysql_inventory.aura`](examples/db_mysql_inventory.aura) | **MySQL** (Protocol 10) | Cliente TCP pure-Rust, binding de marcadores `?`, métricas `lastInsertId` y `rowsAffected`, y control de inventario | `aurac check examples/db_mysql_inventory.aura` |
+| [`examples/native_database_demo.aura`](examples/native_database_demo.aura) | **Demo Integral** | Showcase integral autónomo: SQLite en memoria, inicialización de esquemas, inserciones parametrizadas, lectura con cursor y transacciones ACID | `aurac build examples/native_database_demo.aura -o dist/native_db_demo --standalone && ./dist/native_db_demo` |
+
+#### Compilación y Ejecución de los Ejemplos Nativos
+Todos los ejemplos se compilan directamente a binarios ejecutables nativos en código máquina (Mach-O en macOS, ELF en Linux) con cero dependencias dinámicas externas:
+
+```bash
+# 1. Compilar y ejecutar SQLite CRUD
+aurac build examples/db_sqlite_crud.aura -o dist/db_sqlite_crud --standalone
+./dist/db_sqlite_crud
+
+# 2. Compilar y ejecutar Transacciones Bancarias ACID
+aurac build examples/db_transactions_bank.aura -o dist/db_transactions_bank --standalone
+./dist/db_transactions_bank
+
+# 3. Compilar y ejecutar Pool de Conexiones SQL Genérico
+aurac build examples/db_generic_sql_pool.aura -o dist/db_generic_sql_pool --standalone
+./dist/db_generic_sql_pool
 ```
 
 ---

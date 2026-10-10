@@ -152,6 +152,24 @@ pub extern "C" fn aura_record_set_list(
     }
 }
 
+pub fn aura_record_set_val(
+    rec: *mut AuraRecord,
+    key_ptr: *const u8,
+    key_len: usize,
+    val: AuraVal,
+) {
+    if rec.is_null() || key_ptr.is_null() || key_len == 0 {
+        return;
+    }
+    let key = unsafe {
+        let bytes = slice::from_raw_parts(key_ptr, key_len);
+        str::from_utf8(bytes).unwrap_or("")
+    };
+    unsafe {
+        (*rec).fields.insert(key.to_string(), val);
+    }
+}
+
 /// Generic untyped setter: stores val directly as i64 / ptr
 #[unsafe(no_mangle)]
 pub extern "C" fn aura_record_set(

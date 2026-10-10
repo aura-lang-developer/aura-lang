@@ -1,0 +1,56 @@
+// =============================================================================
+// Aura Language: PostgreSQL Microservice Database Integration Example
+// =============================================================================
+// Demonstrates PostgreSQL connection pooling, parameterized queries with $1, $2,
+// and record scanning using pure-Rust native wire protocol 3.0.
+// =============================================================================
+
+export fn main(): Unit => {
+    println("🐘 [PostgreSQL Demo] PostgreSQL Native Database Subsystem");
+    println("---------------------------------------------------------");
+
+    // Connect to PostgreSQL database server with a pool of 10 workers
+    let dsn = "postgres://postgres:secret@127.0.0.1:5432/orders_db";
+    let db: DB = sql.open("postgres", dsn, 10);
+
+    println("1. Initializing connection to PostgreSQL server...");
+
+    // Ping server
+    let ping = db.ping();
+    if (ping == 0) {
+        println("✓ Connected to PostgreSQL server.");
+    } else {
+        println("ℹ (Note: PostgreSQL server not running on localhost:5432, demonstrating syntax & type-checking)");
+    }
+
+    // 2. Create customer orders table
+    let ddl = "
+        CREATE TABLE IF NOT EXISTS customer_orders (
+            id SERIAL PRIMARY KEY,
+            customer_email TEXT NOT NULL,
+            total_amount INT NOT NULL,
+            status TEXT DEFAULT 'pending'
+        );
+    ";
+    db.exec(ddl, []);
+
+    // 3. Parameterized INSERT
+    let insertOrder = "INSERT INTO customer_orders (customer_email, total_amount, status) VALUES ($1, $2, $3);";
+    let res = db.exec(insertOrder, ["dev@aura-lang.org", 450, "completed"]);
+    println(`✓ Inserted order ID: ${res.lastInsertId}`);
+
+    // 4. Parameterized SELECT
+    let rows: Rows = db.query("SELECT id, customer_email, total_amount, status FROM customer_orders WHERE status = $1;", ["completed"]);
+    while (rows.next()) {
+        let orderId = rows.getInt(0);
+        let email = rows.getString(1);
+        let total = rows.getInt(2);
+        let status = rows.getString(3);
+        println(`  -> Order #${orderId}: ${email} | Total: $${total} | Status: ${status}`);
+    }
+    rows.close();
+
+    // 5. Graceful shutdown
+    db.close();
+    println("✓ PostgreSQL pool connection closed.");
+}

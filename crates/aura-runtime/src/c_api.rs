@@ -162,7 +162,7 @@ pub extern "C" fn aura_val_eq(v1: i64, v2: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn aura_val_to_str(val: i64) -> *mut crate::string::AuraString {
     if val == 0 {
-        return crate::string::aura_string_from_rust_str("");
+        return crate::string::aura_string_from_rust_str("0");
     }
     let aval = crate::record::infer_val_from_i64(val);
     match aval {

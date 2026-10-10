@@ -7,12 +7,15 @@
 pub mod c_api;
 pub mod channel;
 pub mod context;
+pub mod db;
 pub mod fiber;
 pub mod gc;
 pub mod http;
 pub mod json;
 pub mod list;
+pub mod mysql_client;
 pub mod os;
+pub mod postgres_client;
 pub mod record;
 pub mod scheduler;
 pub mod string;
@@ -21,6 +24,15 @@ pub mod variant;
 
 pub use c_api::*;
 pub use channel::{AuraChannel, channel_metrics};
+pub use db::{
+    AuraDbConn, AuraDbPool, AuraDbRows, AuraDbTx, AuraExecResult, aura_db_begin, aura_db_close_any,
+    aura_db_exec, aura_db_exec_free, aura_db_exec_last_insert_id, aura_db_exec_rows_affected,
+    aura_db_open, aura_db_ping, aura_db_pool_close, aura_db_query, aura_db_rows_close,
+    aura_db_rows_col_count, aura_db_rows_col_name, aura_db_rows_get_bool, aura_db_rows_get_f64,
+    aura_db_rows_get_i64, aura_db_rows_get_str, aura_db_rows_get_val, aura_db_rows_next,
+    aura_db_rows_to_list, aura_db_rows_to_record, aura_db_tx_close, aura_db_tx_commit,
+    aura_db_tx_rollback,
+};
 pub use gc::{collect_garbage, gc_alloc, gc_safepoint};
 pub use http::{AuraHttpRequest, AuraHttpResponse, AuraServeMux};
 pub use json::AuraJsonDoc;
@@ -269,5 +281,91 @@ mod tests {
         chan.close();
         chan.send(123 as *mut ());
         assert!(chan.recv().is_null());
+    }
+
+    #[test]
+    fn test_native_sqlite_db_lifecycle_and_crud() {
+        let driver = "sqlite";
+        let dsn = ":memory:";
+        let pool = aura_db_open(driver.as_ptr(), driver.len(), dsn.as_ptr(), dsn.len(), 5);
+        assert!(!pool.is_null());
+
+        // Ping test
+        assert_eq!(aura_db_ping(pool), 0);
+
+        // CREATE TABLE
+        let ddl = "CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, balance REAL NOT NULL, active INTEGER DEFAULT 1);";
+        let exec_res = aura_db_exec(pool as *mut (), ddl.as_ptr(), ddl.len(), std::ptr::null_mut());
+        assert!(!exec_res.is_null());
+        assert_eq!(aura_db_exec_rows_affected(exec_res), 0);
+        aura_db_exec_free(exec_res);
+
+        // INSERT Alice
+        let insert_sql = "INSERT INTO users (name, balance, active) VALUES (?, ?, ?);";
+        let params = list::aura_list_new(3);
+        let alice_str = string::aura_string_from_rust_str("Alice");
+        list::aura_list_push(params, alice_str as i64);
+        list::aura_list_push(params, 1500 as i64); // balance
+        list::aura_list_push(params, 1 as i64);    // active = true
+
+        let insert_res = aura_db_exec(pool as *mut (), insert_sql.as_ptr(), insert_sql.len(), params);
+        assert!(!insert_res.is_null());
+        assert_eq!(aura_db_exec_rows_affected(insert_res), 1);
+        assert_eq!(aura_db_exec_last_insert_id(insert_res), 1);
+        aura_db_exec_free(insert_res);
+
+        // INSERT Bob
+        let params_bob = list::aura_list_new(3);
+        let bob_str = string::aura_string_from_rust_str("Bob");
+        list::aura_list_push(params_bob, bob_str as i64);
+        list::aura_list_push(params_bob, 2500 as i64);
+        list::aura_list_push(params_bob, 1 as i64);
+
+        let insert_bob_res = aura_db_exec(pool as *mut (), insert_sql.as_ptr(), insert_sql.len(), params_bob);
+        assert_eq!(aura_db_exec_rows_affected(insert_bob_res), 1);
+        assert_eq!(aura_db_exec_last_insert_id(insert_bob_res), 2);
+        aura_db_exec_free(insert_bob_res);
+
+        // SELECT Query
+        let select_sql = "SELECT id, name, balance, active FROM users ORDER BY id ASC;";
+        let rows = aura_db_query(pool as *mut (), select_sql.as_ptr(), select_sql.len(), std::ptr::null_mut());
+        assert!(!rows.is_null());
+        assert_eq!(aura_db_rows_col_count(rows), 4);
+
+        // Row 1 (Alice)
+        assert_eq!(aura_db_rows_next(rows), 1);
+        let id1 = aura_db_rows_get_i64(rows, 0);
+        assert_eq!(id1, 1);
+        let name1 = aura_db_rows_get_str(rows, 1);
+        assert_eq!(unsafe { (*name1).as_str() }, "Alice");
+
+        // Convert Row 1 to AuraRecord
+        let rec1 = aura_db_rows_to_record(rows);
+        assert!(!rec1.is_null());
+        let rec_name = record::aura_record_get(rec1, "name".as_ptr(), 4);
+        assert_eq!(unsafe { (*(rec_name as *mut string::AuraString)).as_str() }, "Alice");
+
+        // Row 2 (Bob)
+        assert_eq!(aura_db_rows_next(rows), 1);
+        let id2 = aura_db_rows_get_i64(rows, 0);
+        assert_eq!(id2, 2);
+        let name2 = aura_db_rows_get_str(rows, 1);
+        assert_eq!(unsafe { (*name2).as_str() }, "Bob");
+
+        // End of rows
+        assert_eq!(aura_db_rows_next(rows), 0);
+        aura_db_rows_close(rows);
+
+        // Transaction Rollback test
+        let tx = aura_db_begin(pool);
+        assert!(!tx.is_null());
+
+        let insert_temp = "INSERT INTO users (name, balance) VALUES ('TempUser', 100);";
+        let tx_exec = aura_db_exec(tx as *mut (), insert_temp.as_ptr(), insert_temp.len(), std::ptr::null_mut());
+        aura_db_exec_free(tx_exec);
+
+        assert_eq!(aura_db_tx_rollback(tx), 0);
+
+        aura_db_pool_close(pool);
     }
 }

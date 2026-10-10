@@ -20,6 +20,10 @@ pub const TYPE_LIST: u32 = 3;
 pub const TYPE_MUTEX: u32 = 4;
 pub const TYPE_CHANNEL: u32 = 5;
 pub const TYPE_VARIANT: u32 = 6;
+pub const TYPE_DB_POOL: u32 = 7;
+pub const TYPE_DB_ROWS: u32 = 8;
+pub const TYPE_DB_TX: u32 = 9;
+pub const TYPE_DB_EXEC_RESULT: u32 = 10;
 
 use rustc_hash::FxHashMap;
 use std::sync::{LazyLock, RwLock};

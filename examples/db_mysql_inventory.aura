@@ -1,0 +1,61 @@
+// =============================================================================
+// Aura Language: MySQL Inventory Management Example
+// =============================================================================
+// Demonstrates MySQL connection pooling, parameterized queries with ?,
+// lastInsertId, rowsAffected, and batch updates using pure-Rust Protocol 10.
+// =============================================================================
+
+export fn main(): Unit => {
+    println("🐬 [MySQL Demo] MySQL Native Database Subsystem");
+    println("--------------------------------------------------");
+
+    // Connect to MySQL server with a pool of 8 workers
+    let dsn = "mysql://root:secret@127.0.0.1:3306/inventory_db";
+    let db: DB = sql.open("mysql", dsn, 8);
+
+    println("1. Connecting to MySQL server...");
+    let ping = db.ping();
+    if (ping == 0) {
+        println("✓ Connected to MySQL server.");
+    } else {
+        println("ℹ (Note: MySQL server not running on localhost:3306, demonstrating syntax & type-checking)");
+    }
+
+    // 2. Initialize inventory schema
+    let ddl = "
+        CREATE TABLE IF NOT EXISTS warehouse_inventory (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            item_code VARCHAR(64) UNIQUE NOT NULL,
+            item_name VARCHAR(255) NOT NULL,
+            quantity INT NOT NULL DEFAULT 0,
+            location_zone VARCHAR(16) NOT NULL
+        );
+    ";
+    db.exec(ddl, []);
+
+    // 3. Parameterized INSERT
+    let insertItem = "INSERT INTO warehouse_inventory (item_code, item_name, quantity, location_zone) VALUES (?, ?, ?, ?);";
+    let res = db.exec(insertItem, ["GPU-RTX-5090", "GeForce RTX 5090 32GB", 15, "ZONE-B4"]);
+    println(`✓ Inserted inventory item. ID: ${res.lastInsertId}, Affected: ${res.rowsAffected}`);
+
+    // 4. Batch quantity update
+    let updateSql = "UPDATE warehouse_inventory SET quantity = quantity + ? WHERE item_code = ?;";
+    let updateRes = db.exec(updateSql, [5, "GPU-RTX-5090"]);
+    println(`✓ Updated stock. Affected rows: ${updateRes.rowsAffected}`);
+
+    // 5. Query and scan
+    let rows: Rows = db.query("SELECT id, item_code, item_name, quantity, location_zone FROM warehouse_inventory WHERE location_zone = ?;", ["ZONE-B4"]);
+    while (rows.next()) {
+        let id = rows.getInt(0);
+        let code = rows.getString(1);
+        let name = rows.getString(2);
+        let qty = rows.getInt(3);
+        let zone = rows.getString(4);
+        println(`  -> [${zone}] #${id} ${code} (${name}): ${qty} units in stock`);
+    }
+    rows.close();
+
+    // 6. Graceful pool closure
+    db.close();
+    println("✓ MySQL connection pool cleanly closed.");
+}

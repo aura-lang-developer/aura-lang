@@ -1,0 +1,61 @@
+// Aura Standard Library: database/sql
+// High-performance unified native SQL database interface and connection pool.
+
+/// Represents execution metadata returned from INSERT, UPDATE, DELETE, or DDL operations.
+export interface ExecResult {
+    rowsAffected: Int,
+    lastInsertId: Int,
+    error: String
+}
+
+/// Standard ExecResult alias
+export type SqlExecResult = ExecResult;
+
+/// Represents an active tabular row cursor returned from a SQL query.
+export interface Rows {
+    next(): Bool,
+    getInt(col: Int): Int,
+    getString(col: Int): String,
+    getFloat(col: Int): Float,
+    getBool(col: Int): Bool,
+    get(col: Any): Any,
+    toRecord(): Any,
+    toList(): List<Any>,
+    error(): String,
+    close(): Unit
+}
+
+/// Standard Rows alias
+export type SqlRows = Rows;
+
+/// Represents an active SQL transaction.
+export interface Tx {
+    query(sql: String, params?: List<Any>): Rows,
+    exec(sql: String, params?: List<Any>): ExecResult,
+    execute(sql: String, params?: List<Any>): ExecResult,
+    commit(): Int,
+    rollback(): Int,
+    close(): Unit
+}
+
+/// Standard Tx alias
+export type SqlTx = Tx;
+
+/// Represents a database connection pool.
+export interface DB {
+    query(sql: String, params?: List<Any>): Rows,
+    exec(sql: String, params?: List<Any>): ExecResult,
+    execute(sql: String, params?: List<Any>): ExecResult,
+    begin(): Tx,
+    ping(): Int,
+    close(): Unit
+}
+
+/// Standard DB alias
+export type SqlDB = DB;
+
+/// Opens a database pool for the specified driver and connection string.
+/// Supported drivers: 'sqlite', 'postgres', 'mysql'.
+export fn open(driver: String, dsn: String, maxConns: Int = 10): DB => {
+    sql.open(driver, dsn, maxConns)
+}

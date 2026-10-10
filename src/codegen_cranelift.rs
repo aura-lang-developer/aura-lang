@@ -99,6 +99,30 @@ pub struct CraneliftBackend {
     http_error_id: FuncId,
     http_parse_json_id: FuncId,
 
+    // Native Database Subsystem
+    db_open_id: FuncId,
+    db_query_id: FuncId,
+    db_exec_id: FuncId,
+    db_begin_id: FuncId,
+    db_tx_commit_id: FuncId,
+    db_tx_rollback_id: FuncId,
+    db_tx_close_id: FuncId,
+    db_rows_next_id: FuncId,
+    db_rows_col_count_id: FuncId,
+    db_rows_get_val_id: FuncId,
+    db_rows_get_str_id: FuncId,
+    db_rows_get_i64_id: FuncId,
+    db_rows_get_f64_id: FuncId,
+    db_rows_get_bool_id: FuncId,
+    db_rows_to_record_id: FuncId,
+    db_rows_to_list_id: FuncId,
+    db_rows_close_id: FuncId,
+    db_exec_rows_affected_id: FuncId,
+    db_exec_last_insert_id_id: FuncId,
+    db_exec_free_id: FuncId,
+    db_close_any_id: FuncId,
+    db_ping_id: FuncId,
+
     // Value Arithmetic & Comparison Helpers
     val_eq_id: FuncId,
     val_add_id: FuncId,
@@ -450,6 +474,30 @@ impl CraneliftBackend {
         let http_error_id = declare_import_fn(&mut module, "aura_http_error", 4, false);
         let http_parse_json_id = declare_import_fn(&mut module, "aura_http_parse_json", 1, true);
 
+        // Native Database Functions
+        let db_open_id = declare_import_fn(&mut module, "aura_db_open", 5, true);
+        let db_query_id = declare_import_fn(&mut module, "aura_db_query", 4, true);
+        let db_exec_id = declare_import_fn(&mut module, "aura_db_exec", 4, true);
+        let db_begin_id = declare_import_fn(&mut module, "aura_db_begin", 1, true);
+        let db_tx_commit_id = declare_import_fn(&mut module, "aura_db_tx_commit", 1, true);
+        let db_tx_rollback_id = declare_import_fn(&mut module, "aura_db_tx_rollback", 1, true);
+        let db_tx_close_id = declare_import_fn(&mut module, "aura_db_tx_close", 1, false);
+        let db_rows_next_id = declare_import_fn(&mut module, "aura_db_rows_next", 1, true);
+        let db_rows_col_count_id = declare_import_fn(&mut module, "aura_db_rows_col_count", 1, true);
+        let db_rows_get_val_id = declare_import_fn(&mut module, "aura_db_rows_get_val", 2, true);
+        let db_rows_get_str_id = declare_import_fn(&mut module, "aura_db_rows_get_str", 2, true);
+        let db_rows_get_i64_id = declare_import_fn(&mut module, "aura_db_rows_get_i64", 2, true);
+        let db_rows_get_f64_id = declare_import_fn(&mut module, "aura_db_rows_get_f64", 2, true);
+        let db_rows_get_bool_id = declare_import_fn(&mut module, "aura_db_rows_get_bool", 2, true);
+        let db_rows_to_record_id = declare_import_fn(&mut module, "aura_db_rows_to_record", 1, true);
+        let db_rows_to_list_id = declare_import_fn(&mut module, "aura_db_rows_to_list", 1, true);
+        let db_rows_close_id = declare_import_fn(&mut module, "aura_db_rows_close", 1, false);
+        let db_exec_rows_affected_id = declare_import_fn(&mut module, "aura_db_exec_rows_affected", 1, true);
+        let db_exec_last_insert_id_id = declare_import_fn(&mut module, "aura_db_exec_last_insert_id", 1, true);
+        let db_exec_free_id = declare_import_fn(&mut module, "aura_db_exec_free", 1, false);
+        let db_close_any_id = declare_import_fn(&mut module, "aura_db_close_any", 1, false);
+        let db_ping_id = declare_import_fn(&mut module, "aura_db_ping", 1, true);
+
         // Value Arithmetic & Comparison Helpers
         let val_eq_id = declare_import_fn(&mut module, "aura_val_eq", 2, true);
         let val_add_id = declare_import_fn(&mut module, "aura_val_add", 2, true);
@@ -522,6 +570,28 @@ impl CraneliftBackend {
             http_json_id,
             http_error_id,
             http_parse_json_id,
+            db_open_id,
+            db_query_id,
+            db_exec_id,
+            db_begin_id,
+            db_tx_commit_id,
+            db_tx_rollback_id,
+            db_tx_close_id,
+            db_rows_next_id,
+            db_rows_col_count_id,
+            db_rows_get_val_id,
+            db_rows_get_str_id,
+            db_rows_get_i64_id,
+            db_rows_get_f64_id,
+            db_rows_get_bool_id,
+            db_rows_to_record_id,
+            db_rows_to_list_id,
+            db_rows_close_id,
+            db_exec_rows_affected_id,
+            db_exec_last_insert_id_id,
+            db_exec_free_id,
+            db_close_any_id,
+            db_ping_id,
             val_eq_id,
             val_add_id,
             val_sub_id,
@@ -1061,6 +1131,22 @@ impl CraneliftBackend {
                         .module
                         .declare_func_in_func(self.http_req_url_id, builder.func);
                     let call = builder.ins().call(local_u, &[obj_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+
+                if member == "lastInsertId" || member == "insertId" {
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.db_exec_last_insert_id_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[obj_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+
+                if member == "rowsAffected" || member == "affectedRows" {
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.db_exec_rows_affected_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[obj_val]);
                     return Ok(builder.inst_results(call)[0]);
                 }
 
@@ -1832,6 +1918,86 @@ impl CraneliftBackend {
                         _ => {}
                     }
                 }
+                if obj_name == "sql" || obj_name == "db" {
+                    if member == "open" && !args.is_empty() {
+                        let drv_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                        let (drv_ptr, drv_len) = self.get_string_ptr_and_len(builder, drv_val);
+                        let dsn_val = if args.len() >= 2 {
+                            self.compile_expr(builder, &args[1], vars, defers, loop_ctx)?
+                        } else {
+                            self.emit_string_literal(builder, ":memory:")?
+                        };
+                        let (dsn_ptr, dsn_len) = self.get_string_ptr_and_len(builder, dsn_val);
+                        let max_conns_val = if args.len() >= 3 {
+                            self.compile_expr(builder, &args[2], vars, defers, loop_ctx)?
+                        } else {
+                            builder.ins().iconst(types::I64, 10)
+                        };
+                        let local_fn = self.module.declare_func_in_func(self.db_open_id, builder.func);
+                        let call = builder.ins().call(local_fn, &[drv_ptr, drv_len, dsn_ptr, dsn_len, max_conns_val]);
+                        return Ok(builder.inst_results(call)[0]);
+                    }
+                }
+                if obj_name == "sqlite" || obj_name == "sqlite3" {
+                    if member == "open" || member == "connect" {
+                        let drv_val = self.emit_string_literal(builder, "sqlite")?;
+                        let (drv_ptr, drv_len) = self.get_string_ptr_and_len(builder, drv_val);
+                        let dsn_val = if !args.is_empty() {
+                            self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?
+                        } else {
+                            self.emit_string_literal(builder, ":memory:")?
+                        };
+                        let (dsn_ptr, dsn_len) = self.get_string_ptr_and_len(builder, dsn_val);
+                        let max_conns_val = if args.len() >= 2 {
+                            self.compile_expr(builder, &args[1], vars, defers, loop_ctx)?
+                        } else {
+                            builder.ins().iconst(types::I64, 5)
+                        };
+                        let local_fn = self.module.declare_func_in_func(self.db_open_id, builder.func);
+                        let call = builder.ins().call(local_fn, &[drv_ptr, drv_len, dsn_ptr, dsn_len, max_conns_val]);
+                        return Ok(builder.inst_results(call)[0]);
+                    }
+                }
+                if obj_name == "postgres" || obj_name == "pg" {
+                    if member == "open" || member == "connect" || member == "createPool" || member == "createClient" {
+                        let drv_val = self.emit_string_literal(builder, "postgres")?;
+                        let (drv_ptr, drv_len) = self.get_string_ptr_and_len(builder, drv_val);
+                        let dsn_val = if !args.is_empty() {
+                            self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?
+                        } else {
+                            self.emit_string_literal(builder, "postgres://postgres@127.0.0.1:5432/postgres")?
+                        };
+                        let (dsn_ptr, dsn_len) = self.get_string_ptr_and_len(builder, dsn_val);
+                        let max_conns_val = if args.len() >= 2 {
+                            self.compile_expr(builder, &args[1], vars, defers, loop_ctx)?
+                        } else {
+                            builder.ins().iconst(types::I64, 10)
+                        };
+                        let local_fn = self.module.declare_func_in_func(self.db_open_id, builder.func);
+                        let call = builder.ins().call(local_fn, &[drv_ptr, drv_len, dsn_ptr, dsn_len, max_conns_val]);
+                        return Ok(builder.inst_results(call)[0]);
+                    }
+                }
+                if obj_name == "mysql" || obj_name == "mariadb" {
+                    if member == "open" || member == "connect" || member == "createPool" || member == "createClient" {
+                        let drv_val = self.emit_string_literal(builder, "mysql")?;
+                        let (drv_ptr, drv_len) = self.get_string_ptr_and_len(builder, drv_val);
+                        let dsn_val = if !args.is_empty() {
+                            self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?
+                        } else {
+                            self.emit_string_literal(builder, "mysql://root@127.0.0.1:3306/")?
+                        };
+                        let (dsn_ptr, dsn_len) = self.get_string_ptr_and_len(builder, dsn_val);
+                        let max_conns_val = if args.len() >= 2 {
+                            self.compile_expr(builder, &args[1], vars, defers, loop_ctx)?
+                        } else {
+                            builder.ins().iconst(types::I64, 10)
+                        };
+                        let local_fn = self.module.declare_func_in_func(self.db_open_id, builder.func);
+                        let call = builder.ins().call(local_fn, &[drv_ptr, drv_len, dsn_ptr, dsn_len, max_conns_val]);
+                        return Ok(builder.inst_results(call)[0]);
+                    }
+                }
             }
 
             // Instance method calls: target.lock(), target.push(item), etc.
@@ -2021,6 +2187,120 @@ impl CraneliftBackend {
                         .declare_func_in_func(self.list_slice_id, builder.func);
                     let call = builder.ins().call(local_fn, &[target_val, s_val, e_val]);
                     return Ok(builder.inst_results(call)[0]);
+                }
+                "query" if !args.is_empty() => {
+                    let sql_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let (sql_ptr, sql_len) = self.get_string_ptr_and_len(builder, sql_val);
+                    let params_val = if args.len() >= 2 {
+                        self.compile_expr(builder, &args[1], vars, defers, loop_ctx)?
+                    } else {
+                        builder.ins().iconst(types::I64, 0)
+                    };
+                    let local_fn = self.module.declare_func_in_func(self.db_query_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, sql_ptr, sql_len, params_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "exec" | "execute" if !args.is_empty() => {
+                    let sql_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let (sql_ptr, sql_len) = self.get_string_ptr_and_len(builder, sql_val);
+                    let params_val = if args.len() >= 2 {
+                        self.compile_expr(builder, &args[1], vars, defers, loop_ctx)?
+                    } else {
+                        builder.ins().iconst(types::I64, 0)
+                    };
+                    let local_fn = self.module.declare_func_in_func(self.db_exec_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, sql_ptr, sql_len, params_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "begin" => {
+                    let local_fn = self.module.declare_func_in_func(self.db_begin_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "commit" => {
+                    let local_fn = self.module.declare_func_in_func(self.db_tx_commit_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "rollback" => {
+                    let local_fn = self.module.declare_func_in_func(self.db_tx_rollback_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "next" => {
+                    let local_fn = self.module.declare_func_in_func(self.db_rows_next_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "getInt" | "get_i64" => {
+                    let idx_val = if !args.is_empty() {
+                        self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?
+                    } else {
+                        builder.ins().iconst(types::I64, 0)
+                    };
+                    let local_fn = self.module.declare_func_in_func(self.db_rows_get_i64_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, idx_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "getString" | "get_str" => {
+                    let idx_val = if !args.is_empty() {
+                        self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?
+                    } else {
+                        builder.ins().iconst(types::I64, 0)
+                    };
+                    let local_fn = self.module.declare_func_in_func(self.db_rows_get_str_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, idx_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "getFloat" | "get_f64" => {
+                    let idx_val = if !args.is_empty() {
+                        self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?
+                    } else {
+                        builder.ins().iconst(types::I64, 0)
+                    };
+                    let local_fn = self.module.declare_func_in_func(self.db_rows_get_f64_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, idx_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "getBool" | "get_bool" => {
+                    let idx_val = if !args.is_empty() {
+                        self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?
+                    } else {
+                        builder.ins().iconst(types::I64, 0)
+                    };
+                    let local_fn = self.module.declare_func_in_func(self.db_rows_get_bool_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, idx_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "get" | "getVal" => {
+                    let idx_val = if !args.is_empty() {
+                        self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?
+                    } else {
+                        builder.ins().iconst(types::I64, 0)
+                    };
+                    let local_fn = self.module.declare_func_in_func(self.db_rows_get_val_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, idx_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "toRecord" => {
+                    let local_fn = self.module.declare_func_in_func(self.db_rows_to_record_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "toList" => {
+                    let local_fn = self.module.declare_func_in_func(self.db_rows_to_list_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "ping" => {
+                    let local_fn = self.module.declare_func_in_func(self.db_ping_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "close" | "end" => {
+                    let local_fn = self.module.declare_func_in_func(self.db_close_any_id, builder.func);
+                    builder.ins().call(local_fn, &[target_val]);
+                    return Ok(builder.ins().iconst(types::I64, 0));
                 }
                 _ => {}
             }

@@ -1,0 +1,14 @@
+// Aura Standard Library: database/sqlite
+// High-performance bundled embedded SQLite native database engine.
+
+import { DB, Rows, Tx, ExecResult } from "../sql/sql";
+
+/// Opens or creates an embedded SQLite database at the given path or in-memory (':memory:').
+export fn open(path: String = ":memory:", maxConns: Int = 5): DB => {
+    sqlite.open(path, maxConns)
+}
+
+/// Alias for open()
+export fn connect(path: String = ":memory:", maxConns: Int = 5): DB => {
+    sqlite.open(path, maxConns)
+}

@@ -1,0 +1,2 @@
+// Aura Standard Library: std/postgres (Top-level alias)
+export { open, connect } from "./database/postgres/postgres";

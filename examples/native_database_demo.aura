@@ -1,0 +1,90 @@
+// =============================================================================
+// Aura Language: Native Standalone Database Integration Demo
+// =============================================================================
+// This example demonstrates native standalone database operations in Aura
+// running directly on bare metal with zero external runtime dependencies.
+// Supported backends: SQLite (embedded), PostgreSQL (TCP), MySQL (TCP).
+// =============================================================================
+
+export fn main(): Unit => {
+    println("⚡ Aura Native Database Subsystem Demo");
+    println("----------------------------------------");
+
+    // 1. Open an Embedded Native SQLite Database Pool
+    println("1. Initializing in-memory SQLite database...");
+    let db: DB = sqlite.open(":memory:", 5);
+
+    // 2. Execute DDL: Create Tables
+    println("2. Creating database schema...");
+    let ddlUsers = "
+        CREATE TABLE users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            role TEXT DEFAULT 'developer',
+            balance REAL DEFAULT 1000.0,
+            active INTEGER DEFAULT 1
+        );
+    ";
+    let schemaRes = db.exec(ddlUsers, []);
+    println(`✓ Users table created (Rows affected: ${schemaRes.rowsAffected})`);
+
+    // 3. Parameterized INSERT Statements
+    println("3. Inserting records with parameterized query bindings...");
+    let insertSql = "INSERT INTO users (name, email, role, balance) VALUES (?, ?, ?, ?);";
+    
+    let res1 = db.exec(insertSql, ["Alice Vance", "alice@aura-lang.org", "tech_lead", 2500]);
+    println(`✓ Inserted Alice (ID: ${res1.lastInsertId})`);
+
+    let res2 = db.exec(insertSql, ["Bob Martinez", "bob@aura-lang.org", "systems_eng", 1850]);
+    println(`✓ Inserted Bob (ID: ${res2.lastInsertId})`);
+
+    let res3 = db.exec(insertSql, ["Charlie Chen", "charlie@aura-lang.org", "compiler_dev", 3200]);
+    println(`✓ Inserted Charlie (ID: ${res3.lastInsertId})`);
+
+    // 4. Querying and Scanning Rows
+    println("4. Querying active users (SELECT)...");
+    let rows: Rows = db.query("SELECT id, name, email, role, balance FROM users ORDER BY id ASC;", []);
+    
+    while (rows.next()) {
+        let id = rows.getInt(0);
+        let name = rows.getString(1);
+        let email = rows.getString(2);
+        let role = rows.getString(3);
+        let balance = rows.getString(4);
+        
+        println(`  [User #${id}] ${name} <${email}> | Role: ${role} | Balance: $${balance}`);
+    }
+    rows.close();
+
+    // 5. ACID Transaction Demo (Commit & Rollback)
+    println("5. Executing ACID Financial Transaction...");
+    let tx: Tx = db.begin();
+    
+    println("  -> Transferring $500 from Charlie to Bob inside transaction...");
+    tx.exec("UPDATE users SET balance = balance - 500 WHERE id = 3;", []);
+    tx.exec("UPDATE users SET balance = balance + 500 WHERE id = 2;", []);
+    
+    let commitStatus = tx.commit();
+    if (commitStatus == 0) {
+        println("✓ Transaction successfully committed!");
+    } else {
+        println("✕ Transaction failed!");
+    }
+
+    // Verify balances after transaction
+    let verifyRows: Rows = db.query("SELECT id, name, balance FROM users WHERE id IN (2, 3) ORDER BY id ASC;", []);
+    while (verifyRows.next()) {
+        let id = verifyRows.getInt(0);
+        let name = verifyRows.getString(1);
+        let balance = verifyRows.getString(2);
+        println(`  [Verified #${id}] ${name} updated balance: $${balance}`);
+    }
+    verifyRows.close();
+
+    // 6. Graceful Pool Cleanup
+    println("6. Closing database pool connections...");
+    db.close();
+    println("✓ Database pool shut down cleanly.");
+    println("⚡ All native database operations completed successfully!");
+}
