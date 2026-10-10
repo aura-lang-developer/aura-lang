@@ -123,6 +123,43 @@ pub struct CraneliftBackend {
     db_close_any_id: FuncId,
     db_ping_id: FuncId,
 
+    // Native Redis Subsystem
+    redis_open_id: FuncId,
+    redis_set_id: FuncId,
+    redis_get_id: FuncId,
+    redis_del_id: FuncId,
+    redis_exists_id: FuncId,
+    redis_incr_id: FuncId,
+    redis_decr_id: FuncId,
+    redis_hset_id: FuncId,
+    redis_hget_id: FuncId,
+    redis_hdel_id: FuncId,
+    redis_hgetall_id: FuncId,
+    redis_lpush_id: FuncId,
+    redis_rpop_id: FuncId,
+    redis_lrange_id: FuncId,
+    redis_ping_id: FuncId,
+    redis_ttl_id: FuncId,
+    redis_expire_id: FuncId,
+    redis_close_id: FuncId,
+
+    // Native MongoDB Subsystem
+    mongo_open_id: FuncId,
+    mongo_db_id: FuncId,
+    mongo_collection_id: FuncId,
+    mongo_insert_one_id: FuncId,
+    mongo_insert_many_id: FuncId,
+    mongo_find_one_id: FuncId,
+    mongo_find_id: FuncId,
+    mongo_update_one_id: FuncId,
+    mongo_update_many_id: FuncId,
+    mongo_delete_one_id: FuncId,
+    mongo_delete_many_id: FuncId,
+    mongo_count_id: FuncId,
+    mongo_aggregate_id: FuncId,
+    mongo_ping_id: FuncId,
+    mongo_close_id: FuncId,
+
     // Value Arithmetic & Comparison Helpers
     val_eq_id: FuncId,
     val_add_id: FuncId,
@@ -498,6 +535,43 @@ impl CraneliftBackend {
         let db_close_any_id = declare_import_fn(&mut module, "aura_db_close_any", 1, false);
         let db_ping_id = declare_import_fn(&mut module, "aura_db_ping", 1, true);
 
+        // Native Redis Functions
+        let redis_open_id = declare_import_fn(&mut module, "aura_redis_open", 2, true);
+        let redis_set_id = declare_import_fn(&mut module, "aura_redis_set", 6, true);
+        let redis_get_id = declare_import_fn(&mut module, "aura_redis_get", 3, true);
+        let redis_del_id = declare_import_fn(&mut module, "aura_redis_del", 3, true);
+        let redis_exists_id = declare_import_fn(&mut module, "aura_redis_exists", 3, true);
+        let redis_incr_id = declare_import_fn(&mut module, "aura_redis_incr", 4, true);
+        let redis_decr_id = declare_import_fn(&mut module, "aura_redis_decr", 4, true);
+        let redis_hset_id = declare_import_fn(&mut module, "aura_redis_hset", 7, true);
+        let redis_hget_id = declare_import_fn(&mut module, "aura_redis_hget", 5, true);
+        let redis_hdel_id = declare_import_fn(&mut module, "aura_redis_hdel", 5, true);
+        let redis_hgetall_id = declare_import_fn(&mut module, "aura_redis_hgetall", 3, true);
+        let redis_lpush_id = declare_import_fn(&mut module, "aura_redis_lpush", 5, true);
+        let redis_rpop_id = declare_import_fn(&mut module, "aura_redis_rpop", 3, true);
+        let redis_lrange_id = declare_import_fn(&mut module, "aura_redis_lrange", 5, true);
+        let redis_ping_id = declare_import_fn(&mut module, "aura_redis_ping", 1, true);
+        let redis_ttl_id = declare_import_fn(&mut module, "aura_redis_ttl", 3, true);
+        let redis_expire_id = declare_import_fn(&mut module, "aura_redis_expire", 4, true);
+        let redis_close_id = declare_import_fn(&mut module, "aura_redis_close", 1, false);
+
+        // Native MongoDB Functions
+        let mongo_open_id = declare_import_fn(&mut module, "aura_mongo_open", 2, true);
+        let mongo_db_id = declare_import_fn(&mut module, "aura_mongo_db", 3, true);
+        let mongo_collection_id = declare_import_fn(&mut module, "aura_mongo_collection", 3, true);
+        let mongo_insert_one_id = declare_import_fn(&mut module, "aura_mongo_insert_one", 2, true);
+        let mongo_insert_many_id = declare_import_fn(&mut module, "aura_mongo_insert_many", 2, true);
+        let mongo_find_one_id = declare_import_fn(&mut module, "aura_mongo_find_one", 2, true);
+        let mongo_find_id = declare_import_fn(&mut module, "aura_mongo_find", 2, true);
+        let mongo_update_one_id = declare_import_fn(&mut module, "aura_mongo_update_one", 3, true);
+        let mongo_update_many_id = declare_import_fn(&mut module, "aura_mongo_update_many", 3, true);
+        let mongo_delete_one_id = declare_import_fn(&mut module, "aura_mongo_delete_one", 2, true);
+        let mongo_delete_many_id = declare_import_fn(&mut module, "aura_mongo_delete_many", 2, true);
+        let mongo_count_id = declare_import_fn(&mut module, "aura_mongo_count", 2, true);
+        let mongo_aggregate_id = declare_import_fn(&mut module, "aura_mongo_aggregate", 2, true);
+        let mongo_ping_id = declare_import_fn(&mut module, "aura_mongo_ping", 1, true);
+        let mongo_close_id = declare_import_fn(&mut module, "aura_mongo_close", 1, false);
+
         // Value Arithmetic & Comparison Helpers
         let val_eq_id = declare_import_fn(&mut module, "aura_val_eq", 2, true);
         let val_add_id = declare_import_fn(&mut module, "aura_val_add", 2, true);
@@ -592,6 +666,39 @@ impl CraneliftBackend {
             db_exec_free_id,
             db_close_any_id,
             db_ping_id,
+            redis_open_id,
+            redis_set_id,
+            redis_get_id,
+            redis_del_id,
+            redis_exists_id,
+            redis_incr_id,
+            redis_decr_id,
+            redis_hset_id,
+            redis_hget_id,
+            redis_hdel_id,
+            redis_hgetall_id,
+            redis_lpush_id,
+            redis_rpop_id,
+            redis_lrange_id,
+            redis_ping_id,
+            redis_ttl_id,
+            redis_expire_id,
+            redis_close_id,
+            mongo_open_id,
+            mongo_db_id,
+            mongo_collection_id,
+            mongo_insert_one_id,
+            mongo_insert_many_id,
+            mongo_find_one_id,
+            mongo_find_id,
+            mongo_update_one_id,
+            mongo_update_many_id,
+            mongo_delete_one_id,
+            mongo_delete_many_id,
+            mongo_count_id,
+            mongo_aggregate_id,
+            mongo_ping_id,
+            mongo_close_id,
             val_eq_id,
             val_add_id,
             val_sub_id,
@@ -1998,6 +2105,32 @@ impl CraneliftBackend {
                         return Ok(builder.inst_results(call)[0]);
                     }
                 }
+                if obj_name == "redis" {
+                    if member == "open" || member == "connect" || member == "createClient" {
+                        let dsn_val = if !args.is_empty() {
+                            self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?
+                        } else {
+                            self.emit_string_literal(builder, ":memory:")?
+                        };
+                        let (dsn_ptr, dsn_len) = self.get_string_ptr_and_len(builder, dsn_val);
+                        let local_fn = self.module.declare_func_in_func(self.redis_open_id, builder.func);
+                        let call = builder.ins().call(local_fn, &[dsn_ptr, dsn_len]);
+                        return Ok(builder.inst_results(call)[0]);
+                    }
+                }
+                if obj_name == "mongo" || obj_name == "mongodb" {
+                    if member == "open" || member == "connect" || member == "createClient" {
+                        let dsn_val = if !args.is_empty() {
+                            self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?
+                        } else {
+                            self.emit_string_literal(builder, ":memory:")?
+                        };
+                        let (dsn_ptr, dsn_len) = self.get_string_ptr_and_len(builder, dsn_val);
+                        let local_fn = self.module.declare_func_in_func(self.mongo_open_id, builder.func);
+                        let call = builder.ins().call(local_fn, &[dsn_ptr, dsn_len]);
+                        return Ok(builder.inst_results(call)[0]);
+                    }
+                }
             }
 
             // Instance method calls: target.lock(), target.push(item), etc.
@@ -2273,6 +2406,20 @@ impl CraneliftBackend {
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "get" | "getVal" => {
+                    if !args.is_empty() {
+                        let is_string_arg = matches!(
+                            &args[0],
+                            Expr::Literal(Literal::String(_))
+                                | Expr::Literal(Literal::TemplateString(_))
+                        );
+                        if is_string_arg {
+                            let key_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                            let (key_ptr, key_len) = self.get_string_ptr_and_len(builder, key_val);
+                            let local_fn = self.module.declare_func_in_func(self.redis_get_id, builder.func);
+                            let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len]);
+                            return Ok(builder.inst_results(call)[0]);
+                        }
+                    }
                     let idx_val = if !args.is_empty() {
                         self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?
                     } else {
@@ -2280,6 +2427,231 @@ impl CraneliftBackend {
                     };
                     let local_fn = self.module.declare_func_in_func(self.db_rows_get_val_id, builder.func);
                     let call = builder.ins().call(local_fn, &[target_val, idx_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "set" if !args.is_empty() => {
+                    let key_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let (key_ptr, key_len) = self.get_string_ptr_and_len(builder, key_val);
+                    let val_val = if args.len() >= 2 {
+                        self.compile_expr(builder, &args[1], vars, defers, loop_ctx)?
+                    } else {
+                        self.emit_string_literal(builder, "")?
+                    };
+                    let (val_ptr, val_len) = self.get_string_ptr_and_len(builder, val_val);
+                    let ttl_val = if args.len() >= 3 {
+                        self.compile_expr(builder, &args[2], vars, defers, loop_ctx)?
+                    } else {
+                        builder.ins().iconst(types::I64, 0)
+                    };
+                    let local_fn = self.module.declare_func_in_func(self.redis_set_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len, val_ptr, val_len, ttl_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "getStr" if !args.is_empty() => {
+                    let key_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let (key_ptr, key_len) = self.get_string_ptr_and_len(builder, key_val);
+                    let local_fn = self.module.declare_func_in_func(self.redis_get_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "del" | "delete" if !args.is_empty() => {
+                    let key_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let (key_ptr, key_len) = self.get_string_ptr_and_len(builder, key_val);
+                    let local_fn = self.module.declare_func_in_func(self.redis_del_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "exists" if !args.is_empty() => {
+                    let key_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let (key_ptr, key_len) = self.get_string_ptr_and_len(builder, key_val);
+                    let local_fn = self.module.declare_func_in_func(self.redis_exists_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "incr" | "increment" if !args.is_empty() => {
+                    let key_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let (key_ptr, key_len) = self.get_string_ptr_and_len(builder, key_val);
+                    let delta_val = if args.len() >= 2 {
+                        self.compile_expr(builder, &args[1], vars, defers, loop_ctx)?
+                    } else {
+                        builder.ins().iconst(types::I64, 1)
+                    };
+                    let local_fn = self.module.declare_func_in_func(self.redis_incr_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len, delta_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "decr" | "decrement" if !args.is_empty() => {
+                    let key_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let (key_ptr, key_len) = self.get_string_ptr_and_len(builder, key_val);
+                    let delta_val = if args.len() >= 2 {
+                        self.compile_expr(builder, &args[1], vars, defers, loop_ctx)?
+                    } else {
+                        builder.ins().iconst(types::I64, 1)
+                    };
+                    let local_fn = self.module.declare_func_in_func(self.redis_decr_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len, delta_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "hset" if args.len() >= 3 => {
+                    let key_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let (key_ptr, key_len) = self.get_string_ptr_and_len(builder, key_val);
+                    let field_val = self.compile_expr(builder, &args[1], vars, defers, loop_ctx)?;
+                    let (field_ptr, field_len) = self.get_string_ptr_and_len(builder, field_val);
+                    let val_val = self.compile_expr(builder, &args[2], vars, defers, loop_ctx)?;
+                    let (val_ptr, val_len) = self.get_string_ptr_and_len(builder, val_val);
+                    let local_fn = self.module.declare_func_in_func(self.redis_hset_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len, field_ptr, field_len, val_ptr, val_len]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "hget" if args.len() >= 2 => {
+                    let key_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let (key_ptr, key_len) = self.get_string_ptr_and_len(builder, key_val);
+                    let field_val = self.compile_expr(builder, &args[1], vars, defers, loop_ctx)?;
+                    let (field_ptr, field_len) = self.get_string_ptr_and_len(builder, field_val);
+                    let local_fn = self.module.declare_func_in_func(self.redis_hget_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len, field_ptr, field_len]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "hdel" if args.len() >= 2 => {
+                    let key_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let (key_ptr, key_len) = self.get_string_ptr_and_len(builder, key_val);
+                    let field_val = self.compile_expr(builder, &args[1], vars, defers, loop_ctx)?;
+                    let (field_ptr, field_len) = self.get_string_ptr_and_len(builder, field_val);
+                    let local_fn = self.module.declare_func_in_func(self.redis_hdel_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len, field_ptr, field_len]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "hgetall" if !args.is_empty() => {
+                    let key_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let (key_ptr, key_len) = self.get_string_ptr_and_len(builder, key_val);
+                    let local_fn = self.module.declare_func_in_func(self.redis_hgetall_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "lpush" if args.len() >= 2 => {
+                    let key_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let (key_ptr, key_len) = self.get_string_ptr_and_len(builder, key_val);
+                    let val_val = self.compile_expr(builder, &args[1], vars, defers, loop_ctx)?;
+                    let (val_ptr, val_len) = self.get_string_ptr_and_len(builder, val_val);
+                    let local_fn = self.module.declare_func_in_func(self.redis_lpush_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len, val_ptr, val_len]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "rpop" if !args.is_empty() => {
+                    let key_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let (key_ptr, key_len) = self.get_string_ptr_and_len(builder, key_val);
+                    let local_fn = self.module.declare_func_in_func(self.redis_rpop_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "lrange" if args.len() >= 3 => {
+                    let key_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let (key_ptr, key_len) = self.get_string_ptr_and_len(builder, key_val);
+                    let start_val = self.compile_expr(builder, &args[1], vars, defers, loop_ctx)?;
+                    let stop_val = self.compile_expr(builder, &args[2], vars, defers, loop_ctx)?;
+                    let local_fn = self.module.declare_func_in_func(self.redis_lrange_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len, start_val, stop_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "ttl" if !args.is_empty() => {
+                    let key_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let (key_ptr, key_len) = self.get_string_ptr_and_len(builder, key_val);
+                    let local_fn = self.module.declare_func_in_func(self.redis_ttl_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "expire" if args.len() >= 2 => {
+                    let key_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let (key_ptr, key_len) = self.get_string_ptr_and_len(builder, key_val);
+                    let secs_val = self.compile_expr(builder, &args[1], vars, defers, loop_ctx)?;
+                    let local_fn = self.module.declare_func_in_func(self.redis_expire_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len, secs_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+
+                // Mongo Methods
+                "db" | "database" if !args.is_empty() => {
+                    let name_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let (name_ptr, name_len) = self.get_string_ptr_and_len(builder, name_val);
+                    let local_fn = self.module.declare_func_in_func(self.mongo_db_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, name_ptr, name_len]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "collection" | "col" if !args.is_empty() => {
+                    let name_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let (name_ptr, name_len) = self.get_string_ptr_and_len(builder, name_val);
+                    let local_fn = self.module.declare_func_in_func(self.mongo_collection_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, name_ptr, name_len]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "insertOne" | "insert" if !args.is_empty() => {
+                    let doc_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let local_fn = self.module.declare_func_in_func(self.mongo_insert_one_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, doc_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "insertMany" if !args.is_empty() => {
+                    let docs_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let local_fn = self.module.declare_func_in_func(self.mongo_insert_many_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, docs_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "findOne" if !args.is_empty() => {
+                    let filter_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let local_fn = self.module.declare_func_in_func(self.mongo_find_one_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, filter_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "find" => {
+                    let filter_val = if !args.is_empty() {
+                        self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?
+                    } else {
+                        builder.ins().iconst(types::I64, 0)
+                    };
+                    let local_fn = self.module.declare_func_in_func(self.mongo_find_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, filter_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "updateOne" if args.len() >= 2 => {
+                    let filter_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let update_val = self.compile_expr(builder, &args[1], vars, defers, loop_ctx)?;
+                    let local_fn = self.module.declare_func_in_func(self.mongo_update_one_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, filter_val, update_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "updateMany" if args.len() >= 2 => {
+                    let filter_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let update_val = self.compile_expr(builder, &args[1], vars, defers, loop_ctx)?;
+                    let local_fn = self.module.declare_func_in_func(self.mongo_update_many_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, filter_val, update_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "deleteOne" | "remove" if !args.is_empty() => {
+                    let filter_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let local_fn = self.module.declare_func_in_func(self.mongo_delete_one_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, filter_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "deleteMany" | "removeMany" if !args.is_empty() => {
+                    let filter_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let local_fn = self.module.declare_func_in_func(self.mongo_delete_many_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, filter_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "count" | "countDocuments" => {
+                    let filter_val = if !args.is_empty() {
+                        self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?
+                    } else {
+                        builder.ins().iconst(types::I64, 0)
+                    };
+                    let local_fn = self.module.declare_func_in_func(self.mongo_count_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, filter_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
+                "aggregate" if !args.is_empty() => {
+                    let pipe_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let local_fn = self.module.declare_func_in_func(self.mongo_aggregate_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val, pipe_val]);
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "toRecord" => {

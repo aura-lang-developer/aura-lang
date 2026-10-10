@@ -873,14 +873,28 @@ pub extern "C" fn aura_db_close_any(ptr: *mut ()) {
         Some(crate::gc::TYPE_DB_POOL) => {
             aura_db_pool_close(ptr as *mut AuraDbPool);
         }
+        Some(crate::gc::TYPE_REDIS_CLIENT) => {
+            crate::redis_client::aura_redis_close(ptr as *mut crate::redis_client::AuraRedisClient);
+        }
+        Some(crate::gc::TYPE_MONGO_CLIENT) => {
+            crate::mongo_client::aura_mongo_close(ptr as *mut crate::mongo_client::AuraMongoClient);
+        }
         _ => {}
     }
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn aura_db_ping(pool: *mut AuraDbPool) -> i32 {
+pub extern "C" fn aura_db_ping(pool: *mut AuraDbPool) -> i64 {
     if pool.is_null() {
         return -1;
+    }
+    let type_id = crate::gc::lookup_valid_ptr(pool as usize);
+    if type_id == Some(crate::gc::TYPE_REDIS_CLIENT) {
+        let pong = crate::redis_client::aura_redis_ping(pool as *mut crate::redis_client::AuraRedisClient);
+        return pong as i64;
+    }
+    if type_id == Some(crate::gc::TYPE_MONGO_CLIENT) {
+        return crate::mongo_client::aura_mongo_ping(pool as *mut crate::mongo_client::AuraMongoClient) as i64;
     }
     unsafe {
         let pool_arc = Arc::from_raw(pool);
@@ -896,3 +910,4 @@ pub extern "C" fn aura_db_ping(pool: *mut AuraDbPool) -> i32 {
         }
     }
 }
+

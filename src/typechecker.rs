@@ -3001,6 +3001,19 @@ impl TypeEnv {
                 params: vec![ConcreteType::Any],
                 return_type: Box::new(ConcreteType::Task(
                     Box::new(ConcreteType::Result(
+                        Box::new(mongo_insert_result_type.clone()),
+                        Box::new(ConcreteType::String),
+                    )),
+                    Box::new(ConcreteType::Any),
+                )),
+            },
+        );
+        mongo_collection_methods.insert(
+            "insert".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Any],
+                return_type: Box::new(ConcreteType::Task(
+                    Box::new(ConcreteType::Result(
                         Box::new(mongo_insert_result_type),
                         Box::new(ConcreteType::String),
                     )),
@@ -3076,7 +3089,20 @@ impl TypeEnv {
         mongo_collection_methods.insert(
             "countDocuments".to_string(),
             ConcreteType::Function {
-                params: vec![],
+                params: vec![ConcreteType::Any],
+                return_type: Box::new(ConcreteType::Task(
+                    Box::new(ConcreteType::Result(
+                        Box::new(ConcreteType::Int),
+                        Box::new(ConcreteType::String),
+                    )),
+                    Box::new(ConcreteType::Any),
+                )),
+            },
+        );
+        mongo_collection_methods.insert(
+            "count".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Any],
                 return_type: Box::new(ConcreteType::Task(
                     Box::new(ConcreteType::Result(
                         Box::new(ConcreteType::Int),
@@ -3128,26 +3154,14 @@ impl TypeEnv {
             "listCollections".to_string(),
             ConcreteType::Function {
                 params: vec![],
-                return_type: Box::new(ConcreteType::Task(
-                    Box::new(ConcreteType::Result(
-                        Box::new(ConcreteType::List(Box::new(ConcreteType::Any))),
-                        Box::new(ConcreteType::String),
-                    )),
-                    Box::new(ConcreteType::Any),
-                )),
+                return_type: Box::new(ConcreteType::List(Box::new(ConcreteType::String))),
             },
         );
         mongo_db_methods.insert(
             "dropDatabase".to_string(),
             ConcreteType::Function {
                 params: vec![],
-                return_type: Box::new(ConcreteType::Task(
-                    Box::new(ConcreteType::Result(
-                        Box::new(ConcreteType::Bool),
-                        Box::new(ConcreteType::String),
-                    )),
-                    Box::new(ConcreteType::Any),
-                )),
+                return_type: Box::new(ConcreteType::Bool),
             },
         );
         let mongo_db_type = ConcreteType::Record(mongo_db_methods);
@@ -3158,7 +3172,7 @@ impl TypeEnv {
         mongo_client_methods.insert(
             "db".to_string(),
             ConcreteType::Function {
-                params: vec![],
+                params: vec![ConcreteType::String],
                 return_type: Box::new(mongo_db_type.clone()),
             },
         );
@@ -3173,26 +3187,14 @@ impl TypeEnv {
             "ping".to_string(),
             ConcreteType::Function {
                 params: vec![],
-                return_type: Box::new(ConcreteType::Task(
-                    Box::new(ConcreteType::Result(
-                        Box::new(ConcreteType::Bool),
-                        Box::new(ConcreteType::String),
-                    )),
-                    Box::new(ConcreteType::Any),
-                )),
+                return_type: Box::new(ConcreteType::Int),
             },
         );
         mongo_client_methods.insert(
             "close".to_string(),
             ConcreteType::Function {
                 params: vec![],
-                return_type: Box::new(ConcreteType::Task(
-                    Box::new(ConcreteType::Result(
-                        Box::new(ConcreteType::Unit),
-                        Box::new(ConcreteType::String),
-                    )),
-                    Box::new(ConcreteType::Any),
-                )),
+                return_type: Box::new(ConcreteType::Unit),
             },
         );
         let mongo_client_type = ConcreteType::Record(mongo_client_methods);
@@ -3260,6 +3262,19 @@ impl TypeEnv {
                 return_type: Box::new(ConcreteType::Task(
                     Box::new(ConcreteType::Result(
                         Box::new(ConcreteType::Option(Box::new(ConcreteType::String))),
+                        Box::new(ConcreteType::String),
+                    )),
+                    Box::new(ConcreteType::Any),
+                )),
+            },
+        );
+        redis_client_methods.insert(
+            "getStr".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String],
+                return_type: Box::new(ConcreteType::Task(
+                    Box::new(ConcreteType::Result(
+                        Box::new(ConcreteType::String),
                         Box::new(ConcreteType::String),
                     )),
                     Box::new(ConcreteType::Any),
@@ -3420,6 +3435,75 @@ impl TypeEnv {
                 return_type: Box::new(ConcreteType::Task(
                     Box::new(ConcreteType::Result(
                         Box::new(ConcreteType::Int),
+                        Box::new(ConcreteType::String),
+                    )),
+                    Box::new(ConcreteType::Any),
+                )),
+            },
+        );
+        redis_client_methods.insert(
+            "lpush".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::Any],
+                return_type: Box::new(ConcreteType::Task(
+                    Box::new(ConcreteType::Result(
+                        Box::new(ConcreteType::Int),
+                        Box::new(ConcreteType::String),
+                    )),
+                    Box::new(ConcreteType::Any),
+                )),
+            },
+        );
+        redis_client_methods.insert(
+            "push".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::Any],
+                return_type: Box::new(ConcreteType::Task(
+                    Box::new(ConcreteType::Result(
+                        Box::new(ConcreteType::Int),
+                        Box::new(ConcreteType::String),
+                    )),
+                    Box::new(ConcreteType::Any),
+                )),
+            },
+        );
+        redis_client_methods.insert(
+            "rpop".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String],
+                return_type: Box::new(ConcreteType::Task(
+                    Box::new(ConcreteType::Result(
+                        Box::new(ConcreteType::String),
+                        Box::new(ConcreteType::String),
+                    )),
+                    Box::new(ConcreteType::Any),
+                )),
+            },
+        );
+        redis_client_methods.insert(
+            "pop".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String],
+                return_type: Box::new(ConcreteType::Task(
+                    Box::new(ConcreteType::Result(
+                        Box::new(ConcreteType::String),
+                        Box::new(ConcreteType::String),
+                    )),
+                    Box::new(ConcreteType::Any),
+                )),
+            },
+        );
+        redis_client_methods.insert(
+            "lrange".to_string(),
+            ConcreteType::Function {
+                params: vec![
+                    ConcreteType::String,
+                    ConcreteType::Int,
+                    ConcreteType::Int,
+                ],
+                return_type: Box::new(ConcreteType::Task(
+                    Box::new(ConcreteType::Result(
+                        Box::new(ConcreteType::List(Box::new(ConcreteType::String))),
                         Box::new(ConcreteType::String),
                     )),
                     Box::new(ConcreteType::Any),
@@ -5066,6 +5150,26 @@ impl TypeChecker {
                         }),
                         _ => Ok(ConcreteType::Any),
                     },
+                    ConcreteType::Task(ref inner, _) => {
+                        let mut sub_ty = &**inner;
+                        if let ConcreteType::Result(ok, _) = sub_ty {
+                            sub_ty = ok;
+                        }
+                        if let ConcreteType::Record(fields) = sub_ty {
+                            if let Some(field_ty) = fields.get(member) {
+                                return Ok(field_ty.clone());
+                            }
+                        }
+                        Ok(ConcreteType::Any)
+                    }
+                    ConcreteType::Result(ref ok, _) => {
+                        if let ConcreteType::Record(fields) = &**ok {
+                            if let Some(field_ty) = fields.get(member) {
+                                return Ok(field_ty.clone());
+                            }
+                        }
+                        Ok(ConcreteType::Any)
+                    }
                     ConcreteType::Any => Ok(ConcreteType::Any),
                     other => Err(format!("Cannot access property on type {}", other)),
                 }
@@ -5304,7 +5408,7 @@ impl TypeChecker {
                 match task_ty {
                     ConcreteType::Task(ok, _) => Ok(*ok),
                     ConcreteType::Any => Ok(ConcreteType::Any),
-                    other => Err(format!("Cannot await non-task type {}", other)),
+                    other => Ok(other),
                 }
             }
             Expr::ConstructorCall { name, args } => {

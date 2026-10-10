@@ -1,0 +1,17 @@
+// Aura Standard Library: database/redis
+// High-performance pure-native Redis client & RESP wire protocol driver with standalone embedded cache fallback.
+
+/// Connects to a Redis instance or initializes embedded in-memory Redis KV/hash/list engine.
+export fn open(dsn: String = ":memory:"): RedisClient => {
+    redis.open(dsn)
+}
+
+/// Alias for open()
+export fn createClient(dsn: String = ":memory:"): RedisClient => {
+    redis.open(dsn)
+}
+
+/// Alias for open()
+export fn connect(dsn: String = ":memory:"): RedisClient => {
+    redis.open(dsn)
+}

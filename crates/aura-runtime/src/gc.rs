@@ -24,6 +24,10 @@ pub const TYPE_DB_POOL: u32 = 7;
 pub const TYPE_DB_ROWS: u32 = 8;
 pub const TYPE_DB_TX: u32 = 9;
 pub const TYPE_DB_EXEC_RESULT: u32 = 10;
+pub const TYPE_REDIS_CLIENT: u32 = 11;
+pub const TYPE_MONGO_CLIENT: u32 = 12;
+pub const TYPE_MONGO_DATABASE: u32 = 13;
+pub const TYPE_MONGO_COLLECTION: u32 = 14;
 
 use rustc_hash::FxHashMap;
 use std::sync::{LazyLock, RwLock};

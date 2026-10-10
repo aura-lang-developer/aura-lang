@@ -1,0 +1,2 @@
+// Aura Standard Library: redis
+export { open, createClient, connect } from "./database/redis/redis";

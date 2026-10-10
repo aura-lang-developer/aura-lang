@@ -1347,6 +1347,7 @@ Aura includes a comprehensive set of real-world, standalone database examples in
 | [`examples/db_postgres_microservice.aura`](examples/db_postgres_microservice.aura) | **PostgreSQL** (Wire 3.0) | Pure-Rust TCP client, `$1, $2` parameterized extended query syntax, and order processing workflows | `aurac check examples/db_postgres_microservice.aura` |
 | [`examples/db_mysql_inventory.aura`](examples/db_mysql_inventory.aura) | **MySQL** (Protocol 10) | Pure-Rust TCP client, `?` placeholder bindings, `lastInsertId` & `rowsAffected` metrics, and batch inventory tracking | `aurac check examples/db_mysql_inventory.aura` |
 | [`examples/native_database_demo.aura`](examples/native_database_demo.aura) | **All-in-One Demo** | Complete standalone showcase: in-memory SQLite, schema setup, parameterized inserts, cursor reads, and ACID transactions | `aurac build examples/native_database_demo.aura -o dist/native_db_demo --standalone && ./dist/native_db_demo` |
+| [`examples/native_nosql_demo.aura`](examples/native_nosql_demo.aura) | **NoSQL Suite** (Redis & Mongo) | Standalone native NoSQL engine: Redis KV, Hashes, FIFO Queues, Counters + MongoDB Document CRUD, filtering, and Aggregation pipelines | `aurac build examples/native_nosql_demo.aura -o dist/nosql_demo --standalone && ./dist/nosql_demo` |
 
 #### Compiling and Running the Native Examples
 All examples compile directly into self-contained native machine code binaries (Mach-O on macOS, ELF on Linux) with zero external dynamic dependencies:
@@ -1363,44 +1364,117 @@ aurac build examples/db_transactions_bank.aura -o dist/db_transactions_bank --st
 # 3. Compile and run Generic SQL Connection Pool
 aurac build examples/db_generic_sql_pool.aura -o dist/db_generic_sql_pool --standalone
 ./dist/db_generic_sql_pool
+
+# 4. Compile and run Native NoSQL (Redis & MongoDB) Showcase
+aurac build examples/native_nosql_demo.aura -o dist/nosql_demo --standalone
+./dist/nosql_demo
 ```
 
 ---
 
-### 🍃 Native MongoDB Driver (`mongodb` / `mongo`)
+### ⚡ Native Redis Driver & In-Memory Cache (`redis` / `std/redis`)
+
+Aura provides a native, zero-dependency Redis client implementing the **RESP wire protocol** over TCP with automatic embedded in-memory fallback (`:memory:`) for standalone binaries:
+
+- **Key-Value Operations**: `set(key, val, ttlSec?)`, `get(key)`, `del(key)`, `exists(key)`.
+- **Atomic Counters**: `incr(key)`, `decr(key)`.
+- **Structured Hash Maps**: `hset(hash, field, val)`, `hget(hash, field)`, `hdel(hash, field)`, `hgetall(hash)`.
+- **FIFO Queues & Lists**: `lpush(list, val)`, `rpop(list)`, `lrange(list, start, stop)`.
+- **TTL & Expirations**: `expire(key, seconds)`, `ttl(key)`.
+- **Health Checks & Lifecycle**: `ping()`, `close()`.
 
 ```aura
-let client: MongoClient = mongodb.open("mongodb://127.0.0.1:27017/catalog");
-let items: MongoCollection = client.db().collection("items");
+import { open, RedisClient } from "std/database/redis";
 
-async fn queryCatalog(): Task<(), String> {
-    let doc = await items.findOne({ sku: "AURA-CORE" });
-    match doc {
-        Ok(Some(item)) => println(`Found: ${item.name}, Stock: ${item.stock}`),
-        Ok(None) => println("Item does not exist."),
-        Err(err) => println(`Mongo Error: ${err}`)
-    }
-}
+// Connect to remote Redis or use standalone embedded in-memory cache
+let r: RedisClient = redis.open(":memory:");
+defer r.close();
+
+// Ping
+let pong = r.ping(); // "PONG"
+println(`Redis Status: ${pong}`);
+
+// Key-Value with optional TTL (seconds)
+r.set("user:101:session", "token_abc123", 3600);
+let token = r.get("user:101:session");
+println(`Active Session: ${token}`);
+
+// Atomic counters
+let visitors = r.incr("page:home:hits");
+println(`Page hits: ${visitors}`);
+
+// Hash map storage
+r.hset("user:101:profile", "username", "alice");
+r.hset("user:101:profile", "role", "admin");
+let role = r.hget("user:101:profile", "role");
+println(`User role: ${role}`);
+
+// FIFO Queue / List
+r.lpush("jobs:queue", "email_welcome_user_101");
+r.lpush("jobs:queue", "generate_pdf_invoice_992");
+let nextJob = r.rpop("jobs:queue");
+println(`Processed Job: ${nextJob}`);
 ```
 
 ---
 
-### ⚡ Native Redis Client (`redis`)
+### 🍃 Native MongoDB Driver & Document Store (`mongodb` / `mongo` / `std/mongodb`)
+
+Aura includes a pure-Rust native MongoDB document engine supporting structured JSON/BSON document collections, rich filter operators, atomic field updates, and aggregation pipelines:
+
+- **Document Insertions**: `insertOne(doc)`, `insertMany(docs)`.
+- **Queries & Comparison Operators**: `findOne(filter)`, `find(filter)`, `$gt`, `$gte`, `$lt`, `$lte`, `$ne`, `$in`.
+- **Updates & Modifiers**: `updateOne(filter, update)`, `updateMany(filter, update)`, `$set`, `$inc`, `$unset`.
+- **Deletions & Counting**: `deleteOne(filter)`, `deleteMany(filter)`, `count(filter)`.
+- **Aggregation Pipelines**: `aggregate(pipeline)` supporting `$match`, `$group`, `$sum`, and `$avg`.
+- **Connection Lifecycle**: `open(uri)`, `db(name?)`, `collection(name)`, `ping()`, `close()`.
 
 ```aura
-let cache: RedisClient = redis.open("redis://127.0.0.1:6379");
+import { open, MongoClient, MongoDatabase, MongoCollection } from "std/database/mongodb";
 
-async fn manageSession(userId: String, token: String): Task<Bool, String> {
-    // Save session token with 3600-second TTL
-    await cache.set(`session:${userId}`, token, 3600);
+// Connect to MongoDB or run embedded standalone store
+let client: MongoClient = mongodb.open(":memory:");
+defer client.close();
 
-    // Hash store
-    await cache.hset(`profile:${userId}`, "role", "admin");
+let db: MongoDatabase = client.db("catalog");
+let products: MongoCollection = db.collection("products");
 
-    let role = await cache.hget(`profile:${userId}`, "role");
-    println(`Cached role: ${role}`);
-    true
-}
+// Insert Documents
+let insertResult = products.insertOne({
+    sku: "LAPTOP-M3",
+    name: "MacBook Pro 16",
+    category: "Computers",
+    price: 2499,
+    stock: 15,
+    status: "in_stock"
+});
+println(`Inserted ID: ${insertResult.insertedId}`);
+
+// Find Document with Filter
+let found = products.findOne({ sku: "LAPTOP-M3" });
+println(`Found product: ${found}`);
+
+// Atomic Field Update ($set and $inc)
+products.updateOne(
+    { sku: "LAPTOP-M3" },
+    { $set: { status: "discounted" }, $inc: { stock: -1 } }
+);
+
+// Query with Range Filters ($gt, $lt, $in)
+let expensive = products.find({ price: { $gt: 1000 } });
+println(`Expensive products: ${expensive}`);
+
+// Document Count
+let totalCount = products.count({});
+println(`Total items in catalog: ${totalCount}`);
+
+// Aggregation Pipeline ($match + $group)
+let pipeline = [
+    { $match: { category: "Computers" } },
+    { $group: { _id: "$category", totalValue: { $sum: "$price" }, avgPrice: { $avg: "$price" } } }
+];
+let stats = products.aggregate(pipeline);
+println(`Category Stats: ${stats}`);
 ```
 
 ---

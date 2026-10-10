@@ -1346,6 +1346,7 @@ Aura incluye un catálogo completo de ejemplos de bases de datos autónomos en e
 | [`examples/db_postgres_microservice.aura`](examples/db_postgres_microservice.aura) | **PostgreSQL** (Wire 3.0) | Cliente TCP pure-Rust, sintaxis de parámetros extendidos `$1, $2`, y flujo de procesamiento de pedidos | `aurac check examples/db_postgres_microservice.aura` |
 | [`examples/db_mysql_inventory.aura`](examples/db_mysql_inventory.aura) | **MySQL** (Protocol 10) | Cliente TCP pure-Rust, binding de marcadores `?`, métricas `lastInsertId` y `rowsAffected`, y control de inventario | `aurac check examples/db_mysql_inventory.aura` |
 | [`examples/native_database_demo.aura`](examples/native_database_demo.aura) | **Demo Integral** | Showcase integral autónomo: SQLite en memoria, inicialización de esquemas, inserciones parametrizadas, lectura con cursor y transacciones ACID | `aurac build examples/native_database_demo.aura -o dist/native_db_demo --standalone && ./dist/native_db_demo` |
+| [`examples/native_nosql_demo.aura`](examples/native_nosql_demo.aura) | **Suite NoSQL** (Redis y Mongo) | Motor NoSQL autónomo nativo: Clave-Valor en Redis, Hashes, Colas FIFO, Contadores + CRUD Documental en MongoDB, filtros y pipelines de Agregación | `aurac build examples/native_nosql_demo.aura -o dist/nosql_demo --standalone && ./dist/nosql_demo` |
 
 #### Compilación y Ejecución de los Ejemplos Nativos
 Todos los ejemplos se compilan directamente a binarios ejecutables nativos en código máquina (Mach-O en macOS, ELF en Linux) con cero dependencias dinámicas externas:
@@ -1362,44 +1363,117 @@ aurac build examples/db_transactions_bank.aura -o dist/db_transactions_bank --st
 # 3. Compilar y ejecutar Pool de Conexiones SQL Genérico
 aurac build examples/db_generic_sql_pool.aura -o dist/db_generic_sql_pool --standalone
 ./dist/db_generic_sql_pool
+
+# 4. Compilar y ejecutar Showcase NoSQL Nativo (Redis y MongoDB)
+aurac build examples/native_nosql_demo.aura -o dist/nosql_demo --standalone
+./dist/nosql_demo
 ```
 
 ---
 
-### 🍃 Controlador Nativo de MongoDB (`mongodb` / `mongo`)
+### ⚡ Cliente y Cache Nativo de Redis (`redis` / `std/redis`)
+
+Aura provee un cliente nativo de Redis sin dependencias externas implementando el **protocolo wire RESP** sobre TCP con motor de fallback embebido en memoria (`:memory:`) para binarios 100% autónomos:
+
+- **Operaciones Clave-Valor**: `set(key, val, ttlSeg?)`, `get(key)`, `del(key)`, `exists(key)`.
+- **Contadores Atómicos**: `incr(key)`, `decr(key)`.
+- **Hashes Estructurados**: `hset(hash, campo, val)`, `hget(hash, campo)`, `hdel(hash, campo)`, `hgetall(hash)`.
+- **Colas FIFO y Listas**: `lpush(lista, val)`, `rpop(lista)`, `lrange(lista, inicio, fin)`.
+- **TTL y Expiraciones**: `expire(key, segundos)`, `ttl(key)`.
+- **Health Checks y Ciclo de Vida**: `ping()`, `close()`.
 
 ```aura
-let client: MongoClient = mongodb.open("mongodb://127.0.0.1:27017/catalogo");
-let articulos: MongoCollection = client.db().collection("articulos");
+import { open, RedisClient } from "std/database/redis";
 
-async fn consultarCatalogo(): Task<(), String> {
-    let doc = await articulos.findOne({ sku: "AURA-CORE" });
-    match doc {
-        Ok(Some(item)) => println(`Encontrado: ${item.nombre}, Stock: ${item.stock}`),
-        Ok(None) => println("Artículo no existente."),
-        Err(err) => println(`Error Mongo: ${err}`)
-    }
-}
+// Conectar a Redis remoto o usar almacenamiento embebido en memoria autónomo
+let r: RedisClient = redis.open(":memory:");
+defer r.close();
+
+// Ping
+let pong = r.ping(); // "PONG"
+println(`Estado Redis: ${pong}`);
+
+// Clave-Valor con TTL opcional (segundos)
+r.set("user:101:sesion", "token_abc123", 3600);
+let token = r.get("user:101:sesion");
+println(`Sesión Activa: ${token}`);
+
+// Contadores atómicos
+let visitas = r.incr("pagina:inicio:visitas");
+println(`Visitas de la página: ${visitas}`);
+
+// Almacenamiento en tabla hash
+r.hset("user:101:perfil", "username", "alice");
+r.hset("user:101:perfil", "rol", "admin");
+let rol = r.hget("user:101:perfil", "rol");
+println(`Rol de usuario: ${rol}`);
+
+// Cola FIFO / Lista
+r.lpush("tareas:cola", "email_bienvenida_user_101");
+r.lpush("tareas:cola", "generar_factura_pdf_992");
+let siguienteTarea = r.rpop("tareas:cola");
+println(`Tarea Procesada: ${siguienteTarea}`);
 ```
 
 ---
 
-### ⚡ Cliente Nativo de Redis (`redis`)
+### 🍃 Controlador Nativo de MongoDB (`mongodb` / `mongo` / `std/mongodb`)
+
+Aura incluye un motor documental NoSQL nativo en pure-Rust compatible con colecciones de documentos JSON/BSON, operadores avanzados de filtrado, modificaciones atómicas y pipelines de agregación:
+
+- **Inserción de Documentos**: `insertOne(doc)`, `insertMany(docs)`.
+- **Consultas y Operadores de Comparación**: `findOne(filtro)`, `find(filtro)`, `$gt`, `$gte`, `$lt`, `$lte`, `$ne`, `$in`.
+- **Actualizaciones y Modificadores**: `updateOne(filtro, actualizacion)`, `updateMany(filtro, actualizacion)`, `$set`, `$inc`, `$unset`.
+- **Eliminación y Conteo**: `deleteOne(filtro)`, `deleteMany(filtro)`, `count(filtro)`.
+- **Pipelines de Agregación**: `aggregate(pipeline)` con soporte para `$match`, `$group`, `$sum`, y `$avg`.
+- **Ciclo de Vida de Conexión**: `open(uri)`, `db(nombre?)`, `collection(nombre)`, `ping()`, `close()`.
 
 ```aura
-let cache: RedisClient = redis.open("redis://127.0.0.1:6379");
+import { open, MongoClient, MongoDatabase, MongoCollection } from "std/database/mongodb";
 
-async fn gestionarSesion(usuarioId: String, token: String): Task<Bool, String> {
-    // Guardar token con expiración TTL de 3600 segundos
-    await cache.set(`sesion:${usuarioId}`, token, 3600);
+// Conectar a MongoDB o ejecutar almacén embebido en memoria
+let client: MongoClient = mongodb.open(":memory:");
+defer client.close();
 
-    // Almacenamiento en hashes estructurados
-    await cache.hset(`perfil:${usuarioId}`, "rol", "administrador");
+let db: MongoDatabase = client.db("catalogo");
+let productos: MongoCollection = db.collection("productos");
 
-    let rol = await cache.hget(`perfil:${usuarioId}`, "rol");
-    println(`Rol en cache: ${rol}`);
-    true
-}
+// Inserción de Documentos
+let resultadoInsert = productos.insertOne({
+    sku: "LAPTOP-M3",
+    nombre: "MacBook Pro 16",
+    categoria: "Computadoras",
+    precio: 2499,
+    stock: 15,
+    estado: "disponible"
+});
+println(`ID Insertado: ${resultadoInsert.insertedId}`);
+
+// Buscar Documento con Filtro
+let encontrado = productos.findOne({ sku: "LAPTOP-M3" });
+println(`Producto encontrado: ${encontrado}`);
+
+// Actualización Atómica de Campos ($set e $inc)
+productos.updateOne(
+    { sku: "LAPTOP-M3" },
+    { $set: { estado: "descuento" }, $inc: { stock: -1 } }
+);
+
+// Consulta con Filtros de Rango ($gt, $lt, $in)
+let caros = productos.find({ precio: { $gt: 1000 } });
+println(`Productos premium: ${caros}`);
+
+// Conteo de Documentos
+let totalArticulos = productos.count({});
+println(`Total de artículos en catálogo: ${totalArticulos}`);
+
+// Pipeline de Agregación ($match + $group)
+let pipeline = [
+    { $match: { categoria: "Computadoras" } },
+    { $group: { _id: "$categoria", valorTotal: { $sum: "$precio" }, precioPromedio: { $avg: "$precio" } } }
+];
+let estadisticas = productos.aggregate(pipeline);
+println(`Estadísticas de Categoría: ${estadisticas}`);
 ```
 
 ---
