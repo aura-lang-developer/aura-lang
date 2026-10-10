@@ -33,6 +33,7 @@ Aura compiles directly into **standalone native executable binaries** (Mach-O on
    - [How to Reproduce the Benchmark Suite](#6-how-to-run-the-benchmark-suite)
 4. [📁 Compiler and Runtime Architecture](#-compiler-and-runtime-architecture)
    - [Pipeline Flow Diagram](#pipeline-flow-diagram)
+   - [Dual-Target Strategy: Native Binaries & JavaScript Interoperability](#dual-target-strategy-native-binaries--javascript-interoperability)
    - [Source Code Organization](#source-code-organization)
    - [The Standalone Native Runtime (`aura-runtime`)](#the-standalone-native-runtime-cratesaura-runtime)
 5. [📘 Complete Aura Language Guide](#-complete-aura-language-guide)
@@ -366,6 +367,44 @@ flowchart TD
     BackendMux -->|"aurac run / debug / watch"| NodeCG["ES6 Generator + Source Maps V3 (codegen.rs)"]
     NodeCG --> NodeRuntime["Instant Execution / V8 DAP Inspector"]
 ```
+
+### Dual-Target Strategy: Native Binaries & JavaScript Interoperability
+
+Aura is built on a hybrid **Dual-Target compilation model** that unifies the performance, memory safety, and autonomy of standalone systems programming with the rapid developer feedback, library ecosystem breadth, and web versatility of the modern JavaScript/TypeScript ecosystem.
+
+```mermaid
+graph TD
+    A["Aura Source Code (*.aura)"] --> B["Aura Compiler (aurac / Rust)"]
+    B --> C["TypeChecker & AST Analysis"]
+    
+    C -->|Development, Web, NPM, Edge| D["JavaScript Backend (codegen.rs)"]
+    D --> E["Node.js / Bun / Browser / Cloudflare / Serverless"]
+    
+    C -->|Production, Microservices, CLI| F["Native Backend (codegen_go.rs / Cranelift)"]
+    F --> G["Standalone Binary Executable (Mach-O / ELF)"]
+```
+
+#### Why Does Aura Generate and Support JavaScript?
+
+1. **Immediate Ingestion of the NPM and TypeScript Ecosystem (`.d.ts`)**:
+   Instead of waiting years for an entire third-party library ecosystem to be rewritten from scratch, Aura includes a built-in TypeScript definition parser ([`src/dts_parser.rs`](src/dts_parser.rs)). Aura programs can directly import, type-check, and invoke any existing NPM library with complete static type safety, structural duck typing, and IDE autocomplete.
+2. **Sub-20ms Developer Feedback Loop (`aurac watch` / `aurac run`)**:
+   During active local development, executing via the V8 engine (Node.js or Bun) starts in under **20 ms**, bypassing native binary linkers (like C or Go toolchain linking) for near-instant hot reloads.
+3. **Universal Portability (Web Browsers, Serverless & Edge)**:
+   Generating ECMAScript standard modules allows Aura code to run everywhere native machine code is restricted:
+   - **Interactive Web Playground**: Run the full compiler and code directly in client-side web browsers without a remote backend server.
+   - **Edge & Serverless Platforms**: Native deployment to Cloudflare Workers, AWS Lambda (Node.js runtime), Vercel Edge Functions, Deno, and Bun with zero cross-compilation friction for different CPU architectures.
+4. **Interactive Step Debugging with High-Precision Source Maps V3**:
+   Aura emits standard Source Maps V3 with Base64 VLQ encoding ([`src/sourcemap.rs`](src/sourcemap.rs)), enabling line-by-line step debugging of original `.aura` source files directly inside Chrome DevTools and VS Code / Antigravity IDE.
+
+#### When to Use Each Backend
+
+| Use Case | Compilation Target | Core Advantage |
+| :--- | :--- | :--- |
+| **Production Microservices & APIs** | `aurac build --standalone` (Go/Cranelift) | Single native binary (Mach-O / ELF), zero dependencies, high CSP fiber throughput. |
+| **Daily Local Development** | `aurac watch --run` (Node.js/Bun) | Millisecond cold start, instant live-reload. |
+| **NPM Package Integration** | Target JS (`.mjs` + `.d.ts`) | Direct reuse of mature JavaScript/TypeScript libraries. |
+| **Web & Edge Computing** | Target JS / Web | Seamless execution on Cloudflare Workers, Vercel, and browser Playgrounds. |
 
 ### Source Code Organization
 

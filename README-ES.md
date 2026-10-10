@@ -32,6 +32,7 @@ Aura se compila directamente a **binarios nativos ejecutables autónomos** (form
    - [Cómo Reproducir la Suite de Pruebas](#6-cómo-ejecutar-la-suite-de-benchmarks)
 4. [📁 Arquitectura del Compilador y Runtime](#-arquitectura-del-compilador-y-runtime)
    - [Diagrama de Flujo del Pipeline](#diagrama-de-flujo-del-pipeline)
+   - [Estrategia Dual-Target: Binarios Nativos e Interoperabilidad con JavaScript](#estrategia-dual-target-binarios-nativos-e-interoperabilidad-con-javascript)
    - [Organización del Código Fuente](#organización-del-código-fuente)
    - [El Runtime Nativo Autónomo (`aura-runtime`)](#el-runtime-nativo-autónomo-cratesaura-runtime)
 5. [📘 Guía Completa del Lenguaje Aura](#-guía-completa-del-lenguaje-aura)
@@ -365,6 +366,44 @@ flowchart TD
     BackendMux -->|"aurac run / debug / watch"| NodeCG["Generador ES6 + Source Maps V3 (codegen.rs)"]
     NodeCG --> NodeRuntime["Ejecución Instantánea / Inspector V8 DAP"]
 ```
+
+### Estrategia Dual-Target: Binarios Nativos e Interoperabilidad con JavaScript
+
+Aura adopta un modelo de compilación híbrido **Dual-Target** que combina el rendimiento, la seguridad de memoria y la autonomía de la programación de sistemas con la velocidad de desarrollo, el vasto ecosistema y la versatilidad web del entorno moderno de JavaScript/TypeScript.
+
+```mermaid
+graph TD
+    A["Código Fuente Aura (*.aura)"] --> B["Compilador Aura (aurac / Rust)"]
+    B --> C["TypeChecker & Análisis AST"]
+    
+    C -->|Desarrollo, Web, NPM, Edge| D["Backend JavaScript (codegen.rs)"]
+    D --> E["Node.js / Bun / Browser / Cloudflare / Serverless"]
+    
+    C -->|Producción, Microservicios, CLI| F["Backend Nativo (codegen_go.rs / Cranelift)"]
+    F --> G["Binario Nativo Autónomo (Mach-O / ELF)"]
+```
+
+#### ¿Por qué Aura genera y utiliza JavaScript?
+
+1. **Acceso Inmediato al Ecosistema NPM y TypeScript (`.d.ts`)**:
+   En lugar de esperar décadas a que madure un ecosistema de librerías desde cero, el compilador de Aura integra un parser de definiciones de TypeScript ([`src/dts_parser.rs`](/aura-lang/src/dts_parser.rs)). Esto permite que los programas en Aura importen, validen tipos y consuman cualquier paquete de NPM con total seguridad estática, duck typing estructural y autocompletado en el IDE.
+2. **Bucle de Desarrollo Sub-20ms (`aurac watch` / `aurac run`)**:
+   Durante el desarrollo local activo, ejecutar a través del motor V8 (Node.js o Bun) inicia en menos de **20 ms**, evitando el tiempo de enlace (*linking*) de binarios nativos de Go o C para lograr recarga en caliente (*live-reload*) casi instantánea.
+3. **Portabilidad Universal (Navegadores Web, Serverless y Edge)**:
+   Generar módulos estándar ECMAScript permite ejecutar código Aura en entornos donde los binarios nativos tradicionales no pueden ejecutarse o son difíciles de desplegar:
+   - **Playground Web Interactivo**: Ejecución directa de Aura en el navegador del cliente sin necesidad de un servidor backend remoto.
+   - **Plataformas Edge & Serverless**: Despliegue nativo en Cloudflare Workers, AWS Lambda (runtime Node.js), Vercel Edge Functions, Deno y Bun sin fricciones de compilación cruzada para múltiples arquitecturas de CPU.
+4. **Depuración Paso a Paso con Source Maps V3 de Alta Precisión**:
+   Aura emite mapas de fuentes estándar V3 con codificación Base64 VLQ ([`src/sourcemap.rs`](/aura-lang/src/sourcemap.rs)), permitiendo depurar código fuente `.aura` línea a línea directamente en Chrome DevTools y depuradores DAP como VS Code / Antigravity IDE.
+
+#### ¿Cuándo se utiliza cada Backend?
+
+| Caso de Uso | Modo de Compilación / Target | Beneficio Principal |
+| :--- | :--- | :--- |
+| **Microservicios y APIs en Producción** | `aurac build --standalone` (Go/Cranelift) | Binario ejecutable nativo independiente (Mach-O / ELF), cero dependencias externas y alto rendimiento CSP. |
+| **Desarrollo Diario / Live Reload** | `aurac watch --run` (Node.js/Bun) | Arranque en milisegundos y retroalimentación interactiva instantánea. |
+| **Integración con Paquetes NPM** | Target JS (`.mjs` + `.d.ts`) | Reutilización directa de librerías consolidadas de JavaScript/TypeScript. |
+| **Web & Edge Computing** | Target JS / Web | Despliegue sin fricción en Cloudflare Workers, Vercel Edge y navegadores. |
 
 ### Organización del Código Fuente
 
