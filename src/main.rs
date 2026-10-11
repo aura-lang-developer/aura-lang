@@ -5,9 +5,14 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
+fn print_version() {
+    println!("aurac {}", env!("CARGO_PKG_VERSION"));
+}
+
 fn print_usage() {
     println!(
-        "Aura Language Compiler (aurac) - Standalone Native Binary Compiler (Golang Model) v0.1.0"
+        "Aura Language Compiler (aurac) - Standalone Native Binary Compiler (Golang Model) v{}",
+        env!("CARGO_PKG_VERSION")
     );
     println!("Usage:");
     println!(
@@ -30,6 +35,7 @@ fn print_usage() {
     println!("  aurac bindgen <header.h> [-o <output.aura>] [--name <module>]");
     println!("  aurac lsp");
     println!("  aurac playground [--port <port>]");
+    println!("  aurac version, --version, -V");
 }
 
 fn execute_build(
@@ -307,6 +313,9 @@ fn main() {
     let command_or_file = &args[1];
 
     match command_or_file.as_str() {
+        "--version" | "-version" | "--v" | "-V" | "-v" | "version" => {
+            print_version();
+        }
         "--help" | "-h" => {
             print_usage();
         }
@@ -318,7 +327,10 @@ fn main() {
 
             let mut i = 1;
             while i < args.len() {
-                if args[i] == "watch" || args[i] == "--watch" {
+                if args[i] == "--version" || args[i] == "-V" {
+                    print_version();
+                    return;
+                } else if args[i] == "watch" || args[i] == "--watch" {
                     i += 1;
                 } else if args[i] == "--run" || args[i] == "-r" {
                     run_on_change = true;
@@ -397,7 +409,10 @@ fn main() {
 
             let mut i = 2;
             while i < args.len() {
-                if args[i] == "-o" && i + 1 < args.len() {
+                if args[i] == "--version" || args[i] == "-V" {
+                    print_version();
+                    return;
+                } else if args[i] == "-o" && i + 1 < args.len() {
                     out_file = Some(args[i + 1].clone());
                     i += 2;
                 } else if input_file.is_empty() && !args[i].starts_with('-') {
@@ -429,7 +444,10 @@ fn main() {
 
             let mut i = 2;
             while i < args.len() {
-                if args[i] == "-o" && i + 1 < args.len() {
+                if args[i] == "--version" || args[i] == "-V" {
+                    print_version();
+                    return;
+                } else if args[i] == "-o" && i + 1 < args.len() {
                     out_file = Some(args[i + 1].clone());
                     i += 2;
                 } else if (args[i] == "--target" || args[i] == "-target") && i + 1 < args.len() {
@@ -481,6 +499,10 @@ fn main() {
             cmd.execute();
         }
         "check" => {
+            if args.iter().skip(2).any(|a| a == "--version" || a == "-V") {
+                print_version();
+                return;
+            }
             if args.len() < 3 {
                 eprintln!("Error: Missing input file for 'check'.");
                 return;
@@ -495,7 +517,10 @@ fn main() {
             let mut trailing_args = Vec::new();
             let mut i = 2;
             while i < args.len() {
-                if (args[i] == "--tags" || args[i] == "-tags") && i + 1 < args.len() {
+                if args[i] == "--version" || args[i] == "-V" {
+                    print_version();
+                    return;
+                } else if (args[i] == "--tags" || args[i] == "-tags") && i + 1 < args.len() {
                     tags.push(args[i + 1].clone());
                     i += 2;
                 } else if input_file.is_empty() && !args[i].starts_with('-') {
@@ -793,7 +818,10 @@ fn main() {
             }
 
             while i < args.len() {
-                if args[i] == "-o" && i + 1 < args.len() {
+                if args[i] == "--version" || args[i] == "-V" {
+                    print_version();
+                    return;
+                } else if args[i] == "-o" && i + 1 < args.len() {
                     out_file = Some(args[i + 1].clone());
                     i += 2;
                 } else if (args[i] == "--target" || args[i] == "-target") && i + 1 < args.len() {
@@ -852,5 +880,10 @@ mod tests {
     #[test]
     fn test_print_usage_execution() {
         print_usage();
+    }
+
+    #[test]
+    fn test_print_version_execution() {
+        print_version();
     }
 }

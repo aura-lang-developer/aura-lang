@@ -208,6 +208,8 @@ You can add an ergonomic alias to your shell configuration (`~/.zshrc` or `~/.ba
 
 ```bash
 alias aura="aurac"
+aurac --version
+# Output: aurac 0.3.0
 ```
 
 ### 3. Compilation and Execution Modes

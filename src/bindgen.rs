@@ -675,8 +675,16 @@ impl AuraBindgen {
 
 /// CLI runner for `aurac bindgen` or standalone `aurabindgen`.
 pub fn run_cli(args: &[String]) {
+    if args.iter().any(|a| a == "--version" || a == "-V" || a == "version") {
+        println!("aurabindgen {}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
+
     if args.is_empty() || args.contains(&"--help".to_string()) || args.contains(&"-h".to_string()) {
-        println!("Aura Language C/Rust FFI Generator (`aurac bindgen`)");
+        println!(
+            "Aura Language C/Rust FFI Generator (`aurac bindgen`) v{}",
+            env!("CARGO_PKG_VERSION")
+        );
         println!(
             "Usage: aurac bindgen <header.h> [-o <output.aura>] [--name <module>] [--strip-prefix <pfx>] [--no-wrappers]"
         );

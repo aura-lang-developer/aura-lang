@@ -1200,7 +1200,10 @@ pub fn generate_unified_diff(filename: &str, original: &str, formatted: &str) ->
 // -----------------------------------------------------------------------------
 
 pub fn print_usage() {
-    println!("Aura Code Formatter (aurafmt / aurac fmt) v0.1.0");
+    println!(
+        "Aura Code Formatter (aurafmt / aurac fmt) v{}",
+        env!("CARGO_PKG_VERSION")
+    );
     println!("Opinionated, deterministic formatting for Aura, TypeScript, and JavaScript.");
     println!();
     println!("Usage:");
@@ -1258,6 +1261,11 @@ pub fn collect_files<P: AsRef<Path>>(path: P) -> Vec<PathBuf> {
 }
 
 pub fn run_cli(args: &[String]) {
+    if args.iter().any(|a| a == "--version" || a == "-V" || a == "version") {
+        println!("aurafmt {}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
+
     if args.is_empty() || args.iter().any(|a| a == "-h" || a == "--help") {
         print_usage();
         return;

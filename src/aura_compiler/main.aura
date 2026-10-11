@@ -86,9 +86,19 @@ export fn compileAuraToGo(source: String, filename: String): Result<String, Stri
 /// runs the self-hosted compiler, and writes output files to disk.
 export fn runCli(): () {
   let args = process.argv;
+  let mut i = 2;
+  while (i < args.length) {
+    let arg = args[i];
+    if (arg == "--version" || arg == "-V" || arg == "-v" || arg == "version") {
+      println("aurac 0.3.0");
+      return ();
+    }
+    i = i + 1;
+  }
+
   if (args.length < 3) {
     println("Aura Self-Hosted Compiler (v0.3.0)");
-    println("Usage: node aurac.mjs <file.aura> [-o <output>] [--target <js|go>] [--check]");
+    println("Usage: node aurac.mjs <file.aura> [-o <output>] [--target <js|go>] [--check] [--version]");
     return ();
   }
 
@@ -97,7 +107,7 @@ export fn runCli(): () {
   let mut target = "js";
   let mut checkOnly = false;
 
-  let mut i = 3;
+  i = 3;
   while (i < args.length) {
     let arg = args[i];
     if (arg == "-o" && i + 1 < args.length) {

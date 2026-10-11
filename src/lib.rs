@@ -19,6 +19,14 @@ pub mod testing;
 pub mod typechecker;
 pub mod watcher;
 
+/// The version of the Aura Language compiler and toolchain.
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Returns the current version of the Aura Language compiler.
+pub fn version() -> &'static str {
+    VERSION
+}
+
 pub use ast::{
     AstMetrics, AstMetricsCollector, AstVisitor, walk_expr, walk_item, walk_module, walk_pattern,
     walk_statement,

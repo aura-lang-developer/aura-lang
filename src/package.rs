@@ -1359,6 +1359,11 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
 pub fn run_cli(args: &[String]) {
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
 
+    if args.iter().any(|a| a == "--version" || a == "-V" || a == "version") {
+        println!("auramod {}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
+
     if args.is_empty() || args[0] == "--help" || args[0] == "-h" || args[0] == "help" {
         print_mod_usage();
         return;
@@ -1520,7 +1525,10 @@ pub fn run_cli(args: &[String]) {
 }
 
 pub fn print_mod_usage() {
-    println!("Aura Package & Module Manager (aurac mod / aurac pkg) v0.1.0");
+    println!(
+        "Aura Package & Module Manager (aurac mod / aurac pkg) v{}",
+        env!("CARGO_PKG_VERSION")
+    );
     println!("Usage:");
     println!("  aurac mod init [module_name]   Initialize a new aura.mod module file");
     println!(

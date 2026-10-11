@@ -1379,6 +1379,11 @@ pub fn write_coverage_html(
 
 /// Parses command line arguments and runs the test suite.
 pub fn run_cli(args: &[String]) {
+    if args.iter().any(|a| a == "--version" || a == "-V" || a == "version") {
+        println!("auratest {}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
+
     let mut config = TestConfig::default();
     let mut paths = Vec::new();
     let mut i = 0;

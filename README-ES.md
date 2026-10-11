@@ -207,6 +207,8 @@ Puedes agregar un alias ergonómico a tu shell (`~/.zshrc` o `~/.bashrc`):
 
 ```bash
 alias aura="aurac"
+aurac --version
+# Salida: aurac 0.3.0
 ```
 
 ### 3. Modos de Compilación y Ejecución

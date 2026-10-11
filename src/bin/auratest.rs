@@ -5,8 +5,16 @@ use std::env;
 fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
 
+    if args.iter().any(|a| a == "--version" || a == "-V" || a == "version") {
+        println!("auratest {}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
+
     if args.iter().any(|a| a == "--help" || a == "-h") {
-        println!("Aura Test Runner (auratest) v0.1.0 (Go-test style)");
+        println!(
+            "Aura Test Runner (auratest) v{} (Go-test style)",
+            env!("CARGO_PKG_VERSION")
+        );
         println!("Usage:");
         println!("  auratest [flags] [packages/paths...]");
         println!();

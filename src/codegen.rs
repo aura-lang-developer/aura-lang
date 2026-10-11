@@ -38,7 +38,7 @@ fn relative_path_between(target: &Path, base: &Path) -> String {
     }
 
     let s = rel.to_string_lossy().replace("\\", "/");
-    if s.starts_with(".") {
+    if s.starts_with("./") || s.starts_with("../") {
         s
     } else {
         format!("./{}", s)
