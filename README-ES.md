@@ -203,12 +203,13 @@ export fn main(): Unit => {
 }
 ```
 
-Puedes agregar un alias ergonómico a tu shell (`~/.zshrc` o `~/.bashrc`):
+Verifica tu instalación:
 
 ```bash
-alias aura="aurac"
+aura --version
+# Salida: aura 0.4.0
 aurac --version
-# Salida: aurac 0.3.0
+# Salida: aurac 0.4.0
 ```
 
 ### 3. Modos de Compilación y Ejecución

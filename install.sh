@@ -115,6 +115,6 @@ fi
 
 echo ""
 echo -e "Try your first command:"
-echo -e "${BOLD}  aurac --version${RESET}"
-echo -e "${BOLD}  aurac playground${RESET}"
+echo -e "${BOLD}  aura --version${RESET}"
+echo -e "${BOLD}  aura playground${RESET}"
 echo ""
