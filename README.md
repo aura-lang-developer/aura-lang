@@ -604,6 +604,58 @@ let user = { uid: 42, role: "admin", email: "admin@aura.dev" };
 let { uid, role } = user;
 ```
 
+#### Arithmetic Operators and Compound Assignment (`+=`, `-=`, `*=`, `/=`, `%=`)
+
+Aura supports both binary arithmetic operators (`+`, `-`, `*`, `/`, `%`) and compound assignment operators to update mutable variables (`let mut`), record fields, and indexed elements in slices or collections:
+
+| Operator | Operation | Example | Internal Desugaring | Supported Types |
+|---|---|---|---|---|
+| `+=` | Addition & assignment / Concatenation | `total += x;` | `total = total + x;` | `Int`, `Float`, fixed-size numeric types, `String` |
+| `-=` | Subtraction & assignment | `balance -= withdrawal;` | `balance = balance - withdrawal;` | `Int`, `Float`, fixed-size numeric types |
+| `*=` | Multiplication & assignment | `factor *= 2;` | `factor = factor * 2;` | `Int`, `Float`, fixed-size numeric types |
+| `/=` | Division & assignment | `val /= divisor;` | `val = val / divisor;` | `Int`, `Float`, fixed-size numeric types |
+| `%=` | Modulo & assignment | `idx %= limit;` | `idx = idx % limit;` | `Int`, fixed-size integer types |
+
+##### Code Example:
+
+```aura
+export fn demoArithmetic(): Unit => {
+    // 1. Accumulative arithmetic on mutable variables
+    let mut counter: Int = 10;
+    counter += 15; // 25
+    counter -= 5;  // 20
+    counter *= 3;  // 60
+    counter /= 2;  // 30
+    counter %= 7;  // 2
+    println(`Counter: ${counter}`);
+
+    // 2. Floating-point arithmetic
+    let mut average: Float = 10.5;
+    average += 4.5; // 15.0
+    average *= 2.0; // 30.0
+    average /= 3.0; // 10.0
+    println(`Average: ${average}`);
+
+    // 3. String concatenation
+    let mut greeting = "Hello";
+    greeting += ", Aura!";
+    println(greeting); // "Hello, Aura!"
+
+    // 4. In-place accumulator inside loops
+    let mut total = 0;
+    let numbers: []Int = [1, 2, 3, 4, 5];
+    for x in numbers {
+        total += x;
+    }
+    println(`Total sum: ${total}`); // 15
+
+    // 5. In-place modification on slice elements
+    let mut items = [100, 200, 300];
+    items[0] += 50;
+    println(`items[0]: ${items[0]}`); // 150
+}
+```
+
 ---
 
 ### 3. Control Flow, Expressions, and Labeled Loops
@@ -624,7 +676,7 @@ let status = if grade >= 60 { "Passed" } else { "Failed" };
 // Traditional While loop
 let mut k = 0;
 while k < 5 {
-    k = k + 1;
+    k += 1; // Compound assignment
 };
 
 // For-In loop over slices or collections

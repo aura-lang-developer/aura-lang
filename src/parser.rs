@@ -757,6 +757,9 @@ impl Parser {
                     target: expr,
                     value,
                 }])
+            } else if let Some(op) = self.check_compound_assign_op() {
+                let value = self.parse_expr()?;
+                Expr::Block(vec![Self::make_compound_assign(expr, op, value)])
             } else {
                 expr
             };
@@ -770,6 +773,9 @@ impl Parser {
                     target: expr,
                     value,
                 }])
+            } else if let Some(op) = self.check_compound_assign_op() {
+                let value = self.parse_expr()?;
+                Expr::Block(vec![Self::make_compound_assign(expr, op, value)])
             } else {
                 expr
             };
@@ -818,10 +824,41 @@ impl Parser {
                     target: expr,
                     value,
                 })
+            } else if let Some(op) = self.check_compound_assign_op() {
+                let value = self.parse_expr()?;
+                self.match_token(&TokenKind::Semicolon);
+                Ok(Self::make_compound_assign(expr, op, value))
             } else {
                 self.match_token(&TokenKind::Semicolon);
                 Ok(Statement::Expr(expr))
             }
+        }
+    }
+
+    fn check_compound_assign_op(&mut self) -> Option<BinOp> {
+        if self.match_token(&TokenKind::PlusEqual) {
+            Some(BinOp::Add)
+        } else if self.match_token(&TokenKind::MinusEqual) {
+            Some(BinOp::Sub)
+        } else if self.match_token(&TokenKind::StarEqual) {
+            Some(BinOp::Mul)
+        } else if self.match_token(&TokenKind::SlashEqual) {
+            Some(BinOp::Div)
+        } else if self.match_token(&TokenKind::PercentEqual) {
+            Some(BinOp::Mod)
+        } else {
+            None
+        }
+    }
+
+    fn make_compound_assign(target: Expr, op: BinOp, value: Expr) -> Statement {
+        Statement::Assign {
+            target: target.clone(),
+            value: Expr::Binary {
+                op,
+                left: Box::new(target),
+                right: Box::new(value),
+            },
         }
     }
 
@@ -2189,5 +2226,54 @@ mod tests {
 
         let src_unmatched_brace = "fn test() { let x = 1;";
         assert!(parse_source(src_unmatched_brace).is_err());
+    }
+
+    #[test]
+    fn test_parse_compound_assignments() {
+        let src = r#"
+            fn math_ops() {
+                let mut x = 10;
+                x += 5;
+                x -= 3;
+                x *= 2;
+                x /= 4;
+                x %= 2;
+            }
+        "#;
+        let module = parse_source(src).expect("failed to parse compound assignments");
+        assert_eq!(module.items.len(), 1);
+        if let Item::Function(func) = &module.items[0] {
+            if let Expr::Block(stmts) = &func.body {
+                assert_eq!(stmts.len(), 6);
+                match &stmts[1] {
+                    Statement::Assign { target, value } => {
+                        assert_eq!(target, &Expr::Identifier("x".to_string()));
+                        match value {
+                            Expr::Binary { op, left, right } => {
+                                assert_eq!(*op, BinOp::Add);
+                                assert_eq!(**left, Expr::Identifier("x".to_string()));
+                                assert_eq!(**right, Expr::Literal(Literal::Int(5)));
+                            }
+                            _ => panic!("Expected Binary expr for value"),
+                        }
+                    }
+                    _ => panic!("Expected Statement::Assign"),
+                }
+                match &stmts[2] {
+                    Statement::Assign { target, value } => {
+                        assert_eq!(target, &Expr::Identifier("x".to_string()));
+                        match value {
+                            Expr::Binary { op, .. } => assert_eq!(*op, BinOp::Sub),
+                            _ => panic!("Expected Binary expr for value"),
+                        }
+                    }
+                    _ => panic!("Expected Statement::Assign"),
+                }
+            } else {
+                panic!("Expected Block expr");
+            }
+        } else {
+            panic!("Expected Function item");
+        }
     }
 }

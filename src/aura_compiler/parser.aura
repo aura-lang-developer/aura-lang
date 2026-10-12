@@ -8,7 +8,8 @@ import {
   TBreak, TContinue, TReturn, TModule, TExport, TImport, TFrom, TSpawn, TSelect,
   TIdent, TInt, TFloat, TString, TBool, TPipe, TFatArrow, TArrow, TArrowLeft,
   TEqual, TEqualEqual, TNotEqual, TLess, TLessEqual, TGreater, TGreaterEqual,
-  TPlus, TMinus, TStar, TSlash, TPercent, TAndAnd, TOrOr, TBang, TPipeOp,
+  TPlus, TPlusEqual, TMinus, TMinusEqual, TStar, TStarEqual, TSlash, TSlashEqual, TPercent, TPercentEqual,
+  TAndAnd, TOrOr, TBang, TPipeOp,
   TQuestion, TLParen, TRParen, TLBrace, TRBrace, TLBracket, TRBracket,
   TColon, TComma, TSemicolon, TDot, TUnderscore, TEof,
   TyNamed, TyFunction, TyRecord, TyTuple, TyUnit,
@@ -400,6 +401,56 @@ export fn parseStatement(p: Parser): Result<StmtNode, String> {
       _ => "target"
     };
     return Ok(StmtAssign { target: targetName, val: val });
+  }
+  if (matchToken(p, TPlusEqual)) {
+    let val = parseExpr(p)?;
+    let _ = matchToken(p, TSemicolon);
+    let targetName = match expr {
+      ExprIdent { name } => name,
+      _ => "target"
+    };
+    let binVal = ExprBinary { op: OpAdd, left: expr, right: val };
+    return Ok(StmtAssign { target: targetName, val: binVal });
+  }
+  if (matchToken(p, TMinusEqual)) {
+    let val = parseExpr(p)?;
+    let _ = matchToken(p, TSemicolon);
+    let targetName = match expr {
+      ExprIdent { name } => name,
+      _ => "target"
+    };
+    let binVal = ExprBinary { op: OpSub, left: expr, right: val };
+    return Ok(StmtAssign { target: targetName, val: binVal });
+  }
+  if (matchToken(p, TStarEqual)) {
+    let val = parseExpr(p)?;
+    let _ = matchToken(p, TSemicolon);
+    let targetName = match expr {
+      ExprIdent { name } => name,
+      _ => "target"
+    };
+    let binVal = ExprBinary { op: OpMul, left: expr, right: val };
+    return Ok(StmtAssign { target: targetName, val: binVal });
+  }
+  if (matchToken(p, TSlashEqual)) {
+    let val = parseExpr(p)?;
+    let _ = matchToken(p, TSemicolon);
+    let targetName = match expr {
+      ExprIdent { name } => name,
+      _ => "target"
+    };
+    let binVal = ExprBinary { op: OpDiv, left: expr, right: val };
+    return Ok(StmtAssign { target: targetName, val: binVal });
+  }
+  if (matchToken(p, TPercentEqual)) {
+    let val = parseExpr(p)?;
+    let _ = matchToken(p, TSemicolon);
+    let targetName = match expr {
+      ExprIdent { name } => name,
+      _ => "target"
+    };
+    let binVal = ExprBinary { op: OpMod, left: expr, right: val };
+    return Ok(StmtAssign { target: targetName, val: binVal });
   }
   let _ = matchToken(p, TSemicolon);
   return Ok(StmtExpr { expr: expr });

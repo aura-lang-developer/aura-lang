@@ -71,10 +71,15 @@ pub enum TokenKind {
     Greater,      // >
     GreaterEqual, // >=
     Plus,         // +
+    PlusEqual,    // +=
     Minus,        // -
+    MinusEqual,   // -=
     Star,         // *
+    StarEqual,    // *=
     Slash,        // /
+    SlashEqual,   // /=
     Percent,      // %
+    PercentEqual, // %=
     Ampersand,    // &
     AndAnd,       // &&
     OrOr,         // ||
@@ -160,10 +165,15 @@ impl fmt::Display for TokenKind {
             TokenKind::Greater => write!(f, ">"),
             TokenKind::GreaterEqual => write!(f, ">="),
             TokenKind::Plus => write!(f, "+"),
+            TokenKind::PlusEqual => write!(f, "+="),
             TokenKind::Minus => write!(f, "-"),
+            TokenKind::MinusEqual => write!(f, "-="),
             TokenKind::Star => write!(f, "*"),
+            TokenKind::StarEqual => write!(f, "*="),
             TokenKind::Slash => write!(f, "/"),
+            TokenKind::SlashEqual => write!(f, "/="),
             TokenKind::Percent => write!(f, "%"),
+            TokenKind::PercentEqual => write!(f, "%="),
             TokenKind::Ampersand => write!(f, "&"),
             TokenKind::AndAnd => write!(f, "&&"),
             TokenKind::OrOr => write!(f, "||"),
@@ -548,6 +558,9 @@ impl<'a> Lexer<'a> {
                 if self.peek() == Some('>') {
                     self.advance();
                     TokenKind::Arrow
+                } else if self.peek() == Some('=') {
+                    self.advance();
+                    TokenKind::MinusEqual
                 } else {
                     TokenKind::Minus
                 }
@@ -607,19 +620,39 @@ impl<'a> Lexer<'a> {
             }
             '/' => {
                 self.advance();
-                TokenKind::Slash
+                if self.peek() == Some('=') {
+                    self.advance();
+                    TokenKind::SlashEqual
+                } else {
+                    TokenKind::Slash
+                }
             }
             '+' => {
                 self.advance();
-                TokenKind::Plus
+                if self.peek() == Some('=') {
+                    self.advance();
+                    TokenKind::PlusEqual
+                } else {
+                    TokenKind::Plus
+                }
             }
             '*' => {
                 self.advance();
-                TokenKind::Star
+                if self.peek() == Some('=') {
+                    self.advance();
+                    TokenKind::StarEqual
+                } else {
+                    TokenKind::Star
+                }
             }
             '%' => {
                 self.advance();
-                TokenKind::Percent
+                if self.peek() == Some('=') {
+                    self.advance();
+                    TokenKind::PercentEqual
+                } else {
+                    TokenKind::Percent
+                }
             }
             '(' => {
                 self.advance();
@@ -848,6 +881,25 @@ mod tests {
                 TokenKind::Spread,
                 TokenKind::Underscore,
                 TokenKind::Hash,
+                TokenKind::Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn test_compound_assignment_operators() {
+        let input = "+= -= *= /= %=";
+        let mut lexer = Lexer::new(input);
+        let tokens = lexer.tokenize().expect("failed to tokenize compound assignment");
+        let kinds: Vec<TokenKind> = tokens.into_iter().map(|t| t.kind).collect();
+        assert_eq!(
+            kinds,
+            vec![
+                TokenKind::PlusEqual,
+                TokenKind::MinusEqual,
+                TokenKind::StarEqual,
+                TokenKind::SlashEqual,
+                TokenKind::PercentEqual,
                 TokenKind::Eof,
             ]
         );

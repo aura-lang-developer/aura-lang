@@ -12,7 +12,7 @@
 fn calculateSum(items: []Int): Int => {
   let mut accumulator: Int = 0;
   for x in items {
-    accumulator = accumulator + x;
+    accumulator += x;
   }
   return accumulator;
 }

@@ -1664,10 +1664,15 @@ impl DocumentState {
                     | TokenKind::Greater
                     | TokenKind::GreaterEqual
                     | TokenKind::Plus
+                    | TokenKind::PlusEqual
                     | TokenKind::Minus
+                    | TokenKind::MinusEqual
                     | TokenKind::Star
+                    | TokenKind::StarEqual
                     | TokenKind::Slash
+                    | TokenKind::SlashEqual
                     | TokenKind::Percent
+                    | TokenKind::PercentEqual
                     | TokenKind::Ampersand
                     | TokenKind::AndAnd
                     | TokenKind::OrOr

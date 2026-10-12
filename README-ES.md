@@ -603,6 +603,58 @@ let usuario = { uid: 42, role: "admin", email: "admin@aura.dev" };
 let { uid, role } = usuario;
 ```
 
+#### Operadores Aritméticos y Asignación Compuesta (`+=`, `-=`, `*=`, `/=`, `%=`)
+
+Aura soporta tanto operadores aritméticos binarios (`+`, `-`, `*`, `/`, `%`) como operadores de asignación compuesta para actualizar variables mutables (`let mut`), miembros de registros y posiciones indexadas en slices o colecciones:
+
+| Operador | Operación | Ejemplo | Desugareado Interno | Tipos Compatibles |
+|---|---|---|---|---|
+| `+=` | Suma y asignación / Concatenación | `total += x;` | `total = total + x;` | `Int`, `Float`, tipos numéricos fijos, `String` |
+| `-=` | Resta y asignación | `saldo -= retiro;` | `saldo = saldo - retiro;` | `Int`, `Float`, tipos numéricos fijos |
+| `*=` | Multiplicación y asignación | `factor *= 2;` | `factor = factor * 2;` | `Int`, `Float`, tipos numéricos fijos |
+| `/=` | División y asignación | `valor /= divisor;` | `valor = valor / divisor;` | `Int`, `Float`, tipos numéricos fijos |
+| `%=` | Módulo y asignación | `indice %= limite;` | `indice = indice % limite;` | `Int`, tipos enteros fijos |
+
+##### Ejemplo de Uso en Código:
+
+```aura
+export fn demostrarOperaciones(): Unit => {
+    // 1. Operaciones aritméticas acumulativas sobre variables mutables
+    let mut contador: Int = 10;
+    contador += 15; // 25
+    contador -= 5;  // 20
+    contador *= 3;  // 60
+    contador /= 2;  // 30
+    contador %= 7;  // 2
+    println(`Contador: ${contador}`);
+
+    // 2. Operaciones con números flotantes
+    let mut promedio: Float = 10.5;
+    promedio += 4.5; // 15.0
+    promedio *= 2.0; // 30.0
+    promedio /= 3.0; // 10.0
+    println(`Promedio: ${promedio}`);
+
+    // 3. Concatenación fluida de cadenas
+    let mut saludo = "Hola";
+    saludo += ", Aura!";
+    println(saludo); // "Hola, Aura!"
+
+    // 4. Acumulación dentro de bucles sobre slices
+    let mut acumulador = 0;
+    let numeros: []Int = [1, 2, 3, 4, 5];
+    for x in numeros {
+        acumulador += x;
+    }
+    println(`Acumulado: ${acumulador}`); // 15
+
+    // 5. Modificación in-place en slices y estructuras
+    let mut datos = [100, 200, 300];
+    datos[0] += 50;
+    println(`datos[0]: ${datos[0]}`); // 150
+}
+```
+
 ---
 
 ### 3. Control de Flujo, Expresiones y Bucles Etiquetados
@@ -623,7 +675,7 @@ let estado = if calificacion >= 60 { "Aprobado" } else { "Reprobado" };
 // Bucle While tradicional
 let mut k = 0;
 while k < 5 {
-    k = k + 1;
+    k += 1; // Asignación compuesta
 };
 
 // Bucle For-In sobre slices o colecciones

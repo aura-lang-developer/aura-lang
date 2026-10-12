@@ -43,10 +43,15 @@ export type TokenKind =
   | TGreater
   | TGreaterEqual
   | TPlus
+  | TPlusEqual
   | TMinus
+  | TMinusEqual
   | TStar
+  | TStarEqual
   | TSlash
+  | TSlashEqual
   | TPercent
+  | TPercentEqual
   | TAndAnd
   | TOrOr
   | TBang
