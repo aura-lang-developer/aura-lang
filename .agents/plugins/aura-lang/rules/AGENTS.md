@@ -107,7 +107,8 @@ When executing commands or diagnosing compiler outputs, use the official tools:
 - `aurac check <file.aura>`: Fast type check and static analysis without code generation.
 - `aurac build <file.aura> [-o binary] [--standalone]`: Build standalone binary executable.
 - `aurac watch <file.aura> [--run]`: Live watch mode with automatic re-run.
-- `auratest [flags] [paths...]`: Run the built-in test suite, benchmark suite, and coverage reporter.
+- `aurac --test [flags] [paths...]` / `aurac test`: Run tests directly from the compiler.
+- `auratest [flags] [paths...]`: Dedicated test runner CLI, benchmark suite, and coverage reporter.
 - `aurafmt [-w] [paths...]`: Opinionated code formatter (always format with `-w` when modifying code).
 - `auralsp` / `aurac lsp`: Language Server Protocol engine.
 - `aurac playground [--port <port>]`: Interactive web playground.

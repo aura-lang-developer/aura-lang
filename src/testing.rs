@@ -1377,10 +1377,55 @@ pub fn write_coverage_html(
 // CLI DISPATCHER FOR AURATEST & AURAC TEST
 // -----------------------------------------------------------------------------
 
+/// Prints help information for the test runner.
+pub fn print_test_help() {
+    println!(
+        "Aura Test Runner (auratest / aurac --test) v{} (Go-test style)",
+        env!("CARGO_PKG_VERSION")
+    );
+    println!("Usage:");
+    println!("  auratest [flags] [packages/paths...]");
+    println!("  aurac test [flags] [packages/paths...]");
+    println!("  aurac --test [flags] [packages/paths...]");
+    println!("  aurac <file.aura> --test [flags...]");
+    println!();
+    println!("Flags:");
+    println!("  -v, --verbose           Verbose output: print all test names and logs");
+    println!("  -run <pattern>          Run only tests matching the regular expression");
+    println!("  -bench <pattern>        Run benchmarks matching the regular expression");
+    println!("  -cover, --coverage      Enable code coverage analysis");
+    println!("  -coverprofile <file>    Write coverage profile to file");
+    println!("  --coverage-html <file>  Generate standalone interactive HTML coverage report");
+    println!("  --unit                  Run only unit tests");
+    println!("  --integration           Run only integration tests");
+    println!("  --e2e                   Run only end-to-end (E2E) tests");
+    println!("  -timeout <duration>     Test execution timeout (e.g. 30s, 5000ms)");
+    println!("  -failfast               Stop execution on first test failure");
+    println!("  -parallel <n>           Number of test files to run in parallel");
+    println!("  -count <n>              Run each test and benchmark n times");
+    println!("  -json                   Output test results in machine-readable JSON");
+    println!("  -l, --list              List discovered tests without running them");
+    println!("  -w, --watch             Watch mode: re-run tests on file changes");
+    println!();
+    println!("Examples:");
+    println!("  aurac --test");
+    println!("  aurac --test ./...");
+    println!("  aurac --test -v ./examples/tests/math_unit_test.aura");
+    println!("  aurac ./examples/tests/math_unit_test.aura --test");
+    println!("  auratest -run TestCalculateDiscount -cover");
+    println!("  auratest -bench .");
+    println!("  auratest --integration");
+}
+
 /// Parses command line arguments and runs the test suite.
 pub fn run_cli(args: &[String]) {
     if args.iter().any(|a| a == "--version" || a == "-V" || a == "version") {
         println!("auratest {}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
+
+    if args.iter().any(|a| a == "--help" || a == "-h" || a == "help") {
+        print_test_help();
         return;
     }
 

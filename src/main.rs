@@ -16,7 +16,7 @@ fn print_usage() {
     );
     println!("Usage:");
     println!(
-        "  aurac <file.aura> [-o <binary>] [--target <native|go|<triple>>] [--release] [-O3] [--tags <tags>]"
+        "  aurac <file.aura> [-o <binary>] [--target <native|go|<triple>>] [--release] [-O3] [--tags <tags>] [--test]"
     );
     println!(
         "  aurac build <file.aura> [-o <binary>] [--target <native|go|<triple>>] [--release] [-O3] [--tags <tags>]"
@@ -28,6 +28,8 @@ fn print_usage() {
     println!("  aurac emit-go <file.aura> [-o <output.go>]");
     println!("  aurac watch <file.aura> [-o <binary>] [--run]");
     println!("  aurac test [flags] [paths...]");
+    println!("  aurac --test [flags] [paths...]");
+    println!("  aurac <file.aura> --test [flags...]");
     println!("  aurac fmt [-w] [-l] [-d] [-c] [--tabs] [--indent <N>] [paths...]");
     println!("  aurac mod <init|tidy|get|vendor|verify|list> [args...]");
     println!("  aurac pkg <init|tidy|get|vendor|verify|list> [args...]");
@@ -301,6 +303,19 @@ impl CliCommand for EmitGoCommand {
     }
 }
 
+/// Command encapsulating the test suite runner (`aurac test [flags] [paths...]` or `aurac --test`).
+pub struct TestCommand {
+    /// Arguments forwarded to the testing runner.
+    pub args: Vec<String>,
+}
+
+impl CliCommand for TestCommand {
+    fn execute(&self) {
+        aura_lang::testing::run_cli(&self.args);
+    }
+}
+
+
 const DEBUGGER_RUNNER_SCRIPT: &str = include_str!("debugger.js");
 
 fn main() {
@@ -311,6 +326,20 @@ fn main() {
     }
 
     let command_or_file = &args[1];
+
+    // Check if test command or flag is invoked directly:
+    // e.g. `aurac test ...`, `aurac --test ...`, `aurac -test ...`, `aurac <file.aura> --test`
+    let has_test_flag = args.iter().skip(1).any(|a| a == "--test" || a == "-test");
+    if command_or_file == "test" || has_test_flag {
+        let test_args: Vec<String> = args
+            .into_iter()
+            .skip(1)
+            .filter(|a| a != "test" && a != "--test" && a != "-test" && a != "run" && a != "build")
+            .collect();
+        let cmd = TestCommand { args: test_args };
+        cmd.execute();
+        return;
+    }
 
     match command_or_file.as_str() {
         "--version" | "-version" | "--v" | "-V" | "-v" | "version" => {
@@ -399,10 +428,7 @@ fn main() {
                 std::process::exit(1);
             }
         }
-        "test" => {
-            let test_args: Vec<String> = args.into_iter().skip(2).collect();
-            aura_lang::testing::run_cli(&test_args);
-        }
+
         "emit-go" => {
             let mut input_file = String::new();
             let mut out_file = None;
@@ -885,5 +911,13 @@ mod tests {
     #[test]
     fn test_print_version_execution() {
         print_version();
+    }
+
+    #[test]
+    fn test_test_command_creation() {
+        let cmd = TestCommand {
+            args: vec!["--help".to_string()],
+        };
+        assert_eq!(cmd.args.len(), 1);
     }
 }

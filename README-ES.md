@@ -1079,7 +1079,7 @@ aurac build app.aura -o app --dts ./node_modules/@types/node/index.d.ts
 
 ### 18. Directivas de Prueba, Aserciones y Benchmarks
 
-Aura incluye un motor nativo e integrado de pruebas unitarias, benchmarks de rendimiento y cobertura de código inspirado en el modelo de Go, impulsado por `auratest` (o `aurac test`).
+Aura incluye un motor nativo e integrado de pruebas unitarias, benchmarks de rendimiento y cobertura de código inspirado en el modelo de Go, impulsado por `auratest` o directamente desde el compilador mediante `aurac --test` (o `aurac test`).
 
 #### A. Directivas y Convenciones de Descubrimiento de Pruebas
 
@@ -1182,6 +1182,30 @@ export fn test_postgres_pool(t: TestingT) => {
 Ejecutar pruebas filtradas por tags:
 ```bash
 auratest --tags "integration" ./...
+# o desde el compilador:
+aurac --test --tags "integration" ./...
+```
+
+#### F. Análisis y Validación de Cobertura de Código (Code Coverage)
+
+Aura incluye un motor de cobertura a nivel de sentencias y líneas integrado tanto en el compilador (`aurac --test`) como en el runner `auratest`. Permite validar la cobertura en terminal, exportar perfiles para CI/CD y generar reportes HTML interactivos:
+
+| Flag de Cobertura | Descripción |
+| :---------------- | :---------- |
+| `-cover`, `--coverage` | Habilita el cálculo y muestra la tabla de cobertura por archivo con porcentaje total en terminal. |
+| `-coverprofile <archivo>` | Escribe el perfil de cobertura detallado línea por línea en el archivo especificado. |
+| `--coverage-html <archivo>`, `--html <archivo>` | Genera un reporte HTML autónomo con el código fuente coloreado según su cobertura. |
+
+Ejemplos de validación de cobertura:
+```bash
+# Validar cobertura del proyecto completo en la terminal
+aurac --test --coverage
+
+# Validar cobertura de un archivo específico
+aurac examples/tests/math_unit_test.aura --test --coverage
+
+# Generar perfil de cobertura para CI/CD y reporte HTML interactivo
+aurac --test -coverprofile coverage.out --coverage-html coverage.html ./...
 ```
 
 ---
@@ -1631,47 +1655,73 @@ aurac build main.aura --tags "premium,darwin"
 
 # 10. Ingestión de definiciones TypeScript externas (.d.ts)
 aurac build main.aura -o dist/mi-app --dts node_modules/@types/node/index.d.ts
+
+# 11. Ejecución de pruebas directamente desde el compilador
+aurac --test
+aurac --test ./...
+aurac main_test.aura --test
 ```
 
-### 2. Runner de Pruebas, Benchmarks y Cobertura (`auratest`)
+### 2. Runner de Pruebas, Benchmarks y Cobertura (`aurac --test` / `auratest`)
+
+Las pruebas pueden ejecutarse directamente con el compilador (`aurac --test` / `aurac <archivo> --test`) o mediante el runner dedicado (`auratest`):
 
 ```bash
 # Ejecutar todas las pruebas del proyecto
+aurac --test
 auratest ./...
-# o alternativamente:
 aurac test ./...
 
-# Modo detallado (verbose) con tiempos individuales
-auratest -v ./...
+# Ejecutar sobre un archivo específico directamente desde el compilador
+aurac examples/tests/math_unit_test.aura --test
+aurac --test examples/tests/math_unit_test.aura
 
-# Filtrar pruebas por expresión regular
-auratest -run TestUserAuthentication ./...
+# Modo detallado (verbose) con nombres de prueba, logs y tiempos individuales
+aurac --test -v ./...
+aurac examples/tests/math_unit_test.aura --test -v
 
-# Filtrar pruebas por categoría
-auratest --unit ./...
-auratest --integration ./...
-auratest --e2e ./...
+# Filtrar pruebas por expresión regular (-run <patrón>)
+aurac --test -run TestUserAuthentication ./...
+aurac examples/tests/math_unit_test.aura --test -run test_addition
 
-# Pruebas condicionales mediante build tags
-auratest --tags "integration,db" ./...
+# Filtrar pruebas por categoría (--unit, --integration, --e2e)
+aurac --test --unit ./...
+aurac --test --integration ./...
+aurac --test --e2e ./...
+
+# Pruebas condicionales mediante build tags (--tags <tags>)
+aurac --test --tags "integration,db" ./...
 
 # Ejecutar benchmarks con reporte de tiempo por operación (ns/op)
-auratest -bench . ./...
+aurac --test -bench . ./...
 
-# Generar reporte de cobertura con perfil y exportación a HTML interactivo
-auratest --coverage --coverprofile=coverage.out --coverage-html=coverage.html ./...
+# Análisis y reporte de cobertura de código (code coverage) en consola
+aurac --test --coverage
+aurac examples/tests/math_unit_test.aura --test --coverage
+
+# Generar perfil de cobertura para CI/CD y reporte HTML interactivo
+aurac --test --coverage -coverprofile=coverage.out --coverage-html=coverage.html ./...
+
+# Detener ejecución en el primer fallo (-failfast)
+aurac --test -failfast ./...
+
+# Ejecutar con límite de tiempo (-timeout <duración>) y repeticiones (-count <n>)
+aurac --test -timeout 10s -count 2 ./...
+
+# Ejecución paralela de archivos de prueba (-parallel <n>)
+aurac --test -parallel 4 ./...
 
 # Salida estructurada JSON para integración en CI/CD
-auratest -json ./...
+aurac --test -json ./...
 
-# Detener ejecución en el primer fallo (fail-fast)
-auratest --fail-fast ./...
+# Listar pruebas descubiertas sin ejecutarlas (-l / --list)
+aurac --test -l ./...
 
-# Ejecutar pruebas con repeticiones y límite de tiempo
-auratest -count=2 -timeout=10000 ./...
+# Modo Watch para re-ejecutar pruebas automáticamente al guardar (-w / --watch)
+aurac --test -w ./...
 
-# Modo Watch para ejecutar pruebas automáticamente al guardar
-auratest -w ./...
+# Ver ayuda completa de flags de testing
+aurac --test --help
 ```
 
 ### 3. Formateador de Código (`aurafmt`, Estilo `gofmt`)

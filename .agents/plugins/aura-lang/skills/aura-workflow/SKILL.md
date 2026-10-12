@@ -36,8 +36,14 @@ aurac <path/to/file.aura> -o <binary_name>
 ### 4. Running Unit Tests and Benchmarks
 Execute the full test suite with coverage:
 ```bash
+# Run tests directly with the aurac compiler:
+aurac --test
+# Run tests on specific directory/file with compiler:
+aurac --test tests/
+aurac tests/math_unit_test.aura --test
+
+# Or using the dedicated runner:
 auratest
-# Or test specific directory/file:
 auratest tests/
 ```
 
