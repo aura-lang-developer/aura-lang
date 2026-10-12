@@ -6,3 +6,5 @@ dist/
 wordstar_app.go
 projects/
 website/
+*.tar.gz
+*.sha256

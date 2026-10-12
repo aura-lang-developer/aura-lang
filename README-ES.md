@@ -207,9 +207,9 @@ Verifica tu instalación:
 
 ```bash
 aura --version
-# Salida: aura 0.4.0
+# Salida: aura 0.5.0
 aurac --version
-# Salida: aurac 0.4.0
+# Salida: aurac 0.5.0
 ```
 
 ### 3. Modos de Compilación y Ejecución
