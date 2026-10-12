@@ -62,3 +62,31 @@ fn test_native_fibers_and_concurrency() {
     assert!(stdout.contains("Spawned green thread running!"));
     assert!(stdout.contains("Parent fiber finished"));
 }
+
+#[test]
+fn test_native_cranelift_release_mode() {
+    let source = r#"
+        export fn main(): Unit => {
+            println("Hello from Cranelift Release Binary!");
+            let a = 100;
+            let b = 250;
+            println(a + b);
+        }
+    "#;
+
+    let out_bin = Path::new("test_cranelift_release_bin");
+    let res = aura_lang::build_native_binary_with_options(source, out_bin, None, None, true);
+    assert!(res.is_ok(), "Native release compilation failed: {:?}", res.err());
+    assert!(out_bin.exists());
+
+    let output = Command::new("./test_cranelift_release_bin")
+        .output()
+        .expect("Failed to run release native binary");
+
+    let _ = fs::remove_file(out_bin);
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Hello from Cranelift Release Binary!"));
+    assert!(stdout.contains("350"));
+}
+

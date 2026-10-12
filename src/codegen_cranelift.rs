@@ -391,11 +391,10 @@ impl CraneliftBackend {
 
     pub fn with_options(target: Option<&str>, release: bool) -> Result<Self, String> {
         let mut flag_builder = settings::builder();
-        flag_builder.set("use_colocated_libcalls", "false").unwrap();
-        flag_builder.set("is_pic", "true").unwrap();
+        flag_builder.set("use_colocated_libcalls", "false").map_err(|e| e.to_string())?;
+        flag_builder.set("is_pic", "true").map_err(|e| e.to_string())?;
         if release {
-            flag_builder.set("opt_level", "speed").unwrap();
-            flag_builder.set("enable_simd", "true").unwrap();
+            flag_builder.set("opt_level", "speed").map_err(|e| e.to_string())?;
         }
 
         let triple = if let Some(t) = target {
@@ -1938,7 +1937,7 @@ impl CraneliftBackend {
                     let call = builder.ins().call(local_fn, &[]);
                     return Ok(builder.inst_results(call)[0]);
                 }
-                if obj_name == "time" && member == "now" {
+                if obj_name == "time" && (member == "now" || member == "isoString") {
                     let local_fn = self
                         .module
                         .declare_func_in_func(self.time_now_id, builder.func);

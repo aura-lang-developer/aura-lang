@@ -1585,6 +1585,8 @@ func (auraTimeStatic) Now() int64 { return go_time.Now().UnixMilli() }
 func (auraTimeStatic) now() int64 { return go_time.Now().UnixMilli() }
 func (auraTimeStatic) Sleep(ms int64) { go_time.Sleep(go_time.Duration(ms) * go_time.Millisecond) }
 func (auraTimeStatic) sleep(ms int64) { go_time.Sleep(go_time.Duration(ms) * go_time.Millisecond) }
+func (auraTimeStatic) IsoString() string { return go_time.Now().UTC().Format(go_time.RFC3339) }
+func (auraTimeStatic) isoString() string { return go_time.Now().UTC().Format(go_time.RFC3339) }
 var time = auraTimeStatic{}
 
 type auraMathStatic struct{}
@@ -3427,6 +3429,103 @@ impl GoCodeGen {
         }
     }
 
+    fn emit_iife_branch_body(&mut self, branch: &Expr, ret_ty: &str) -> String {
+        let format_ret = |val: String| -> String {
+            if val.starts_with("return ") || val == "return" {
+                val
+            } else {
+                let formatted = match ret_ty {
+                    "string" => format!("__auraStr({})", val),
+                    "float64" => format!("__auraFloat({})", val),
+                    "int64" => format!("__auraInt({})", val),
+                    "bool" => format!("__auraBool({})", val),
+                    _ => val,
+                };
+                format!("return {}", formatted)
+            }
+        };
+
+        if let Expr::Block(stmts) = branch {
+            if stmts.is_empty() {
+                return match ret_ty {
+                    "auraResult" => "return Ok(unit)".to_string(),
+                    _ => "return".to_string(),
+                };
+            }
+            let mut lines = Vec::new();
+            for (idx, stmt) in stmts.iter().enumerate() {
+                let is_last = idx == stmts.len() - 1;
+                match stmt {
+                    Statement::Let {
+                        name,
+                        value,
+                        type_annotation,
+                        ..
+                    } => {
+                        lines.push(self.emit_let_statement(
+                            name,
+                            value,
+                            type_annotation.as_ref(),
+                        ));
+                        if is_last {
+                            lines.push(format_ret("unit".to_string()));
+                        }
+                    }
+                    Statement::Assign { target, value } => {
+                        lines.push(format!(
+                            "{} = {}",
+                            self.emit_expr(target),
+                            self.emit_expr(value)
+                        ));
+                        if is_last {
+                            lines.push(format_ret("unit".to_string()));
+                        }
+                    }
+                    Statement::Defer(e) => {
+                        lines.push(format!("defer {}", self.emit_expr(e)));
+                        if is_last {
+                            lines.push(format_ret("unit".to_string()));
+                        }
+                    }
+                    Statement::ErrDefer(e) => {
+                        lines.push(format!(
+                            "defer func() {{ if recover() != nil {{ {} }} }}()",
+                            self.emit_expr(e)
+                        ));
+                        if is_last {
+                            lines.push(format_ret("unit".to_string()));
+                        }
+                    }
+                    Statement::Expr(e) => {
+                        let e_str = self.emit_expr(e);
+                        if is_last {
+                            lines.push(format_ret(e_str));
+                        } else if e_str != "unit" {
+                            lines.push(e_str);
+                        }
+                    }
+                    Statement::Return(opt_e) => {
+                        if let Some(e) = opt_e {
+                            let e_str = self.emit_expr(e);
+                            if e_str == "unit" {
+                                lines.push("return".to_string());
+                            } else {
+                                lines.push(format_ret(e_str));
+                            }
+                        } else {
+                            lines.push("return".to_string());
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            lines.join("; ")
+        } else {
+            let val = self.emit_expr(branch);
+            format_ret(val)
+        }
+    }
+
     fn emit_expr(&mut self, expr: &Expr) -> String {
         match expr {
             Expr::Literal(lit) => match lit {
@@ -4213,9 +4312,7 @@ impl GoCodeGen {
                 else_branch,
             } => {
                 let cond_str = self.emit_expr(condition);
-                let then_str = self.emit_expr(then_branch);
                 if let Some(else_b) = else_branch {
-                    let else_str = self.emit_expr(else_b);
                     let returns_res = self.current_returns_result
                         && (self.expr_returns_result(then_branch)
                             || self.expr_returns_result(else_b));
@@ -4227,31 +4324,15 @@ impl GoCodeGen {
                             .unwrap_or("any")
                     };
 
-                    let (then_fmt, else_fmt) = match ret_ty {
-                        "string" => (
-                            format!("__auraStr({})", then_str),
-                            format!("__auraStr({})", else_str),
-                        ),
-                        "float64" => (
-                            format!("__auraFloat({})", then_str),
-                            format!("__auraFloat({})", else_str),
-                        ),
-                        "int64" => (
-                            format!("__auraInt({})", then_str),
-                            format!("__auraInt({})", else_str),
-                        ),
-                        "bool" => (
-                            format!("__auraBool({})", then_str),
-                            format!("__auraBool({})", else_str),
-                        ),
-                        _ => (then_str, else_str),
-                    };
+                    let then_body = self.emit_iife_branch_body(then_branch, ret_ty);
+                    let else_body = self.emit_iife_branch_body(else_b, ret_ty);
 
                     format!(
-                        "func() {} {{ if {} {{ return {} }} else {{ return {} }} }}()",
-                        ret_ty, cond_str, then_fmt, else_fmt
+                        "func() {} {{ if {} {{ {} }} else {{ {} }} }}()",
+                        ret_ty, cond_str, then_body, else_body
                     )
                 } else {
+                    let then_str = self.emit_expr(then_branch);
                     format!("if {} {{ {} }}", cond_str, then_str)
                 }
             }
