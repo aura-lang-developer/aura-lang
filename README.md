@@ -120,7 +120,7 @@ The workspace is configured with centralized `[workspace.dependencies]`, unified
 
 The compiled binaries will be placed in `target/release/` (or `target/debug/`):
 
-- `aurac`: Core compiler, native builder, hot-runner, watcher, debugger, and playground runner.
+- `aura` (or `aurac`): Unified CLI toolchain and core compiler, native builder, hot runner (`run`), test engine (`test` / `--test`), watcher, debugger, and playground.
 - `auratest`: Complete unit test, benchmark (`ns/op`), and HTML coverage suite.
 - `aurafmt`: Fast, idempotent, and opinionated code formatter (`gofmt` style).
 - `auralsp`: Language Server Protocol (LSP) daemon compatible with any modern editor.
@@ -132,8 +132,8 @@ The compiled binaries will be placed in `target/release/` (or `target/debug/`):
 You can compile individual binaries using the `--bin` flag:
 
 ```bash
-# Compile only the core compiler
-cargo build --release --bin aurac
+# Compile the primary toolchain binary (or --bin aurac)
+cargo build --release --bin aura
 
 # Compile only the test and benchmark runner
 cargo build --release --bin auratest
@@ -1621,10 +1621,14 @@ Compatible with:
 
 ## 🛠️ Full Tooling and CLI Reference
 
-### 1. Core Compiler (`aurac`)
+### 1. Unified Toolchain & Core Compiler (`aura` / `aurac`)
+
+The primary command is `aura` (with `aurac` fully supported as an identical alias):
 
 ```bash
 # 1. Compile to standalone native binary with Cranelift (default)
+aura build main.aura -o dist/my-app
+# or via the aurac alias:
 aurac build main.aura -o dist/my-app
 
 # 2. Compile with release optimizations (-O3, SIMD, dead-code strip)

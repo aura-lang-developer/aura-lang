@@ -4,6 +4,7 @@ pub mod ast;
 pub mod backend;
 pub mod bindgen;
 pub mod build_tags;
+pub mod cli;
 pub mod codegen;
 pub mod codegen_cranelift;
 pub mod codegen_go;

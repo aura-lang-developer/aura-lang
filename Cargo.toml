@@ -3,7 +3,7 @@ name = "aura-lang"
 version = "0.3.0"
 edition = "2024"
 license = "MIT"
-default-run = "aurac"
+default-run = "aura"
 description = "Aura Language compiler and toolchain"
 repository = "https://github.com/aura-lang-developer/aura-lang"
 
@@ -61,8 +61,12 @@ rustc-hash = { workspace = true }
 workspace = true
 
 [[bin]]
-name = "aurac"
+name = "aura"
 path = "src/main.rs"
+
+[[bin]]
+name = "aurac"
+path = "src/bin/aurac.rs"
 
 [[bin]]
 name = "aurafmt"

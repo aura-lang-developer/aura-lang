@@ -119,7 +119,7 @@ El workspace está estructurado con `[workspace.dependencies]` centralizadas, `[
 
 Los ejecutables compilados se ubicarán en `target/release/` (o `target/debug/`):
 
-- `aurac`: Compilador central, constructor nativo, ejecutor en caliente, watcher, depurador y playground.
+- `aura` (o `aurac`): CLI unificada y compilador central, constructor nativo, ejecutor en caliente (`run`), pruebas (`test` / `--test`), watcher, depurador y playground.
 - `auratest`: Suite completa de pruebas unitarias, benchmarks (`ns/op`) y cobertura HTML.
 - `aurafmt`: Formateador de código rápido, idempotente y opinado (estilo `gofmt`).
 - `auralsp`: Demonio del Language Server Protocol (LSP) compatible con cualquier editor moderno.
@@ -131,8 +131,8 @@ Los ejecutables compilados se ubicarán en `target/release/` (o `target/debug/`)
 Puedes compilar únicamente los binarios que necesites mediante la opción `--bin`:
 
 ```bash
-# Compilar solo el compilador central
-cargo build --release --bin aurac
+# Compilar el ejecutable principal de la toolchain (o --bin aurac)
+cargo build --release --bin aura
 
 # Compilar solo el runner de pruebas y benchmarks
 cargo build --release --bin auratest
@@ -1620,10 +1620,14 @@ Compatible con:
 
 ## 🛠️ Referencia Completa de Herramientas y CLI
 
-### 1. Compilador Central (`aurac`)
+### 1. Toolchain Unificada y Compilador (`aura` / `aurac`)
+
+El comando principal es `aura` (con `aurac` disponible como alias 100% compatible):
 
 ```bash
 # 1. Compilar a binario nativo independiente con Cranelift (por defecto)
+aura build main.aura -o dist/mi-app
+# o mediante el alias aurac:
 aurac build main.aura -o dist/mi-app
 
 # 2. Compilar con optimizaciones de release (-O3, SIMD, strip de código muerto)

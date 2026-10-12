@@ -110,3 +110,41 @@ fn test_aura_lang_version_constants() {
     assert_eq!(aura_lang::VERSION, env!("CARGO_PKG_VERSION"));
     assert_eq!(aura_lang::version(), env!("CARGO_PKG_VERSION"));
 }
+
+#[test]
+fn test_aura_primary_binary_version() {
+    let output = Command::new(env!("CARGO_BIN_EXE_aura"))
+        .arg("--version")
+        .output()
+        .expect("Failed to execute aura --version");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(stdout.trim(), format!("aura {}", env!("CARGO_PKG_VERSION")));
+}
+
+#[test]
+fn test_aura_subcommands_version_flag() {
+    let subcommands = ["build", "run", "check", "emit-go", "watch"];
+    for subcmd in subcommands {
+        let output = Command::new(env!("CARGO_BIN_EXE_aura"))
+            .args([subcmd, "--version"])
+            .output()
+            .unwrap_or_else(|_| panic!("Failed to execute aura {} --version", subcmd));
+
+        assert!(
+            output.status.success(),
+            "aura {} --version failed with status: {:?}",
+            subcmd,
+            output.status
+        );
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert_eq!(
+            stdout.trim(),
+            format!("aura {}", env!("CARGO_PKG_VERSION")),
+            "Unexpected output for aura {} --version",
+            subcmd
+        );
+    }
+}
+

@@ -102,16 +102,17 @@ server.enableSwagger("/swagger"); // Swagger UI & OpenAPI 3.0 auto-generator
 ## 3. Tooling & CLI Reference
 
 When executing commands or diagnosing compiler outputs, use the official tools:
+The primary command is `aura` (with `aurac` fully supported as an identical alias):
 
-- `aurac run <file.aura>`: Compile and execute file directly.
-- `aurac check <file.aura>`: Fast type check and static analysis without code generation.
-- `aurac build <file.aura> [-o binary] [--standalone]`: Build standalone binary executable.
-- `aurac watch <file.aura> [--run]`: Live watch mode with automatic re-run.
-- `aurac --test [flags] [paths...]` / `aurac test`: Run tests directly from the compiler.
+- `aura run <file.aura>`: Compile and execute file directly.
+- `aura check <file.aura>`: Fast type check and static analysis without code generation.
+- `aura build <file.aura> [-o binary] [--standalone]`: Build standalone binary executable.
+- `aura watch <file.aura> [--run]`: Live watch mode with automatic re-run.
+- `aura --test [flags] [paths...]` / `aura test`: Run tests directly from the compiler.
 - `auratest [flags] [paths...]`: Dedicated test runner CLI, benchmark suite, and coverage reporter.
-- `aurafmt [-w] [paths...]`: Opinionated code formatter (always format with `-w` when modifying code).
-- `auralsp` / `aurac lsp`: Language Server Protocol engine.
-- `aurac playground [--port <port>]`: Interactive web playground.
+- `aurafmt [-w] [paths...]` / `aura fmt`: Opinionated code formatter (always format with `-w` when modifying code).
+- `auralsp` / `aura lsp`: Language Server Protocol engine.
+- `aura playground [--port <port>]`: Interactive web playground.
 
 ---
 
