@@ -40,7 +40,7 @@ The suite evaluates critical aspects of backend development, concurrency, and sy
 
 ## 📊 Results Summary (Darwin arm64 / Apple Silicon)
 
-> **Environment**: macOS Darwin arm64 | Go Compiler: `go1.27.2` | Aura Compiler: `aurac v0.6.0` (Cranelift Backend & Go Toolchain)
+> **Environment**: macOS Darwin arm64 | Go Compiler: `go1.27.2` | Aura Compiler: `aurac v0.7.0` (Cranelift Backend & Go Toolchain)
 
 ### 1. Execution Times and Memory Consumption (Peak RSS)
 

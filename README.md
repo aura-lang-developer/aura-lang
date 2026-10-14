@@ -208,9 +208,9 @@ Verify your installation:
 
 ```bash
 aura --version
-# Output: aura 0.5.0
+# Output: aura 0.7.0
 aurac --version
-# Output: aurac 0.5.0
+# Output: aurac 0.7.0
 ```
 
 ### 3. Compilation and Execution Modes
