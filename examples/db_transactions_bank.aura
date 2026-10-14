@@ -1,0 +1,91 @@
+// =============================================================================
+// Aura Language: ACID Financial Transactions Example
+// =============================================================================
+// Demonstrates atomic transactions (begin, commit, rollback) using the Tx API.
+// Validates money transfer between accounts with atomic consistency.
+// =============================================================================
+
+export fn main(): Unit => {
+    println("🏦 [Bank Demo] Starting ACID Financial Transaction Showcase");
+    println("-------------------------------------------------------------");
+
+    let db: DB = sqlite.open(":memory:", 2);
+
+    // 1. Setup Accounts Schema
+    db.exec("
+        CREATE TABLE accounts (
+            account_no TEXT PRIMARY KEY,
+            owner_name TEXT NOT NULL,
+            balance INT NOT NULL CHECK(balance >= 0)
+        );
+    ", []);
+
+    // 2. Initial Balances
+    let insertAccount = "INSERT INTO accounts (account_no, owner_name, balance) VALUES (?, ?, ?);";
+    db.exec(insertAccount, ["ACC-1001", "Alice Vance", 1000]);
+    db.exec(insertAccount, ["ACC-1002", "Bob Martinez", 500]);
+    db.exec(insertAccount, ["ACC-1003", "Charlie Chen", 250]);
+
+    println("Initial Account Balances:");
+    printBalances(db);
+
+    // -------------------------------------------------------------------------
+    // Scenario 1: Successful Money Transfer (Alice -> Bob $300)
+    // -------------------------------------------------------------------------
+    println("\n[Transaction 1] Transferring $300 from Alice (ACC-1001) to Bob (ACC-1002)...");
+    let tx1: Tx = db.begin();
+
+    // Deduct from sender
+    tx1.exec("UPDATE accounts SET balance = balance - ? WHERE account_no = ?;", [300, "ACC-1001"]);
+    // Credit receiver
+    tx1.exec("UPDATE accounts SET balance = balance + ? WHERE account_no = ?;", [300, "ACC-1002"]);
+
+    let commitRes = tx1.commit();
+    if (commitRes == 0) {
+        println("✓ Transaction 1 successfully COMMITTED!");
+    } else {
+        println("✕ Transaction 1 failed!");
+    }
+
+    printBalances(db);
+
+    // -------------------------------------------------------------------------
+    // Scenario 2: Rollback on Business Rule Violation (e.g. Insufficient funds or invalid target)
+    // -------------------------------------------------------------------------
+    println("\n[Transaction 2] Simulating failed transfer (Charlie transfers $500 to NonExistentAccount)...");
+    let tx2: Tx = db.begin();
+
+    // Deduct from Charlie
+    tx2.exec("UPDATE accounts SET balance = balance - ? WHERE account_no = ?;", [500, "ACC-1003"]);
+
+    // Attempt to credit invalid account
+    let updateTarget = tx2.exec("UPDATE accounts SET balance = balance + ? WHERE account_no = ?;", [500, "ACC-9999"]);
+    
+    // Check if target existed
+    if (updateTarget.rowsAffected == 0) {
+        println("! Target account ACC-9999 not found. Rolling back transaction...");
+        let rollbackRes = tx2.rollback();
+        if (rollbackRes == 0) {
+            println("✓ Transaction 2 successfully ROLLED BACK! No funds lost.");
+        }
+    } else {
+        tx2.commit();
+    }
+
+    println("\nFinal Verified Account Balances (Charlie's balance remains intact):");
+    printBalances(db);
+
+    db.close();
+    println("\n🏦 [Bank Demo] Completed successfully!");
+}
+
+fn printBalances(db: DB): Unit => {
+    let rows: Rows = db.query("SELECT account_no, owner_name, balance FROM accounts ORDER BY account_no ASC;", []);
+    while (rows.next()) {
+        let acc = rows.getString(0);
+        let owner = rows.getString(1);
+        let balance = rows.getInt(2);
+        println(`  -> [${acc}] ${owner}: $${balance}`);
+    }
+    rows.close();
+}

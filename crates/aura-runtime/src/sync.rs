@@ -1,45 +1,65 @@
 //! Native synchronization primitives (Mutex, WaitGroup) for Aura Runtime.
 
-use std::sync::{Mutex, MutexGuard};
+use std::sync::atomic::{AtomicBool, Ordering};
 
+#[derive(Default)]
 pub struct AuraMutex {
-    inner: Mutex<()>,
-    guard: Option<MutexGuard<'static, ()>>,
+    locked: AtomicBool,
+}
+
+impl AuraMutex {
+    pub fn new() -> Self {
+        AuraMutex {
+            locked: AtomicBool::new(false),
+        }
+    }
+
+    /// Acquires the lock cooperatively.
+    /// Spins briefly for low contention, then yields execution to the fiber scheduler.
+    pub fn lock(&self) {
+        let mut spins = 0;
+        while self
+            .locked
+            .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
+            .is_err()
+        {
+            spins += 1;
+            if spins < 32 {
+                std::hint::spin_loop();
+            } else {
+                crate::scheduler::yield_now();
+                spins = 0;
+            }
+        }
+    }
+
+    /// Releases the lock.
+    pub fn unlock(&self) {
+        self.locked.store(false, Ordering::Release);
+    }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn aura_mutex_new() -> *mut AuraMutex {
-    let m = Box::new(AuraMutex {
-        inner: Mutex::new(()),
-        guard: None,
-    });
+    let m = Box::new(AuraMutex::new());
     Box::into_raw(m)
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn aura_mutex_lock(m: *mut AuraMutex) {
-    if m.is_null() {
-        return;
-    }
-    unsafe {
-        let mutex_ref = &*m;
-        // Acquire lock
-        let guard = mutex_ref.inner.lock().unwrap();
-        // Store guard in self
-        let guard_static: MutexGuard<'static, ()> = std::mem::transmute(guard);
-        let m_mut = &mut *m;
-        m_mut.guard = Some(guard_static);
+    if !m.is_null() {
+        unsafe {
+            (*m).lock();
+        }
     }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn aura_mutex_unlock(m: *mut AuraMutex) {
-    if m.is_null() {
-        return;
-    }
-    unsafe {
-        let m_mut = &mut *m;
-        m_mut.guard = None; // Drops guard, unlocking mutex
+    if !m.is_null() {
+        unsafe {
+            (*m).unlock();
+        }
     }
 }
 

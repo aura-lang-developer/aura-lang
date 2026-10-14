@@ -78,9 +78,8 @@ export fn runLabeledWhileTest(): Int => {
     std::fs::create_dir_all("dist").unwrap();
     std::fs::write(temp_js_path, &result.js_code).unwrap();
 
-    let runner_script = format!(
-        r#"
-import {{ runLabeledBreakTest, runLabeledContinueTest, runLabeledWhileTest }} from './test_labeled_loops_e2e.mjs';
+    let runner_script = r#"
+import { runLabeledBreakTest, runLabeledContinueTest, runLabeledWhileTest } from './test_labeled_loops_e2e.mjs';
 
 // 1. Labeled break test:
 // i=1 (j=10, 20, 30 -> 3 steps)
@@ -89,10 +88,10 @@ import {{ runLabeledBreakTest, runLabeledContinueTest, runLabeledWhileTest }} fr
 // Total = 3 + 3 + 1 = 7 steps
 const breakRes = runLabeledBreakTest();
 console.log("Labeled break result:", breakRes);
-if (breakRes !== 7) {{
+if (breakRes !== 7) {
     console.error("Expected 7 from labeled break test, got:", breakRes);
     process.exit(1);
-}}
+}
 
 // 2. Labeled continue test:
 // i=1 (j=1 -> 1 step; at j=2 continue outer)
@@ -101,10 +100,10 @@ if (breakRes !== 7) {{
 // Total = 3 steps
 const continueRes = runLabeledContinueTest();
 console.log("Labeled continue result:", continueRes);
-if (continueRes !== 3) {{
+if (continueRes !== 3) {
     console.error("Expected 3 from labeled continue test, got:", continueRes);
     process.exit(2);
-}}
+}
 
 // 3. Labeled while test:
 // i=1 (j=1..5 -> 5 steps)
@@ -112,14 +111,13 @@ if (continueRes !== 3) {{
 // Total = 5 + 1 = 6 steps
 const whileRes = runLabeledWhileTest();
 console.log("Labeled while result:", whileRes);
-if (whileRes !== 6) {{
+if (whileRes !== 6) {
     console.error("Expected 6 from labeled while test, got:", whileRes);
     process.exit(3);
-}}
+}
 
 process.exit(0);
-"#
-    );
+"#.to_string();
 
     let script_path = "dist/run_labeled_loops_check.mjs";
     std::fs::write(script_path, runner_script).unwrap();

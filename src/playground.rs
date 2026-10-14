@@ -194,7 +194,7 @@ pub fn handle_hover_api(source: &str, line: u32, column: u32) -> String {
 fn send_html_response(stream: &mut TcpStream, html: &str) {
     let response = format!(
         "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-src 'self' blob:;\r\nX-Content-Type-Options: nosniff\r\nX-Frame-Options: SAMEORIGIN\r\nReferrer-Policy: no-referrer\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-        html.as_bytes().len(),
+        html.len(),
         html
     );
     let _ = stream.write_all(response.as_bytes());
@@ -203,7 +203,7 @@ fn send_html_response(stream: &mut TcpStream, html: &str) {
 fn send_json_response(stream: &mut TcpStream, json: &str) {
     let response = format!(
         "HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nX-Content-Type-Options: nosniff\r\nAccess-Control-Allow-Origin: *\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-        json.as_bytes().len(),
+        json.len(),
         json
     );
     let _ = stream.write_all(response.as_bytes());
@@ -239,7 +239,7 @@ fn extract_int_param(body: &str, field: &str) -> Option<i64> {
     let after_colon = &after_field[colon_pos + 1..].trim_start();
     let num_str: String = after_colon
         .chars()
-        .take_while(|c| c.is_digit(10) || *c == '-')
+        .take_while(|c| c.is_ascii_digit() || *c == '-')
         .collect();
     num_str.parse::<i64>().ok()
 }
@@ -251,10 +251,10 @@ fn extract_json_str(json: &str, field: &str) -> Option<String> {
     let colon_pos = after_field.find(':')?;
     let after_colon = &after_field[colon_pos + 1..].trim_start();
 
-    if after_colon.starts_with('"') {
+    if let Some(stripped) = after_colon.strip_prefix('"') {
         let mut s = String::new();
         let mut escaped = false;
-        for c in after_colon[1..].chars() {
+        for c in stripped.chars() {
             if escaped {
                 match c {
                     'n' => s.push('\n'),

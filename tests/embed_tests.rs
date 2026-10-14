@@ -13,7 +13,7 @@ fn test_embed_static_text_and_binary_assets() {
         "Hello from embedded file! \nWith special \"quotes\" and Unicode 🚀",
     )
     .unwrap();
-    fs::write(bin_path, &[0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x02, 0x03]).unwrap();
+    fs::write(bin_path, [0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x02, 0x03]).unwrap();
 
     let source = format!(
         r#"
@@ -40,27 +40,25 @@ export fn getEmbeddedBytes(): List<Int> => {{
     fs::create_dir_all("dist").unwrap();
     fs::write(temp_js_path, &result.js_code).unwrap();
 
-    let runner_script = format!(
-        r#"
-import {{ getEmbeddedText, getEmbeddedBytes }} from './test_embed_e2e.mjs';
+    let runner_script = r#"
+import { getEmbeddedText, getEmbeddedBytes } from './test_embed_e2e.mjs';
 
 const text = getEmbeddedText();
 console.log("Embedded text:", text);
-if (!text.includes("Hello from embedded file!") || !text.includes("🚀")) {{
+if (!text.includes("Hello from embedded file!") || !text.includes("🚀")) {
     console.error("Embedded text content mismatch");
     process.exit(1);
-}}
+}
 
 const bytes = getEmbeddedBytes();
 console.log("Embedded bytes length:", bytes.length, "content:", bytes);
-if (bytes.length !== 7 || bytes[0] !== 222 || bytes[1] !== 173 || bytes[2] !== 190 || bytes[3] !== 239) {{
+if (bytes.length !== 7 || bytes[0] !== 222 || bytes[1] !== 173 || bytes[2] !== 190 || bytes[3] !== 239) {
     console.error("Embedded bytes content mismatch");
     process.exit(2);
-}}
+}
 
 process.exit(0);
-"#
-    );
+"#.to_string();
 
     let script_path = "dist/run_embed_check.mjs";
     fs::write(script_path, runner_script).unwrap();

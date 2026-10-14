@@ -615,55 +615,51 @@ impl DocumentState {
                                 {
                                     candidate = candidate.with_extension("aura");
                                 }
-                                if candidate.is_file() {
-                                    if let Ok(src) = std::fs::read_to_string(&candidate) {
-                                        for line in src.lines() {
-                                            let trimmed = line.trim();
-                                            if (trimmed.starts_with("export fn")
-                                                || trimmed.starts_with("fn"))
-                                                && trimmed.contains(&it.name)
-                                            {
-                                                resolved_sig = format!(
-                                                    "// Defined in {}\n{}",
-                                                    imp.source,
-                                                    trimmed
-                                                        .trim_end_matches('{')
-                                                        .trim_end_matches("=>")
-                                                        .trim()
-                                                );
-                                                resolved_doc = Some(format!(
-                                                    "Underlying definition in `{}`",
-                                                    candidate
-                                                        .file_name()
-                                                        .unwrap_or_default()
-                                                        .to_string_lossy()
-                                                ));
-                                                resolved_uri = format!(
-                                                    "file://{}",
-                                                    candidate.to_string_lossy()
-                                                );
-                                                break;
-                                            } else if (trimmed.starts_with("export type")
-                                                || trimmed.starts_with("type"))
-                                                && trimmed.contains(&it.name)
-                                            {
-                                                resolved_sig = format!(
-                                                    "// Defined in {}\n{}",
-                                                    imp.source, trimmed
-                                                );
-                                                resolved_doc = Some(format!(
-                                                    "Underlying type in `{}`",
-                                                    candidate
-                                                        .file_name()
-                                                        .unwrap_or_default()
-                                                        .to_string_lossy()
-                                                ));
-                                                resolved_uri = format!(
-                                                    "file://{}",
-                                                    candidate.to_string_lossy()
-                                                );
-                                                break;
-                                            }
+                                if candidate.is_file()
+                                    && let Ok(src) = std::fs::read_to_string(&candidate)
+                                {
+                                    for line in src.lines() {
+                                        let trimmed = line.trim();
+                                        if (trimmed.starts_with("export fn")
+                                            || trimmed.starts_with("fn"))
+                                            && trimmed.contains(&it.name)
+                                        {
+                                            resolved_sig = format!(
+                                                "// Defined in {}\n{}",
+                                                imp.source,
+                                                trimmed
+                                                    .trim_end_matches('{')
+                                                    .trim_end_matches("=>")
+                                                    .trim()
+                                            );
+                                            resolved_doc = Some(format!(
+                                                "Underlying definition in `{}`",
+                                                candidate
+                                                    .file_name()
+                                                    .unwrap_or_default()
+                                                    .to_string_lossy()
+                                            ));
+                                            resolved_uri =
+                                                format!("file://{}", candidate.to_string_lossy());
+                                            break;
+                                        } else if (trimmed.starts_with("export type")
+                                            || trimmed.starts_with("type"))
+                                            && trimmed.contains(&it.name)
+                                        {
+                                            resolved_sig = format!(
+                                                "// Defined in {}\n{}",
+                                                imp.source, trimmed
+                                            );
+                                            resolved_doc = Some(format!(
+                                                "Underlying type in `{}`",
+                                                candidate
+                                                    .file_name()
+                                                    .unwrap_or_default()
+                                                    .to_string_lossy()
+                                            ));
+                                            resolved_uri =
+                                                format!("file://{}", candidate.to_string_lossy());
+                                            break;
                                         }
                                     }
                                 }
@@ -741,18 +737,18 @@ impl DocumentState {
     pub fn hover(&self, pos: &LspPosition) -> Option<HoverResult> {
         // 1. Check if hovering over a reference or definition
         for s_ref in &self.references {
-            if s_ref.range.contains(pos) {
-                if let Some(def) = self.definitions.get(&s_ref.def_name) {
-                    let mut md = format!("```aura\n{}\n```", def.type_str);
-                    if let Some(ref doc) = def.doc_comment {
-                        md.push_str("\n\n---\n");
-                        md.push_str(doc);
-                    }
-                    return Some(HoverResult {
-                        contents: md,
-                        range: Some(s_ref.range),
-                    });
+            if s_ref.range.contains(pos)
+                && let Some(def) = self.definitions.get(&s_ref.def_name)
+            {
+                let mut md = format!("```aura\n{}\n```", def.type_str);
+                if let Some(ref doc) = def.doc_comment {
+                    md.push_str("\n\n---\n");
+                    md.push_str(doc);
                 }
+                return Some(HoverResult {
+                    contents: md,
+                    range: Some(s_ref.range),
+                });
             }
         }
 
@@ -781,13 +777,13 @@ impl DocumentState {
     /// Resolves Go to Definition for a position in the document.
     pub fn definition(&self, pos: &LspPosition) -> Option<Location> {
         for s_ref in &self.references {
-            if s_ref.range.contains(pos) {
-                if let Some(def) = self.definitions.get(&s_ref.def_name) {
-                    return Some(Location {
-                        uri: def.uri.clone(),
-                        range: def.def_range,
-                    });
-                }
+            if s_ref.range.contains(pos)
+                && let Some(def) = self.definitions.get(&s_ref.def_name)
+            {
+                return Some(Location {
+                    uri: def.uri.clone(),
+                    range: def.def_range,
+                });
             }
         }
 
@@ -929,9 +925,16 @@ impl DocumentState {
             "List",
             "Array",
             "Iterator",
-            "Interator",
             "Map",
             "Set",
+            "Request",
+            "HttpRequest",
+            "Response",
+            "HttpResponse",
+            "ResponseWriter",
+            "Server",
+            "ServeMux",
+            "Handler",
         ];
         for ty in builtin_types {
             items.push(CompletionItem {
@@ -1115,18 +1118,18 @@ impl DocumentState {
             }
         }
 
-        if target_name.is_none() {
-            if let Some((word, _)) = self.word_at_position(pos) {
-                if self.definitions.contains_key(&word) {
-                    target_name = Some(word.clone());
-                    target_def = self.definitions.get(&word);
-                } else if self
-                    .references
-                    .iter()
-                    .any(|r| r.name == word || r.def_name == word)
-                {
-                    target_name = Some(word);
-                }
+        if target_name.is_none()
+            && let Some((word, _)) = self.word_at_position(pos)
+        {
+            if self.definitions.contains_key(&word) {
+                target_name = Some(word.clone());
+                target_def = self.definitions.get(&word);
+            } else if self
+                .references
+                .iter()
+                .any(|r| r.name == word || r.def_name == word)
+            {
+                target_name = Some(word);
             }
         }
 
@@ -1137,23 +1140,20 @@ impl DocumentState {
 
         let mut results = Vec::new();
 
-        if include_declaration {
-            if let Some(def) = target_def {
-                results.push(Location {
-                    uri: def.uri.clone(),
-                    range: def.def_range,
-                });
-            }
+        if include_declaration && let Some(def) = target_def {
+            results.push(Location {
+                uri: def.uri.clone(),
+                range: def.def_range,
+            });
         }
 
         for s_ref in &self.references {
             if s_ref.name == name || s_ref.def_name == name {
-                if !include_declaration {
-                    if let Some(def) = target_def {
-                        if s_ref.range == def.def_range {
-                            continue;
-                        }
-                    }
+                if !include_declaration
+                    && let Some(def) = target_def
+                    && s_ref.range == def.def_range
+                {
+                    continue;
                 }
                 results.push(Location {
                     uri: self.uri.clone(),
@@ -1221,14 +1221,12 @@ impl DocumentState {
                 }
             }
         }
-        if target_name.is_none() {
-            if let Some((word, _)) = self.word_at_position(pos) {
-                if self.definitions.contains_key(&word)
-                    || self.references.iter().any(|r| r.name == word)
-                {
-                    target_name = Some(word);
-                }
-            }
+        if target_name.is_none()
+            && let Some((word, _)) = self.word_at_position(pos)
+            && (self.definitions.contains_key(&word)
+                || self.references.iter().any(|r| r.name == word))
+        {
+            target_name = Some(word);
         }
 
         let name = match target_name {
@@ -1404,12 +1402,11 @@ impl DocumentState {
 
         for def in self.definitions.values() {
             if def.kind_name == "variable" {
-                if let Some(r) = range {
-                    if def.def_range.start.line < r.start.line
-                        || def.def_range.end.line > r.end.line
-                    {
-                        continue;
-                    }
+                if let Some(r) = range
+                    && (def.def_range.start.line < r.start.line
+                        || def.def_range.end.line > r.end.line)
+                {
+                    continue;
                 }
                 let line_idx = def.def_range.start.line as usize;
                 if line_idx < self.lines.len() {
@@ -1515,26 +1512,26 @@ impl DocumentState {
             }
         }
 
-        if let Ok(formatted) = format_aura(&self.source) {
-            if formatted != self.source {
-                let total_lines = self.lines.len() as u32;
-                let last_len = self.lines.last().map(|l| l.len() as u32).unwrap_or(0);
-                let mut edits = HashMap::new();
-                edits.insert(
-                    self.uri.clone(),
-                    vec![TextEdit {
-                        range: LspRange::new(0, 0, total_lines, last_len),
-                        new_text: formatted,
-                    }],
-                );
-                actions.push(CodeAction {
-                    title: "Format Document (Aura Formatter)".to_string(),
-                    kind: "source.fixAll".to_string(),
-                    diagnostics: Vec::new(),
-                    edit: Some(edits),
-                    is_preferred: false,
-                });
-            }
+        if let Ok(formatted) = format_aura(&self.source)
+            && formatted != self.source
+        {
+            let total_lines = self.lines.len() as u32;
+            let last_len = self.lines.last().map(|l| l.len() as u32).unwrap_or(0);
+            let mut edits = HashMap::new();
+            edits.insert(
+                self.uri.clone(),
+                vec![TextEdit {
+                    range: LspRange::new(0, 0, total_lines, last_len),
+                    new_text: formatted,
+                }],
+            );
+            actions.push(CodeAction {
+                title: "Format Document (Aura Formatter)".to_string(),
+                kind: "source.fixAll".to_string(),
+                diagnostics: Vec::new(),
+                edit: Some(edits),
+                is_preferred: false,
+            });
         }
 
         actions
@@ -1667,10 +1664,15 @@ impl DocumentState {
                     | TokenKind::Greater
                     | TokenKind::GreaterEqual
                     | TokenKind::Plus
+                    | TokenKind::PlusEqual
                     | TokenKind::Minus
+                    | TokenKind::MinusEqual
                     | TokenKind::Star
+                    | TokenKind::StarEqual
                     | TokenKind::Slash
+                    | TokenKind::SlashEqual
                     | TokenKind::Percent
+                    | TokenKind::PercentEqual
                     | TokenKind::Ampersand
                     | TokenKind::AndAnd
                     | TokenKind::OrOr
@@ -1723,14 +1725,15 @@ impl DocumentState {
             }
         }
 
-        raw_tokens.sort_by(|a, b| (a.line, a.start_char).cmp(&(b.line, b.start_char)));
+        raw_tokens.sort_by_key(|a| (a.line, a.start_char));
 
         let mut deduped: Vec<RawToken> = Vec::new();
         for tok in raw_tokens {
-            if let Some(last) = deduped.last() {
-                if last.line == tok.line && tok.start_char < last.start_char + last.length {
-                    continue;
-                }
+            if let Some(last) = deduped.last()
+                && last.line == tok.line
+                && tok.start_char < last.start_char + last.length
+            {
+                continue;
             }
             deduped.push(tok);
         }
@@ -1817,16 +1820,15 @@ impl DocumentState {
             for ch in line.chars() {
                 if ch == '{' {
                     brace_stack.push(u_line);
-                } else if ch == '}' {
-                    if let Some(start_line) = brace_stack.pop() {
-                        if u_line > start_line {
-                            ranges.push(FoldingRange {
-                                start_line,
-                                end_line: u_line,
-                                kind: Some("region".to_string()),
-                            });
-                        }
-                    }
+                } else if ch == '}'
+                    && let Some(start_line) = brace_stack.pop()
+                    && u_line > start_line
+                {
+                    ranges.push(FoldingRange {
+                        start_line,
+                        end_line: u_line,
+                        kind: Some("region".to_string()),
+                    });
                 }
             }
         }
@@ -1837,16 +1839,15 @@ impl DocumentState {
             if line.contains("/*") {
                 comment_start = Some(u_line);
             }
-            if line.contains("*/") {
-                if let Some(start_line) = comment_start.take() {
-                    if u_line > start_line {
-                        ranges.push(FoldingRange {
-                            start_line,
-                            end_line: u_line,
-                            kind: Some("comment".to_string()),
-                        });
-                    }
-                }
+            if line.contains("*/")
+                && let Some(start_line) = comment_start.take()
+                && u_line > start_line
+            {
+                ranges.push(FoldingRange {
+                    start_line,
+                    end_line: u_line,
+                    kind: Some("comment".to_string()),
+                });
             }
         }
 
@@ -1868,18 +1869,17 @@ impl DocumentState {
             }
         }
         for s_ref in &self.references {
-            if s_ref.range.contains(pos) {
-                if let Some(def) = self.definitions.get(&s_ref.def_name) {
-                    if def.kind_name == "function" {
-                        return Some(CallHierarchyItem {
-                            name: def.name.clone(),
-                            kind: SymbolKind::Function,
-                            uri: self.uri.clone(),
-                            range: def.def_range,
-                            selection_range: def.def_range,
-                        });
-                    }
-                }
+            if s_ref.range.contains(pos)
+                && let Some(def) = self.definitions.get(&s_ref.def_name)
+                && def.kind_name == "function"
+            {
+                return Some(CallHierarchyItem {
+                    name: def.name.clone(),
+                    kind: SymbolKind::Function,
+                    uri: self.uri.clone(),
+                    range: def.def_range,
+                    selection_range: def.def_range,
+                });
             }
         }
         None
@@ -1959,20 +1959,19 @@ impl DocumentState {
 }
 
 fn extract_param_names_from_sig(sig: &str) -> Vec<String> {
-    if let Some(start) = sig.find('(') {
-        if let Some(end) = sig.find(')') {
-            if end > start {
-                let inner = &sig[start + 1..end];
-                if inner.trim().is_empty() {
-                    return Vec::new();
-                }
-                return inner
-                    .split(',')
-                    .map(|p| p.trim().to_string())
-                    .filter(|p| !p.is_empty())
-                    .collect();
-            }
+    if let Some(start) = sig.find('(')
+        && let Some(end) = sig.find(')')
+        && end > start
+    {
+        let inner = &sig[start + 1..end];
+        if inner.trim().is_empty() {
+            return Vec::new();
         }
+        return inner
+            .split(',')
+            .map(|p| p.trim().to_string())
+            .filter(|p| !p.is_empty())
+            .collect();
     }
     Vec::new()
 }
@@ -2036,7 +2035,7 @@ fn extract_name_from_decl(decl: &str) -> Option<String> {
         if (tokens[i] == "fn" || tokens[i] == "type") && i + 1 < tokens.len() {
             let raw_name = tokens[i + 1];
             let clean_name = raw_name
-                .split(|c| c == '(' || c == '<' || c == '=' || c == '{' || c == ':')
+                .split(['(', '<', '=', '{', ':'])
                 .next()
                 .unwrap_or("");
             if !clean_name.is_empty() {
@@ -2066,12 +2065,12 @@ fn extract_line_col_from_error(err: &str) -> Option<(u32, u32)> {
         .split(|c: char| !c.is_numeric())
         .filter(|s| !s.is_empty())
         .collect();
-    if parts.len() >= 2 {
-        if let (Ok(l), Ok(c)) = (parts[0].parse::<u32>(), parts[1].parse::<u32>()) {
-            if l < 10000 && c < 500 {
-                return Some((l, c));
-            }
-        }
+    if parts.len() >= 2
+        && let (Ok(l), Ok(c)) = (parts[0].parse::<u32>(), parts[1].parse::<u32>())
+        && l < 10000
+        && c < 500
+    {
+        return Some((l, c));
     }
     None
 }
@@ -2079,61 +2078,61 @@ fn extract_line_col_from_error(err: &str) -> Option<(u32, u32)> {
 fn get_keyword_hover(kw: &str) -> Option<String> {
     let doc = match kw {
         "fn" => {
-            "### `fn` *(Keyword)*\n\n**`fn` keyword** — Declares a named function or lambda closure in Aura.\n\n```aura\nfn <name>(<params>): <ReturnType> => <Body>\n```\n\nFunctions are first-class citizens, support lexical scoping, and tail-recursive calls are automatically compiled with **Tail-Call Optimization (TCO)** into iterative `while (true)` loops.\n\n---\n#### 📥 Parámetros / Entrada\n* `params`: Comma-separated typed parameters (`param: Type` or `param: Type = defaultExpr`).\n* `ReturnType`: Output type annotation (`Int`, `String`, `Unit`, `Result<T, E>`, etc.).\n\n---\n#### 📤 Retorno\n* Evaluates to the result of the body expression or `Unit` (`()`).\n\n---\n#### 💡 Ejemplo\n```aura\nfn add(a: Int, b: Int): Int => {\n    a + b\n}\n```"
+            "### `fn` *(Keyword)*\n\n**`fn` keyword** — Declares a named function or lambda closure in Aura.\n\n```aura\nfn <name>(<params>): <ReturnType> => <Body>\n```\n\nFunctions are first-class citizens, support lexical scoping, and tail-recursive calls are automatically compiled with **Tail-Call Optimization (TCO)** into iterative `while (true)` loops.\n\n---\n#### 📥 Parameters / Entrada\n* `params`: Comma-separated typed parameters (`param: Type` or `param: Type = defaultExpr`).\n* `ReturnType`: Output type annotation (`Int`, `String`, `Unit`, `Result<T, E>`, etc.).\n\n---\n#### 📤 Returns\n* Evaluates to the result of the body expression or `Unit` (`()`).\n\n---\n#### 💡 Example\n```aura\nfn add(a: Int, b: Int): Int => {\n    a + b\n}\n```"
         }
         "let" => {
-            "### `let` *(Keyword)*\n\nDeclares an **immutable** variable binding (default in Aura).\n\n```aura\nlet <name>: <Type> = <value>;\n```\n\nOnce bound, an immutable variable cannot be reassigned or mutated, guaranteeing thread safety and eliminating race conditions.\n\n---\n#### 📥 Parámetros / Operandos\n* `name`: Identifier of the variable.\n* `Type` (opcional): Explicit type annotation (inferred if omitted).\n* `value`: Initializer expression.\n\n---\n#### 💡 Ejemplo\n```aura\nlet port: Int = 8080;\nlet greeting = \"Hello, World!\";\n```"
+            "### `let` *(Keyword)*\n\nDeclares an **immutable** variable binding (default in Aura).\n\n```aura\nlet <name>: <Type> = <value>;\n```\n\nOnce bound, an immutable variable cannot be reassigned or mutated, guaranteeing thread safety and eliminating race conditions.\n\n---\n#### 📥 Parameters / Operandos\n* `name`: Identifier of the variable.\n* `Type` (opcional): Explicit type annotation (inferred if omitted).\n* `value`: Initializer expression.\n\n---\n#### 💡 Example\n```aura\nlet port: Int = 8080;\nlet greeting = \"Hello, World!\";\n```"
         }
         "mut" => {
-            "### `mut` *(Keyword)*\n\nDeclares a **mutable** variable binding modifier when combined with `let`.\n\n```aura\nlet mut <name>: <Type> = <initial_value>;\n```\n\nAllows subsequent reassignments to the variable using the `=` assignment operator.\n\n---\n#### 📥 Parámetros / Operandos\n* `name`: Identifier of the mutable variable.\n* `initial_value`: Initial expression value.\n\n---\n#### 💡 Ejemplo\n```aura\nlet mut counter = 0;\ncounter = counter + 1;\n```"
+            "### `mut` *(Keyword)*\n\nDeclares a **mutable** variable binding modifier when combined with `let`.\n\n```aura\nlet mut <name>: <Type> = <initial_value>;\n```\n\nAllows subsequent reassignments to the variable using the `=` assignment operator.\n\n---\n#### 📥 Parameters / Operandos\n* `name`: Identifier of the mutable variable.\n* `initial_value`: Initial expression value.\n\n---\n#### 💡 Example\n```aura\nlet mut counter = 0;\ncounter = counter + 1;\n```"
         }
         "type" => {
-            "### `type` *(Keyword)*\n\nDeclares an **Algebraic Data Type (ADT / Sum Type)**, record type, or type alias.\n\n```aura\ntype <Name> = | <Variant1>(<Type>) | <Variant2>;\n```\n\nVariants are checked for exhaustiveness at compile time inside `match` expressions.\n\n---\n#### 📥 Parámetros / Definición\n* `Name`: PascalCase type identifier.\n* `variants`: Pipe-separated constructors (`Variant(Payload)` or `UnitVariant`).\n\n---\n#### 💡 Ejemplo\n```aura\ntype Shape =\n    | Circle(Float)\n    | Rectangle(Float, Float)\n    | Point;\n```"
+            "### `type` *(Keyword)*\n\nDeclares an **Algebraic Data Type (ADT / Sum Type)**, record type, or type alias.\n\n```aura\ntype <Name> = | <Variant1>(<Type>) | <Variant2>;\n```\n\nVariants are checked for exhaustiveness at compile time inside `match` expressions.\n\n---\n#### 📥 Parameters / Definition\n* `Name`: PascalCase type identifier.\n* `variants`: Pipe-separated constructors (`Variant(Payload)` or `UnitVariant`).\n\n---\n#### 💡 Example\n```aura\ntype Shape =\n    | Circle(Float)\n    | Rectangle(Float, Float)\n    | Point;\n```"
         }
         "interface" => {
-            "### `interface` *(Keyword)*\n\nDeclares a **structural interface** (Go-style duck typing).\n\n```aura\ninterface <Name> {\n    fn <method>(<params>): <ReturnType>;\n}\n```\n\nAny type that implements all required method signatures implicitly satisfies the interface without explicit inheritance or `implements` declarations.\n\n---\n#### 📥 Definición\n* `Name`: Interface identifier.\n* `methods`: Function signatures required by the interface contract.\n\n---\n#### 💡 Ejemplo\n```aura\ninterface Reader {\n    fn read(buf: List<Byte>): Result<Int, Error>;\n}\n```"
+            "### `interface` *(Keyword)*\n\nDeclares a **structural interface** (Go-style duck typing).\n\n```aura\ninterface <Name> {\n    fn <method>(<params>): <ReturnType>;\n}\n```\n\nAny type that implements all required method signatures implicitly satisfies the interface without explicit inheritance or `implements` declarations.\n\n---\n#### 📥 Definition\n* `Name`: Interface identifier.\n* `methods`: Function signatures required by the interface contract.\n\n---\n#### 💡 Example\n```aura\ninterface Reader {\n    fn read(buf: List<Byte>): Result<Int, Error>;\n}\n```"
         }
         "match" => {
-            "### `match` *(Keyword / Expression)*\n\nExhaustive pattern matching expression with sum type destructuring and pattern guards.\n\n```aura\nmatch <expr> {\n    <Pattern> => <Branch>,\n    <Pattern> when <guard> => <Branch>,\n    _ => <Default>\n}\n```\n\nEvaluates to the value of the branch corresponding to the first matching pattern.\n\n---\n#### 📥 Operandos\n* `expr`: Target expression evaluated and destructured.\n* `Pattern`: Constructor, literal, tuple, list, or wildcard (`_`).\n* `guard` (opcional): Boolean predicate via `when`.\n\n---\n#### 📤 Retorno\n* Result of the matched branch expression. All branches must unify to the same type.\n\n---\n#### 💡 Ejemplo\n```aura\nmatch res {\n    Ok(data) => println(`Received: ${data}`),\n    Err(err) => eprintln(`Error: ${err}`),\n}\n```"
+            "### `match` *(Keyword / Expression)*\n\nExhaustive pattern matching expression with sum type destructuring and pattern guards.\n\n```aura\nmatch <expr> {\n    <Pattern> => <Branch>,\n    <Pattern> when <guard> => <Branch>,\n    _ => <Default>\n}\n```\n\nEvaluates to the value of the branch corresponding to the first matching pattern.\n\n---\n#### 📥 Operandos\n* `expr`: Target expression evaluated and destructured.\n* `Pattern`: Constructor, literal, tuple, list, or wildcard (`_`).\n* `guard` (opcional): Boolean predicate via `when`.\n\n---\n#### 📤 Returns\n* Result of the matched branch expression. All branches must unify to the same type.\n\n---\n#### 💡 Example\n```aura\nmatch res {\n    Ok(data) => println(`Received: ${data}`),\n    Err(err) => eprintln(`Error: ${err}`),\n}\n```"
         }
         "when" => {
-            "### `when` *(Keyword)*\n\nPattern guard condition attached to a `match` arm.\n\n```aura\n<Pattern> when <boolean_condition> => <Branch>\n```\n\nThe arm is selected only if the pattern matches AND `<boolean_condition>` evaluates to `true`.\n\n---\n#### 📥 Operandos\n* `boolean_condition`: Expression evaluating to `Bool`.\n\n---\n#### 💡 Ejemplo\n```aura\nmatch n {\n    x when x > 0 => \"positive\",\n    0 => \"zero\",\n    _ => \"negative\",\n}\n```"
+            "### `when` *(Keyword)*\n\nPattern guard condition attached to a `match` arm.\n\n```aura\n<Pattern> when <boolean_condition> => <Branch>\n```\n\nThe arm is selected only if the pattern matches AND `<boolean_condition>` evaluates to `true`.\n\n---\n#### 📥 Operandos\n* `boolean_condition`: Expression evaluating to `Bool`.\n\n---\n#### 💡 Example\n```aura\nmatch n {\n    x when x > 0 => \"positive\",\n    0 => \"zero\",\n    _ => \"negative\",\n}\n```"
         }
         "defer" => {
-            "### `defer` *(Keyword)*\n\nDefers statement execution until the enclosing function returns.\n\n```aura\ndefer <statement_or_block>;\n```\n\nExecutes in deterministic **LIFO (Last-In, First-Out)** order regardless of whether the function returns normally or early via `?` or `return`.\n\n---\n#### 📥 Operando\n* `statement`: Cleanup action executed upon function exit.\n\n---\n#### 💡 Ejemplo\n```aura\nlet file = openFile(\"data.txt\")?;\ndefer file.close();\n```"
+            "### `defer` *(Keyword)*\n\nDefers statement execution until the enclosing function returns.\n\n```aura\ndefer <statement_or_block>;\n```\n\nExecutes in deterministic **LIFO (Last-In, First-Out)** order regardless of whether the function returns normally or early via `?` or `return`.\n\n---\n#### 📥 Operando\n* `statement`: Cleanup action executed upon function exit.\n\n---\n#### 💡 Example\n```aura\nlet file = openFile(\"data.txt\")?;\ndefer file.close();\n```"
         }
         "errdefer" => {
-            "### `errdefer` *(Keyword)*\n\nDefers statement execution until the enclosing function returns, **only if an error or panic occurs** (Zig model).\n\n```aura\nerrdefer <statement_or_block>;\n```\n\nExecutes in deterministic LIFO order only during failure unwinding. Ideal for transactional rollbacks.\n\n---\n#### 📥 Operando\n* `statement`: Cleanup action executed solely on failure.\n\n---\n#### 💡 Ejemplo\n```aura\nlet tx = db.beginTransaction()?;\nerrdefer tx.rollback();\n```"
+            "### `errdefer` *(Keyword)*\n\nDefers statement execution until the enclosing function returns, **only if an error or panic occurs** (Zig model).\n\n```aura\nerrdefer <statement_or_block>;\n```\n\nExecutes in deterministic LIFO order only during failure unwinding. Ideal for transactional rollbacks.\n\n---\n#### 📥 Operando\n* `statement`: Cleanup action executed solely on failure.\n\n---\n#### 💡 Example\n```aura\nlet tx = db.beginTransaction()?;\nerrdefer tx.rollback();\n```"
         }
         "packed" => {
-            "### `packed` *(Keyword)*\n\nDeclares a **packed structure** with zero padding and exact binary memory alignment (Zig model).\n\n```aura\npacked struct <Name> {\n    <field>: <Type>,\n}\n```\n\nIdeal for binary network protocols, file formats, and zero-copy deserialization.\n\n---\n#### 💡 Ejemplo\n```aura\npacked struct IpHeader {\n    version: Byte,\n    ttl: Byte,\n    protocol: Byte,\n}\n```"
+            "### `packed` *(Keyword)*\n\nDeclares a **packed structure** with zero padding and exact binary memory alignment (Zig model).\n\n```aura\npacked struct <Name> {\n    <field>: <Type>,\n}\n```\n\nIdeal for binary network protocols, file formats, and zero-copy deserialization.\n\n---\n#### 💡 Example\n```aura\npacked struct IpHeader {\n    version: Byte,\n    ttl: Byte,\n    protocol: Byte,\n}\n```"
         }
         "spawn" | "routine" | "go" => {
-            "### `go` / `routine` / `spawn` *(Keyword)*\n\nLaunches a **Goroutine / Aura Routine** (lightweight fiber).\n\n```aura\ngo {\n    <concurrent_work>\n};\n```\n\nExecutes on an M:N cooperative scheduler with low memory footprint (~4KB stack). Communicates via typed CSP channels (`Channel<T>`).\n\n---\n#### 📥 Operando\n* `block`: Closure or function call executed asynchronously.\n\n---\n#### 💡 Ejemplo\n```aura\ngo worker(ch);\n```"
+            "### `go` / `routine` / `spawn` *(Keyword)*\n\nLaunches a **Goroutine / Aura Routine** (lightweight fiber).\n\n```aura\ngo {\n    <concurrent_work>\n};\n```\n\nExecutes on an M:N cooperative scheduler with low memory footprint (~4KB stack). Communicates via typed CSP channels (`Channel<T>`).\n\n---\n#### 📥 Operando\n* `block`: Closure or function call executed asynchronously.\n\n---\n#### 💡 Example\n```aura\ngo worker(ch);\n```"
         }
         "select" => {
-            "### `select` *(Keyword)*\n\nMultiplexes on multiple concurrent channel operations (CSP model).\n\n```aura\nselect {\n    case msg <- ch => { ... },\n    case ch2 <- out => { ... },\n    default => { ... }\n}\n```\n\nBlocks until one communication is ready. If `default` is provided, executes non-blocking.\n\n---\n#### 💡 Ejemplo\n```aura\nselect {\n    case msg <- inbox => println(`Received: ${msg}`),\n    default => println(\"No message pending\"),\n}\n```"
+            "### `select` *(Keyword)*\n\nMultiplexes on multiple concurrent channel operations (CSP model).\n\n```aura\nselect {\n    case msg <- ch => { ... },\n    case ch2 <- out => { ... },\n    default => { ... }\n}\n```\n\nBlocks until one communication is ready. If `default` is provided, executes non-blocking.\n\n---\n#### 💡 Example\n```aura\nselect {\n    case msg <- inbox => println(`Received: ${msg}`),\n    default => println(\"No message pending\"),\n}\n```"
         }
         "embed" => {
-            "### `embed` *(Macro / Keyword)*\n\nEmbeds a static text asset directly into the compiled standalone binary at build time as a UTF-8 `String`.\n\n```aura\nembed(\"<relative_path>\"): String\n```\n\n---\n#### 📥 Parámetros\n* `path` (`String`): Relative filesystem path to the text file.\n\n---\n#### 📤 Retorno\n* UTF-8 `String` embedded in binary executable.\n\n---\n#### 💡 Ejemplo\n```aura\nlet schema = embed(\"schema.sql\");\n```"
+            "### `embed` *(Macro / Keyword)*\n\nEmbeds a static text asset directly into the compiled standalone binary at build time as a UTF-8 `String`.\n\n```aura\nembed(\"<relative_path>\"): String\n```\n\n---\n#### 📥 Parameters\n* `path` (`String`): Relative filesystem path to the text file.\n\n---\n#### 📤 Returns\n* UTF-8 `String` embedded in binary executable.\n\n---\n#### 💡 Example\n```aura\nlet schema = embed(\"schema.sql\");\n```"
         }
         "embedBytes" => {
-            "### `embedBytes` *(Macro / Keyword)*\n\nEmbeds a static binary file directly into the compiled output as a byte array (`List<Byte>`).\n\n```aura\nembedBytes(\"<relative_path>\"): List<Byte>\n```\n\n---\n#### 📥 Parámetros\n* `path` (`String`): Relative filesystem path to the binary file.\n\n---\n#### 📤 Retorno\n* Immutable `List<Byte>` buffer.\n\n---\n#### 💡 Ejemplo\n```aura\nlet iconData = embedBytes(\"assets/icon.png\");\n```"
+            "### `embedBytes` *(Macro / Keyword)*\n\nEmbeds a static binary file directly into the compiled output as a byte array (`List<Byte>`).\n\n```aura\nembedBytes(\"<relative_path>\"): List<Byte>\n```\n\n---\n#### 📥 Parameters\n* `path` (`String`): Relative filesystem path to the binary file.\n\n---\n#### 📤 Returns\n* Immutable `List<Byte>` buffer.\n\n---\n#### 💡 Example\n```aura\nlet iconData = embedBytes(\"assets/icon.png\");\n```"
         }
         "async" => {
             "### `async` *(Keyword)*\n\nMarks a function as asynchronous, returning a `Task<T, E>`.\n\n```aura\nasync fn <name>(<params>): Task<T, E> => <Body>\n```\n\nEnables cooperative concurrency that can be awaited using `await`."
         }
         "await" => {
-            "### `await` *(Keyword)*\n\nSuspends fiber execution until the awaited `Task<T, E>` resolves, unwrapping its inner value.\n\n```aura\nlet result = await <task_expression>;\n```\n\n---\n#### 📥 Operando\n* `task_expression`: An expression of type `Task<T, E>`.\n\n---\n#### 📤 Retorno\n* Unwrapped value of type `T` upon successful task completion."
+            "### `await` *(Keyword)*\n\nSuspends fiber execution until the awaited `Task<T, E>` resolves, unwrapping its inner value.\n\n```aura\nlet result = await <task_expression>;\n```\n\n---\n#### 📥 Operando\n* `task_expression`: An expression of type `Task<T, E>`.\n\n---\n#### 📤 Returns\n* Unwrapped value of type `T` upon successful task completion."
         }
         "panic" => {
-            "### `panic` *(Built-in Function)*\n\nStops normal execution and initiates stack unwinding.\n\n```aura\npanic(message: String): Never\n```\n\nCan be intercepted with `recover()` inside a `defer` block.\n\n---\n#### 📥 Parámetros\n* `message` (`String`): Diagnostic error message.\n\n---\n#### 📤 Retorno\n* `Never` (never returns normally)."
+            "### `panic` *(Built-in Function)*\n\nStops normal execution and initiates stack unwinding.\n\n```aura\npanic(message: String): Never\n```\n\nCan be intercepted with `recover()` inside a `defer` block.\n\n---\n#### 📥 Parameters\n* `message` (`String`): Diagnostic error message.\n\n---\n#### 📤 Returns\n* `Never` (never returns normally)."
         }
         "recover" => {
-            "### `recover` *(Built-in Function)*\n\nCatches an active panic during unwinding inside a `defer` block.\n\n```aura\nrecover(): Option<Any>\n```\n\n---\n#### 📤 Retorno\n* `Some(error)` if a panic was caught, or `None` if execution was normal."
+            "### `recover` *(Built-in Function)*\n\nCatches an active panic during unwinding inside a `defer` block.\n\n```aura\nrecover(): Option<Any>\n```\n\n---\n#### 📤 Returns\n* `Some(error)` if a panic was caught, or `None` if execution was normal."
         }
         "if" => {
-            "### `if` *(Keyword / Expression)*\n\nConditional branching expression.\n\n```aura\nif <cond> => <ThenExpr> else => <ElseExpr>\n```\n\nIn Aura, `if` is an expression yielding a value. Both branches must unify to the same type.\n\n---\n#### 📥 Operandos\n* `cond` (`Bool`): Branch condition.\n* `ThenExpr`: Value if `cond` is `true`.\n* `ElseExpr`: Value if `cond` is `false`.\n\n---\n#### 💡 Ejemplo\n```aura\nlet max = if a > b => a else => b;\n```"
+            "### `if` *(Keyword / Expression)*\n\nConditional branching expression.\n\n```aura\nif <cond> => <ThenExpr> else => <ElseExpr>\n```\n\nIn Aura, `if` is an expression yielding a value. Both branches must unify to the same type.\n\n---\n#### 📥 Operandos\n* `cond` (`Bool`): Branch condition.\n* `ThenExpr`: Value if `cond` is `true`.\n* `ElseExpr`: Value if `cond` is `false`.\n\n---\n#### 💡 Example\n```aura\nlet max = if a > b => a else => b;\n```"
         }
         "else" => {
             "### `else` *(Keyword)*\n\nAlternative branch executed when an `if` condition evaluates to `false`."
@@ -2142,7 +2141,7 @@ fn get_keyword_hover(kw: &str) -> Option<String> {
             "### `while` *(Keyword)*\n\nIterative loop. Runs while `<condition>` is `true`.\n\n```aura\nwhile <condition> { <body> }\n```\n\n---\n#### 📥 Operandos\n* `condition` (`Bool`): Loop continuation test.\n* `body`: Statements executed sequentially per iteration."
         }
         "for" => {
-            "### `for` *(Keyword)*\n\nIterates over a list, array, range, or CSP channel.\n\n```aura\nfor <item> in <iterable_or_channel> { <body> }\n```\n\n---\n#### 📥 Operandos\n* `item`: Variable bound to each element.\n* `iterable_or_channel`: Source collection or channel.\n\n---\n#### 💡 Ejemplo\n```aura\nfor num in [1, 2, 3, 4] {\n    println(num);\n}\n```"
+            "### `for` *(Keyword)*\n\nIterates over a list, array, range, or CSP channel.\n\n```aura\nfor <item> in <iterable_or_channel> { <body> }\n```\n\n---\n#### 📥 Operandos\n* `item`: Variable bound to each element.\n* `iterable_or_channel`: Source collection or channel.\n\n---\n#### 💡 Example\n```aura\nfor num in [1, 2, 3, 4] {\n    println(num);\n}\n```"
         }
         "in" => {
             "### `in` *(Keyword)*\n\nSpecifies the collection, range, or channel to iterate over in a `for` loop."
@@ -2187,13 +2186,13 @@ fn get_keyword_hover(kw: &str) -> Option<String> {
             "### `const` *(Keyword)*\n\nDeclares an immutable compile-time constant evaluated during semantic analysis."
         }
         "|>" => {
-            "### `|>` *(Pipeline Operator)*\n\nChains transformations cleanly by passing the left-hand expression as the first argument of the right-hand function call.\n\n```aura\ndata |> step1 |> step2(extra_arg)\n```\n\n---\n#### 📥 Operandos\n* `left`: Data value expression.\n* `right`: Callable taking the data value as its first parameter.\n\n---\n#### 📤 Retorno\n* Result of `right(left)`.\n\n---\n#### 💡 Ejemplo\n```aura\nlet evens = numbers\n    |> filter(fn(x) => x % 2 == 0)\n    |> map(fn(x) => x * 10);\n```"
+            "### `|>` *(Pipeline Operator)*\n\nChains transformations cleanly by passing the left-hand expression as the first argument of the right-hand function call.\n\n```aura\ndata |> step1 |> step2(extra_arg)\n```\n\n---\n#### 📥 Operandos\n* `left`: Data value expression.\n* `right`: Callable taking the data value as its first parameter.\n\n---\n#### 📤 Returns\n* Result of `right(left)`.\n\n---\n#### 💡 Example\n```aura\nlet evens = numbers\n    |> filter(fn(x) => x % 2 == 0)\n    |> map(fn(x) => x * 10);\n```"
         }
         "?" => {
-            "### `?` *(Try / Propagate Operator)*\n\nUnwraps `Ok(v)` from `Result<T, E>` or `Some(v)` from `Option<T>`. If the value is `Err(e)` or `None`, early returns from the enclosing function.\n\n```aura\nlet file = openFile(\"data.txt\")?;\n```\n\n---\n#### 📥 Operando\n* `inner`: An expression of type `Result<T, E>` or `Option<T>`.\n\n---\n#### 📤 Retorno\n* Unwrapped value of type `T` on success.\n\n---\n#### 💡 Ejemplo\n```aura\nfn loadConfig(): Result<Config, Error> => {\n    let text = readFile(\"config.json\")?;\n    let cfg = json.parse(text)?;\n    Ok(cfg)\n}\n```"
+            "### `?` *(Try / Propagate Operator)*\n\nUnwraps `Ok(v)` from `Result<T, E>` or `Some(v)` from `Option<T>`. If the value is `Err(e)` or `None`, early returns from the enclosing function.\n\n```aura\nlet file = openFile(\"data.txt\")?;\n```\n\n---\n#### 📥 Operando\n* `inner`: An expression of type `Result<T, E>` or `Option<T>`.\n\n---\n#### 📤 Returns\n* Unwrapped value of type `T` on success.\n\n---\n#### 💡 Example\n```aura\nfn loadConfig(): Result<Config, Error> => {\n    let text = readFile(\"config.json\")?;\n    let cfg = json.parse(text)?;\n    Ok(cfg)\n}\n```"
         }
         "<-" => {
-            "### `<-` *(Channel Send / Receive Operator)*\n\nCSP channel communication operator.\n\n```aura\nch <- message;  // Send (binary)\nlet msg = <-ch; // Receive (unary prefix)\n```\n\n---\n#### 📥 Operandos\n* Send: `channel <- value` (suspends until buffer has space or receiver is ready).\n* Receive: `<-channel` (suspends until a message is available).\n\n---\n#### 💡 Ejemplo\n```aura\nlet ch = Channel<String>::new(5);\nch <- \"ping\";\nlet response = <-ch;\n```"
+            "### `<-` *(Channel Send / Receive Operator)*\n\nCSP channel communication operator.\n\n```aura\nch <- message;  // Send (binary)\nlet msg = <-ch; // Receive (unary prefix)\n```\n\n---\n#### 📥 Operandos\n* Send: `channel <- value` (suspends until buffer has space or receiver is ready).\n* Receive: `<-channel` (suspends until a message is available).\n\n---\n#### 💡 Example\n```aura\nlet ch = Channel<String>::new(5);\nch <- \"ping\";\nlet response = <-ch;\n```"
         }
         _ => return None,
     };
@@ -2242,7 +2241,7 @@ fn get_builtin_hover(name: &str) -> Option<String> {
             "### `Task<T, E>` *(Async Computation)*\n\nRepresents an asynchronous computation that can be awaited with `await`.\n\n```aura\nlet res: T = await task;\n```"
         }
         "Channel" => {
-            "### `Channel<T>` *(CSP Concurrency)*\n\nTyped concurrent CSP channel for inter-fiber communication.\n\n```aura\nChannel<T>::new(buffer_size: Int = 0): Channel<T>\n```\n\n---\n#### 📥 Parámetros\n* `buffer_size` (`Int`, opcional): Buffer capacity. 0 denotes an unbuffered rendezvous channel.\n\n---\n#### 📤 Operaciones\n* Send: `ch <- val`\n* Receive: `let val = <-ch`"
+            "### `Channel<T>` *(CSP Concurrency)*\n\nTyped concurrent CSP channel for inter-fiber communication.\n\n```aura\nChannel<T>::new(buffer_size: Int = 0): Channel<T>\n```\n\n---\n#### 📥 Parameters\n* `buffer_size` (`Int`, optional): Buffer capacity. 0 denotes an unbuffered rendezvous channel.\n\n---\n#### 📤 Operations\n* Send: `ch <- val`\n* Receive: `let val = <-ch`"
         }
         "SendChannel" => {
             "### `SendChannel<T>` *(Write-Only Channel)*\n\nWrite-only channel view. Only sends (`ch <- val`) permitted."
@@ -2281,70 +2280,76 @@ fn get_builtin_hover(name: &str) -> Option<String> {
             "### `Set<T>` *(Collection)*\n\nCollection of unique values of type `T`. Supports `.has(item)` and `.add(item)`."
         }
         "println" => {
-            "### `println` *(Built-in Function)*\n\nPrints a formatted value followed by a newline to standard output (`stdout`).\n\n```aura\nprintln(value: Any): Unit\n```\n\n---\n#### 📥 Parámetros\n* `value` (`Any`): The value, string, or data structure to display.\n\n---\n#### 📤 Retorno\n* `Unit` (`()`).\n\n---\n#### 💡 Ejemplo\n```aura\nprintln(\"Hello, World!\");\n```"
+            "### `println` *(Built-in Function)*\n\nPrints a formatted value followed by a newline to standard output (`stdout`).\n\n```aura\nprintln(value: Any): Unit\n```\n\n---\n#### 📥 Parameters\n* `value` (`Any`): The value, string, or data structure to display.\n\n---\n#### 📤 Returns\n* `Unit` (`()`).\n\n---\n#### 💡 Example\n```aura\nprintln(\"Hello, World!\");\n```"
         }
         "print" => {
-            "### `print` *(Built-in Function)*\n\nPrints a formatted value without appending a newline to standard output (`stdout`).\n\n```aura\nprint(value: Any): Unit\n```\n\n---\n#### 📥 Parámetros\n* `value` (`Any`): The value to display.\n\n---\n#### 📤 Retorno\n* `Unit` (`()`)."
+            "### `print` *(Built-in Function)*\n\nPrints a formatted value without appending a newline to standard output (`stdout`).\n\n```aura\nprint(value: Any): Unit\n```\n\n---\n#### 📥 Parameters\n* `value` (`Any`): The value to display.\n\n---\n#### 📤 Returns\n* `Unit` (`()`)."
         }
         "eprintln" => {
-            "### `eprintln` *(Built-in Function)*\n\nPrints a formatted value followed by a newline to standard error (`stderr`).\n\n```aura\neprintln(value: Any): Unit\n```\n\n---\n#### 📥 Parámetros\n* `value` (`Any`): The error message or diagnostic payload.\n\n---\n#### 📤 Retorno\n* `Unit` (`()`)."
+            "### `eprintln` *(Built-in Function)*\n\nPrints a formatted value followed by a newline to standard error (`stderr`).\n\n```aura\neprintln(value: Any): Unit\n```\n\n---\n#### 📥 Parameters\n* `value` (`Any`): The error message or diagnostic payload.\n\n---\n#### 📤 Returns\n* `Unit` (`()`)."
         }
         "eprint" => {
-            "### `eprint` *(Built-in Function)*\n\nPrints a formatted value without appending a newline to standard error (`stderr`).\n\n```aura\neprint(value: Any): Unit\n```\n\n---\n#### 📥 Parámetros\n* `value` (`Any`): Error text to display.\n\n---\n#### 📤 Retorno\n* `Unit` (`()`)."
+            "### `eprint` *(Built-in Function)*\n\nPrints a formatted value without appending a newline to standard error (`stderr`).\n\n```aura\neprint(value: Any): Unit\n```\n\n---\n#### 📥 Parameters\n* `value` (`Any`): Error text to display.\n\n---\n#### 📤 Returns\n* `Unit` (`()`)."
         }
         "len" => {
-            "### `len` *(Built-in Function)*\n\nReturns the element count or character length of a collection, string, map, or channel.\n\n```aura\nlen(container: Any): Int\n```\n\n---\n#### 📥 Parámetros\n* `container` (`List<T> | String | Map<K, V> | Channel<T>`): Target data structure.\n\n---\n#### 📤 Retorno\n* `Int`: Non-negative 64-bit integer count.\n\n---\n#### 💡 Ejemplo\n```aura\nlet count = len([10, 20, 30]); // 3\n```"
+            "### `len` *(Built-in Function)*\n\nReturns the element count or character length of a collection, string, map, or channel.\n\n```aura\nlen(container: Any): Int\n```\n\n---\n#### 📥 Parameters\n* `container` (`List<T> | String | Map<K, V> | Channel<T>`): Target data structure.\n\n---\n#### 📤 Returns\n* `Int`: Non-negative 64-bit integer count.\n\n---\n#### 💡 Example\n```aura\nlet count = len([10, 20, 30]); // 3\n```"
         }
         "cap" => {
-            "### `cap` *(Built-in Function)*\n\nReturns the allocated buffer capacity of a channel or preallocated collection.\n\n```aura\ncap(container: Any): Int\n```\n\n---\n#### 📥 Parámetros\n* `container` (`Channel<T> | List<T>`): Target container.\n\n---\n#### 📤 Retorno\n* `Int`: Buffer capacity."
+            "### `cap` *(Built-in Function)*\n\nReturns the allocated buffer capacity of a channel or preallocated collection.\n\n```aura\ncap(container: Any): Int\n```\n\n---\n#### 📥 Parameters\n* `container` (`Channel<T> | List<T>`): Target container.\n\n---\n#### 📤 Returns\n* `Int`: Buffer capacity."
         }
         "map" => {
-            "### `map` *(Collection & Iterator Transform)*\n\nTransforms each element of a collection or iterator by applying a mapping closure.\n\n```aura\nmap(coll: Array<T>, fn: (item: T) => U): Array<U>\nmap(coll: Iterator<T>, fn: (item: T) => U): Iterator<U>\n```\n\n---\n#### 📥 Parámetros\n* `coll` (`Array<T> | Iterator<T>`): Source collection.\n* `fn` (`(item: T) => U`): Mapping transformation closure.\n\n---\n#### 📤 Retorno\n* Collection or iterator containing mapped elements.\n\n---\n#### 💡 Ejemplo\n```aura\nlet doubled = [1, 2, 3].map(fn(x) => x * 2);\n```"
+            "### `map` *(Collection & Iterator Transform)*\n\nTransforms each element of a collection or iterator by applying a mapping closure.\n\n```aura\nmap(coll: Array<T>, fn: (item: T) => U): Array<U>\nmap(coll: Iterator<T>, fn: (item: T) => U): Iterator<U>\n```\n\n---\n#### 📥 Parameters\n* `coll` (`Array<T> | Iterator<T>`): Source collection.\n* `fn` (`(item: T) => U`): Mapping transformation closure.\n\n---\n#### 📤 Returns\n* Collection or iterator containing mapped elements.\n\n---\n#### 💡 Example\n```aura\nlet doubled = [1, 2, 3].map(fn(x) => x * 2);\n```"
         }
         "filter" => {
-            "### `filter` *(Collection & Iterator Filter)*\n\nSelects elements matching a predicate closure.\n\n```aura\nfilter(coll: Array<T>, pred: (item: T) => Bool): Array<T>\nfilter(coll: Iterator<T>, pred: (item: T) => Bool): Iterator<T>\n```\n\n---\n#### 📥 Parámetros\n* `coll` (`Array<T> | Iterator<T>`): Source collection.\n* `pred` (`(item: T) => Bool`): Filter predicate.\n\n---\n#### 📤 Retorno\n* Collection or iterator containing only matching elements.\n\n---\n#### 💡 Ejemplo\n```aura\nlet evens = numbers.filter(fn(x) => x % 2 == 0);\n```"
+            "### `filter` *(Collection & Iterator Filter)*\n\nSelects elements matching a predicate closure.\n\n```aura\nfilter(coll: Array<T>, pred: (item: T) => Bool): Array<T>\nfilter(coll: Iterator<T>, pred: (item: T) => Bool): Iterator<T>\n```\n\n---\n#### 📥 Parameters\n* `coll` (`Array<T> | Iterator<T>`): Source collection.\n* `pred` (`(item: T) => Bool`): Filter predicate.\n\n---\n#### 📤 Returns\n* Collection or iterator containing only matching elements.\n\n---\n#### 💡 Example\n```aura\nlet evens = numbers.filter(fn(x) => x % 2 == 0);\n```"
         }
         "sort" => {
-            "### `sort` *(Collection & Iterator Sort)*\n\nReturns elements sorted numerically or by a custom comparator closure. Pure and non-mutating.\n\n```aura\nsort(coll: Array<T>, cmp?: (a: T, b: T) => Int): Array<T>\nsort(coll: Iterator<T>, cmp?: (a: T, b: T) => Int): Iterator<T>\n```\n\n---\n#### 📥 Parámetros\n* `coll` (`Array<T> | Iterator<T>`): Source collection.\n* `cmp` (`(a: T, b: T) => Int`, opcional): Ordering comparator returning `< 0`, `0`, or `> 0`.\n\n---\n#### 📤 Retorno\n* Sorted collection copy.\n\n---\n#### 💡 Ejemplo\n```aura\nlet sortedAsc = scores.sort();\nlet sortedDesc = scores.sort(fn(a, b) => b - a);\n```"
+            "### `sort` *(Collection & Iterator Sort)*\n\nReturns elements sorted numerically or by a custom comparator closure. Pure and non-mutating.\n\n```aura\nsort(coll: Array<T>, cmp?: (a: T, b: T) => Int): Array<T>\nsort(coll: Iterator<T>, cmp?: (a: T, b: T) => Int): Iterator<T>\n```\n\n---\n#### 📥 Parameters\n* `coll` (`Array<T> | Iterator<T>`): Source collection.\n* `cmp` (`(a: T, b: T) => Int`, optional): Ordering comparator returning `< 0`, `0`, or `> 0`.\n\n---\n#### 📤 Returns\n* Sorted collection copy.\n\n---\n#### 💡 Example\n```aura\nlet sortedAsc = scores.sort();\nlet sortedDesc = scores.sort(fn(a, b) => b - a);\n```"
         }
         "iter" => {
-            "### `iter` *(Built-in Function)*\n\nWraps an array, list, or iterable into a lazy `Iterator<T>` for streaming pipelines.\n\n```aura\niter(coll: Array<T> | Iterator<T>): Iterator<T>\n```\n\n---\n#### 📥 Parámetros\n* `coll` (`Array<T>`): Source collection.\n\n---\n#### 📤 Retorno\n* `Iterator<T>`."
+            "### `iter` *(Built-in Function)*\n\nWraps an array, list, or iterable into a lazy `Iterator<T>` for streaming pipelines.\n\n```aura\niter(coll: Array<T> | Iterator<T>): Iterator<T>\n```\n\n---\n#### 📥 Parameters\n* `coll` (`Array<T>`): Source collection.\n\n---\n#### 📤 Returns\n* `Iterator<T>`."
         }
         "sleep" => {
-            "### `sleep` *(Built-in Function)*\n\nPauses execution of the current fiber for the specified duration in milliseconds.\n\n```aura\nsleep(ms: Int): Unit\n```\n\n---\n#### 📥 Parámetros\n* `ms` (`Int`): Sleep duration in milliseconds.\n\n---\n#### 📤 Retorno\n* `Unit` (`()`)."
+            "### `sleep` *(Built-in Function)*\n\nPauses execution of the current fiber for the specified duration in milliseconds.\n\n```aura\nsleep(ms: Int): Unit\n```\n\n---\n#### 📥 Parameters\n* `ms` (`Int`): Sleep duration in milliseconds.\n\n---\n#### 📤 Returns\n* `Unit` (`()`)."
         }
         "yield" => {
-            "### `yield` *(Built-in Function)*\n\nCooperatively yields the current fiber's execution slice back to the scheduler.\n\n```aura\nyield(): Unit\n```\n\n---\n#### 📤 Retorno\n* `Unit` (`()`)."
+            "### `yield` *(Built-in Function)*\n\nCooperatively yields the current fiber's execution slice back to the scheduler.\n\n```aura\nyield(): Unit\n```\n\n---\n#### 📤 Returns\n* `Unit` (`()`)."
         }
         "assert" => {
-            "### `assert` *(Built-in Function)*\n\nVerifies that a boolean invariant is `true`. Panics if the condition evaluates to `false`.\n\n```aura\nassert(condition: Bool, message?: String): Unit\n```\n\n---\n#### 📥 Parámetros\n* `condition` (`Bool`): The assertion condition to validate.\n* `message` (`String`, opcional): Diagnostic message printed if the assertion fails.\n\n---\n#### 📤 Retorno\n* `Unit` (`()`)."
+            "### `assert` *(Built-in Function)*\n\nVerifies that a boolean invariant is `true`. Panics if the condition evaluates to `false`.\n\n```aura\nassert(condition: Bool, message?: String): Unit\n```\n\n---\n#### 📥 Parameters\n* `condition` (`Bool`): The assertion condition to validate.\n* `message` (`String`, optional): Diagnostic message printed if the assertion fails.\n\n---\n#### 📤 Returns\n* `Unit` (`()`)."
         }
         "assert_eq" => {
-            "### `assert_eq` *(Built-in Function)*\n\nPanics if two values are not structurally equal, printing a diagnostic comparison diff.\n\n```aura\nassert_eq(actual: Any, expected: Any, message?: String): Unit\n```\n\n---\n#### 📥 Parámetros\n* `actual` (`Any`): Computed result.\n* `expected` (`Any`): Anticipated expected value.\n* `message` (`String`, opcional): Diagnostic context message.\n\n---\n#### 📤 Retorno\n* `Unit` (`()`)."
+            "### `assert_eq` *(Built-in Function)*\n\nPanics if two values are not structurally equal, printing a diagnostic comparison diff.\n\n```aura\nassert_eq(actual: Any, expected: Any, message?: String): Unit\n```\n\n---\n#### 📥 Parameters\n* `actual` (`Any`): Computed result.\n* `expected` (`Any`): Anticipated expected value.\n* `message` (`String`, optional): Diagnostic context message.\n\n---\n#### 📤 Returns\n* `Unit` (`()`)."
         }
         "append" => {
-            "### `append` *(Built-in Function)*\n\nAppends an element to a list and returns the updated list.\n\n```aura\nappend(list: List<T>, item: T): List<T>\n```\n\n---\n#### 📥 Parámetros\n* `list` (`List<T>`): Target list.\n* `item` (`T`): Element to append.\n\n---\n#### 📤 Retorno\n* `List<T>`: Updated list."
+            "### `append` *(Built-in Function)*\n\nAppends an element to a list and returns the updated list.\n\n```aura\nappend(list: List<T>, item: T): List<T>\n```\n\n---\n#### 📥 Parameters\n* `list` (`List<T>`): Target list.\n* `item` (`T`): Element to append.\n\n---\n#### 📤 Returns\n* `List<T>`: Updated list."
         }
         "parseInt" => {
-            "### `parseInt` *(Built-in Function)*\n\nParses a decimal integer string into a 64-bit integer `Int`.\n\n```aura\nparseInt(s: String): Int\n```\n\n---\n#### 📥 Parámetros\n* `s` (`String`): Numeric text (e.g. `\"123\"`).\n\n---\n#### 📤 Retorno\n* `Int`: Parsed 64-bit integer."
+            "### `parseInt` *(Built-in Function)*\n\nParses a decimal integer string into a 64-bit integer `Int`.\n\n```aura\nparseInt(s: String): Int\n```\n\n---\n#### 📥 Parameters\n* `s` (`String`): Numeric text (e.g. `\"123\"`).\n\n---\n#### 📤 Returns\n* `Int`: Parsed 64-bit integer."
         }
         "parseFloat" => {
-            "### `parseFloat` *(Built-in Function)*\n\nParses a floating-point string into a 64-bit float `Float`.\n\n```aura\nparseFloat(s: String): Float\n```\n\n---\n#### 📥 Parámetros\n* `s` (`String`): Floating-point numeric string (e.g. `\"3.1415\"`).\n\n---\n#### 📤 Retorno\n* `Float`: Parsed 64-bit float."
+            "### `parseFloat` *(Built-in Function)*\n\nParses a floating-point string into a 64-bit float `Float`.\n\n```aura\nparseFloat(s: String): Float\n```\n\n---\n#### 📥 Parameters\n* `s` (`String`): Floating-point numeric string (e.g. `\"3.1415\"`).\n\n---\n#### 📤 Returns\n* `Float`: Parsed 64-bit float."
         }
         "openFile" => {
-            "### `openFile` *(Built-in Function)*\n\nOpens a filesystem file returning a file handle wrapped in `Result<File, Error>`.\n\n```aura\nopenFile(path: String, mode?: String): Result<File, Error>\n```\n\n---\n#### 📥 Parámetros\n* `path` (`String`): Path to file.\n* `mode` (`String`, opcional): Access mode (`\"r\"`, `\"w\"`, `\"a\"`, default `\"r\"`).\n\n---\n#### 📤 Retorno\n* `Result<File, Error>`."
+            "### `openFile` *(Built-in Function)*\n\nOpens a filesystem file returning a file handle wrapped in `Result<File, Error>`.\n\n```aura\nopenFile(path: String, mode?: String): Result<File, Error>\n```\n\n---\n#### 📥 Parameters\n* `path` (`String`): Path to file.\n* `mode` (`String`, optional): Access mode (`\"r\"`, `\"w\"`, `\"a\"`, default `\"r\"`).\n\n---\n#### 📤 Returns\n* `Result<File, Error>`."
         }
-        "Server" => {
-            "### `Server` *(Native HTTP Server)*\n\nNative high-performance HTTP web server instance.\n\n```aura\nServer.new(addr: String): Server\n```\n\nSupports routing, middleware chains, OpenAPI 3.0 / Swagger UI auto-generation, and fiber concurrency.\n\n---\n#### 📥 Parámetros\n* `addr` (`String`): TCP bind address (e.g. `\":8080\"`).\n\n---\n#### 💡 Ejemplo\n```aura\nlet server = Server.new(\":8080\");\nserver.handle(\"/api/users\", handleUsers);\nserver.enableSwagger(\"/swagger\");\nserver.listen();\n```"
+        "Server" | "ServeMux" => {
+            "### `Server` / `ServeMux` *(Native HTTP Server)*\n\nNative high-performance HTTP web server instance.\n\n```aura\nServer.new(addr: String): Server\n```\n\nSupports routing, middleware chains, OpenAPI 3.0 / Swagger UI auto-generation, and fiber concurrency.\n\n---\n#### 📥 Parameters\n* `addr` (`String`): TCP bind address (e.g. `\":8080\"`).\n\n---\n#### 💡 Example\n```aura\nlet server = Server.new(\":8080\");\nserver.handle(\"/api/users\", handleUsers);\nserver.enableSwagger(\"/swagger\");\nserver.listen();\n```"
         }
-        "Request" => {
-            "### `Request` *(HTTP Request)*\n\nRepresents an incoming HTTP request.\n\n```aura\ntype Request = {\n    method: String,\n    url: String,\n    headers: Map<String, String>,\n    body: String\n}\n```"
+        "Request" | "HttpRequest" => {
+            "### `Request` / `HttpRequest` *(HTTP Request)*\n\nRepresents an incoming HTTP request.\n\n```aura\ninterface Request {\n    method: String,\n    url: String,\n    path: String,\n    host: String,\n    body: String,\n    param(name: String): String,\n    pathValue(name: String): String,\n    query(name: String): String,\n    header(name: String): String,\n    parseJson(): Result<Any, String>\n}\n```"
         }
-        "Response" => {
-            "### `Response` *(HTTP Response)*\n\nHTTP response constructor.\n\n```aura\nResponse.json(data: Any, status: Int = 200): Response\nResponse.html(html: String, status: Int = 200): Response\nResponse.text(text: String, status: Int = 200): Response\n```\n\n---\n#### 📥 Parámetros\n* `data` (`Any`): Payload serialized as JSON.\n* `status` (`Int`, opcional): HTTP status code (default 200)."
+        "Response" | "HttpResponse" => {
+            "### `Response` / `HttpResponse` *(HTTP Response)*\n\nHTTP response representation and constructor.\n\n```aura\nResponse.json(data: Any, status: Int = 200): Response\nResponse.html(html: String, status: Int = 200): Response\nResponse.text(text: String, status: Int = 200): Response\nResponse.error(msg: String, status: Int = 500): Response\nResponse.redirect(url: String, status: Int = 302): Response\n```\n\n---\n#### 📥 Parameters\n* `data` (`Any`): Payload serialized as JSON.\n* `status` (`Int`, optional): HTTP status code (default 200)."
+        }
+        "ResponseWriter" => {
+            "### `ResponseWriter` *(Go-style HTTP Response Writer)*\n\nInterface used by HTTP handlers to construct an HTTP response.\n\n```aura\ninterface ResponseWriter {\n    json(data: Any, status?: Int): Unit,\n    text(msg: String, status?: Int): Unit,\n    html(content: String, status?: Int): Unit,\n    error(msg: String, status?: Int): Unit,\n    redirect(url: String, status?: Int): Unit,\n    setHeader(key: String, val: String): Unit,\n    writeString(s: String): Unit\n}\n```"
+        }
+        "Handler" => {
+            "### `Handler` *(HTTP Handler Interface)*\n\nStandard interface for HTTP request handlers.\n\n```aura\ninterface Handler {\n    serveHTTP(w: ResponseWriter, req: Request): Unit\n}\n```"
         }
         "http" => {
-            "### `http` *(Native Server & Client)*\n\n```aura\nimport { Server, Request, Response } from \"net/http\";\n```\n\nStandard library module for high-performance HTTP networking."
+            "### `http` *(Native Server & Client)*\n\n```aura\nimport { Server, Request, Response, ResponseWriter } from \"net/http\";\n```\n\nStandard library module for high-performance HTTP networking."
         }
         "pg" | "postgres" => {
             "### `pg` *(Native Database Driver)*\n\n```aura\npg::connect(url: String): Result<PgClient, Error>\n```\n\nPostgreSQL database driver with connection pooling and transactions."
@@ -2368,6 +2373,12 @@ pub struct LspServer {
     pub documents: HashMap<String, DocumentState>,
     pub is_initialized: bool,
     pub is_shutdown: bool,
+}
+
+impl Default for LspServer {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl LspServer {
@@ -2578,23 +2589,23 @@ impl LspServer {
                     character: char_idx,
                 };
 
-                if let Some(doc) = self.documents.get(&uri) {
-                    if let Some(hover) = doc.hover(&pos) {
-                        let escaped_contents = escape_json_string(&hover.contents);
-                        let range_json = if let Some(r) = hover.range {
-                            format!(
-                                r#","range":{{"start":{{"line":{},"character":{}}},"end":{{"line":{},"character":{}}}}}"#,
-                                r.start.line, r.start.character, r.end.line, r.end.character
-                            )
-                        } else {
-                            String::new()
-                        };
-                        let res = format!(
-                            r#"{{"contents":{{"kind":"markdown","value":"{}"}}{}}}"#,
-                            escaped_contents, range_json
-                        );
-                        return Some(format_json_response(id, &res));
-                    }
+                if let Some(doc) = self.documents.get(&uri)
+                    && let Some(hover) = doc.hover(&pos)
+                {
+                    let escaped_contents = escape_json_string(&hover.contents);
+                    let range_json = if let Some(r) = hover.range {
+                        format!(
+                            r#","range":{{"start":{{"line":{},"character":{}}},"end":{{"line":{},"character":{}}}}}"#,
+                            r.start.line, r.start.character, r.end.line, r.end.character
+                        )
+                    } else {
+                        String::new()
+                    };
+                    let res = format!(
+                        r#"{{"contents":{{"kind":"markdown","value":"{}"}}{}}}"#,
+                        escaped_contents, range_json
+                    );
+                    return Some(format_json_response(id, &res));
                 }
                 Some(format_json_response(id, "null"))
             }
@@ -2607,18 +2618,18 @@ impl LspServer {
                     character: char_idx,
                 };
 
-                if let Some(doc) = self.documents.get(&uri) {
-                    if let Some(loc) = doc.definition(&pos) {
-                        let res = format!(
-                            r#"{{"uri":"{}","range":{{"start":{{"line":{},"character":{}}},"end":{{"line":{},"character":{}}}}}}}"#,
-                            escape_json_string(&loc.uri),
-                            loc.range.start.line,
-                            loc.range.start.character,
-                            loc.range.end.line,
-                            loc.range.end.character
-                        );
-                        return Some(format_json_response(id, &res));
-                    }
+                if let Some(doc) = self.documents.get(&uri)
+                    && let Some(loc) = doc.definition(&pos)
+                {
+                    let res = format!(
+                        r#"{{"uri":"{}","range":{{"start":{{"line":{},"character":{}}},"end":{{"line":{},"character":{}}}}}}}"#,
+                        escape_json_string(&loc.uri),
+                        loc.range.start.line,
+                        loc.range.start.character,
+                        loc.range.end.line,
+                        loc.range.end.character
+                    );
+                    return Some(format_json_response(id, &res));
                 }
                 Some(format_json_response(id, "null"))
             }
@@ -2663,11 +2674,12 @@ impl LspServer {
             }
             "textDocument/formatting" => {
                 let uri = extract_json_string(&params, "uri")?;
-                if let Some(doc) = self.documents.get(&uri) {
-                    if let Ok(edits) = doc.format(None) {
-                        let mut edits_json = Vec::new();
-                        for edit in edits {
-                            edits_json.push(format!(
+                if let Some(doc) = self.documents.get(&uri)
+                    && let Ok(edits) = doc.format(None)
+                {
+                    let mut edits_json = Vec::new();
+                    for edit in edits {
+                        edits_json.push(format!(
                                 r#"{{"range":{{"start":{{"line":{},"character":{}}},"end":{{"line":{},"character":{}}}}},"newText":"{}"}}"#,
                                 edit.range.start.line,
                                 edit.range.start.character,
@@ -2675,12 +2687,11 @@ impl LspServer {
                                 edit.range.end.character,
                                 escape_json_string(&edit.new_text)
                             ));
-                        }
-                        return Some(format_json_response(
-                            id,
-                            &format!("[{}]", edits_json.join(",")),
-                        ));
                     }
+                    return Some(format_json_response(
+                        id,
+                        &format!("[{}]", edits_json.join(",")),
+                    ));
                 }
                 Some(format_json_response(id, "[]"))
             }
@@ -2720,18 +2731,18 @@ impl LspServer {
                     line,
                     character: char_idx,
                 };
-                if let Some(doc) = self.documents.get(&uri) {
-                    if let Some((range, placeholder)) = doc.prepare_rename(&pos) {
-                        let res = format!(
-                            r#"{{"range":{{"start":{{"line":{},"character":{}}},"end":{{"line":{},"character":{}}}}},"placeholder":"{}"}}"#,
-                            range.start.line,
-                            range.start.character,
-                            range.end.line,
-                            range.end.character,
-                            escape_json_string(&placeholder)
-                        );
-                        return Some(format_json_response(id, &res));
-                    }
+                if let Some(doc) = self.documents.get(&uri)
+                    && let Some((range, placeholder)) = doc.prepare_rename(&pos)
+                {
+                    let res = format!(
+                        r#"{{"range":{{"start":{{"line":{},"character":{}}},"end":{{"line":{},"character":{}}}}},"placeholder":"{}"}}"#,
+                        range.start.line,
+                        range.start.character,
+                        range.end.line,
+                        range.end.character,
+                        escape_json_string(&placeholder)
+                    );
+                    return Some(format_json_response(id, &res));
                 }
                 Some(format_json_response(id, "null"))
             }
@@ -2759,45 +2770,43 @@ impl LspServer {
                     line,
                     character: char_idx,
                 };
-                if let Some(doc) = self.documents.get(&uri) {
-                    if let Some(sig_help) = doc.signature_help(&pos) {
-                        let mut sigs_json = Vec::new();
-                        for sig in &sig_help.signatures {
-                            let mut params_json = Vec::new();
-                            for p in &sig.parameters {
-                                let doc_str = p
-                                    .documentation
-                                    .as_ref()
-                                    .map(|d| {
-                                        format!(r#","documentation":"{}""#, escape_json_string(d))
-                                    })
-                                    .unwrap_or_default();
-                                params_json.push(format!(
-                                    r#"{{"label":"{}"{}}}"#,
-                                    escape_json_string(&p.label),
-                                    doc_str
-                                ));
-                            }
-                            let doc_str = sig
+                if let Some(doc) = self.documents.get(&uri)
+                    && let Some(sig_help) = doc.signature_help(&pos)
+                {
+                    let mut sigs_json = Vec::new();
+                    for sig in &sig_help.signatures {
+                        let mut params_json = Vec::new();
+                        for p in &sig.parameters {
+                            let doc_str = p
                                 .documentation
                                 .as_ref()
                                 .map(|d| format!(r#","documentation":"{}""#, escape_json_string(d)))
                                 .unwrap_or_default();
-                            sigs_json.push(format!(
-                                r#"{{"label":"{}"{},"parameters":[{}]}}"#,
-                                escape_json_string(&sig.label),
-                                doc_str,
-                                params_json.join(",")
+                            params_json.push(format!(
+                                r#"{{"label":"{}"{}}}"#,
+                                escape_json_string(&p.label),
+                                doc_str
                             ));
                         }
-                        let res = format!(
-                            r#"{{"signatures":[{}],"activeSignature":{},"activeParameter":{}}}"#,
-                            sigs_json.join(","),
-                            sig_help.active_signature,
-                            sig_help.active_parameter
-                        );
-                        return Some(format_json_response(id, &res));
+                        let doc_str = sig
+                            .documentation
+                            .as_ref()
+                            .map(|d| format!(r#","documentation":"{}""#, escape_json_string(d)))
+                            .unwrap_or_default();
+                        sigs_json.push(format!(
+                            r#"{{"label":"{}"{},"parameters":[{}]}}"#,
+                            escape_json_string(&sig.label),
+                            doc_str,
+                            params_json.join(",")
+                        ));
                     }
+                    let res = format!(
+                        r#"{{"signatures":[{}],"activeSignature":{},"activeParameter":{}}}"#,
+                        sigs_json.join(","),
+                        sig_help.active_signature,
+                        sig_help.active_parameter
+                    );
+                    return Some(format_json_response(id, &res));
                 }
                 Some(format_json_response(id, "null"))
             }
@@ -2981,13 +2990,13 @@ impl LspServer {
                     line,
                     character: char_idx,
                 };
-                if let Some(doc) = self.documents.get(&uri) {
-                    if let Some(item) = doc.prepare_call_hierarchy(&pos) {
-                        return Some(format_json_response(
-                            id,
-                            &format!("[{}]", format_call_hierarchy_item(&item)),
-                        ));
-                    }
+                if let Some(doc) = self.documents.get(&uri)
+                    && let Some(item) = doc.prepare_call_hierarchy(&pos)
+                {
+                    return Some(format_json_response(
+                        id,
+                        &format!("[{}]", format_call_hierarchy_item(&item)),
+                    ));
                 }
                 Some(format_json_response(id, "[]"))
             }
@@ -3083,10 +3092,10 @@ impl LspServer {
                     break; // Header section finished
                 }
 
-                if trimmed.to_lowercase().starts_with("content-length:") {
-                    if let Some(len_str) = trimmed.split(':').nth(1) {
-                        content_length = len_str.trim().parse::<usize>().ok();
-                    }
+                if trimmed.to_lowercase().starts_with("content-length:")
+                    && let Some(len_str) = trimmed.split(':').nth(1)
+                {
+                    content_length = len_str.trim().parse::<usize>().ok();
                 }
             }
 
@@ -3186,10 +3195,10 @@ fn extract_json_string(json: &str, field: &str) -> Option<String> {
     let colon_pos = after_field.find(':')?;
     let after_colon = &after_field[colon_pos + 1..].trim_start();
 
-    if after_colon.starts_with('"') {
+    if let Some(stripped) = after_colon.strip_prefix('"') {
         let mut s = String::new();
         let mut escaped = false;
-        for c in after_colon[1..].chars() {
+        for c in stripped.chars() {
             if escaped {
                 match c {
                     'n' => s.push('\n'),
@@ -3221,7 +3230,7 @@ fn extract_json_int(json: &str, field: &str) -> Option<i64> {
 
     let num_str: String = after_colon
         .chars()
-        .take_while(|c| c.is_digit(10) || *c == '-')
+        .take_while(|c| c.is_ascii_digit() || *c == '-')
         .collect();
     num_str.parse::<i64>().ok()
 }
@@ -3239,7 +3248,7 @@ fn extract_json_raw_field(json: &str, field: &str) -> Option<String> {
 
     let raw: String = after_colon
         .chars()
-        .take_while(|c| c.is_digit(10) || *c == '-' || *c == 'n' || *c == 'u' || *c == 'l')
+        .take_while(|c| c.is_ascii_digit() || *c == '-' || *c == 'n' || *c == 'u' || *c == 'l')
         .collect();
     if !raw.is_empty() { Some(raw) } else { None }
 }

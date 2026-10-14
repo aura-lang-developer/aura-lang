@@ -198,10 +198,10 @@ pub fn build_backend_executable_with_base_path(
 
     let compile_status = cmd.status();
 
-    if let Ok(ref status) = compile_status {
-        if status.success() {
-            let _ = fs::remove_file(&tmp_go_path);
-        }
+    if let Ok(ref status) = compile_status
+        && status.success()
+    {
+        let _ = fs::remove_file(&tmp_go_path);
     }
 
     match compile_status {
@@ -405,13 +405,11 @@ impl BackendStrategy for JsBackendStrategy {
         options: &BackendOptions,
     ) -> Result<CompilationResult, String> {
         let mut codegen = CodeGen::with_base_path(options.base_path);
-        if options.sourcemap && options.js_filename.is_some() && options.aura_filename.is_some() {
-            let (js_code, dts_code, sm) = codegen.generate_with_sourcemap(
-                module,
-                options.js_filename.unwrap(),
-                options.aura_filename.unwrap(),
-                "",
-            );
+        if options.sourcemap
+            && let (Some(js_file), Some(aura_file)) = (options.js_filename, options.aura_filename)
+        {
+            let (js_code, dts_code, sm) =
+                codegen.generate_with_sourcemap(module, js_file, aura_file, "");
             Ok(CompilationResult {
                 js_code,
                 dts_code,

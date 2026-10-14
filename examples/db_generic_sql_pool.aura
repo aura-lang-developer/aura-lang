@@ -1,0 +1,71 @@
+// =============================================================================
+// Aura Language: Generic SQL Database Pool Example
+// =============================================================================
+// Demonstrates the generic `std/database/sql` interface allowing applications
+// to write database-agnostic code and switch between SQLite, PostgreSQL, and MySQL.
+// =============================================================================
+
+export fn main(): Unit => {
+    println("🌐 [SQL Pool Demo] Starting Generic SQL Driver Showcase");
+    println("---------------------------------------------------------");
+
+    // 1. Initialize generic SQL pool with driver name
+    let driverName = "sqlite";
+    let connectionString = ":memory:";
+    let poolSize = 5;
+
+    println(`1. Initializing connection pool (Driver: ${driverName}, Pool Size: ${poolSize})...`);
+    let db: DB = sql.open(driverName, connectionString, poolSize);
+
+    // 2. Ping database
+    let isHealthy = db.ping();
+    if (isHealthy == 0) {
+        println("✓ Database connection verified healthy via ping().");
+    }
+
+    // 3. Initialize employees table
+    db.exec("
+        CREATE TABLE employees (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            department TEXT NOT NULL,
+            salary INT NOT NULL
+        );
+    ", []);
+
+    // 4. Batch insertion
+    println("2. Seeding employee directory...");
+    let insertEmp = "INSERT INTO employees (name, department, salary) VALUES (?, ?, ?);";
+    db.exec(insertEmp, ["Ada Lovelace", "Engineering", 125000]);
+    db.exec(insertEmp, ["Alan Turing", "Research", 130000]);
+    db.exec(insertEmp, ["Grace Hopper", "Engineering", 128000]);
+    db.exec(insertEmp, ["Claude Shannon", "Information Theory", 135000]);
+
+    // 5. Query and scan
+    println("\n3. Engineering Department Roster:");
+    let rows: Rows = db.query("SELECT id, name, salary FROM employees WHERE department = ? ORDER BY salary DESC;", ["Engineering"]);
+
+    while (rows.next()) {
+        let id = rows.getInt(0);
+        let name = rows.getString(1);
+        let salary = rows.getInt(2);
+        println(`  -> Employee #${id}: ${name} (Salary: $${salary})`);
+    }
+    rows.close();
+
+    // 6. Aggregate calculation
+    println("\n4. Department Salary Summary:");
+    let sumRows: Rows = db.query("SELECT department, COUNT(*), AVG(salary) FROM employees GROUP BY department;", []);
+    while (sumRows.next()) {
+        let dept = sumRows.getString(0);
+        let count = sumRows.getInt(1);
+        let avgSalary = sumRows.getInt(2);
+        println(`  -> ${dept}: ${count} members | Avg Salary: $${avgSalary}`);
+    }
+    sumRows.close();
+
+    // 7. Cleanup
+    db.close();
+    println("\n✓ Generic SQL connection pool cleanly closed.");
+    println("🌐 [SQL Pool Demo] Finished successfully!");
+}

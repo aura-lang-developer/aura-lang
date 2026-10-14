@@ -692,3 +692,63 @@ export fn testMapMethods(): Int {
         "Expected METHODS_SUCCESS output"
     );
 }
+
+#[test]
+fn test_e2e_compound_assignment_operators() {
+    let source = r#"
+export fn computeMath(): Int {
+    let mut sum: Int = 10;
+    sum += 15;
+    sum -= 5;
+    sum *= 3;
+    sum /= 2;
+    sum %= 7;
+
+    let mut list = [1, 2, 3, 4, 5];
+    let mut total = 0;
+    for x in list {
+        total += x;
+    }
+
+    return sum + total;
+}
+
+export fn computeFloatMath(): Float {
+    let mut val: Float = 10.5;
+    val += 4.5;
+    val -= 2.0;
+    val *= 2.0;
+    val /= 4.0;
+    return val;
+}
+"#;
+
+    let result = compile(source, &[]).expect("Compilation must succeed");
+    let runner_code = format!(
+        "{}\n\nfunction main() {{\n  const intRes = computeMath();\n  if (intRes !== 17) throw new Error(`computeMath failed, got ${{intRes}}`);\n  const floatRes = computeFloatMath();\n  if (Math.abs(floatRes - 6.5) > 0.001) throw new Error(`computeFloatMath failed, got ${{floatRes}}`);\n  console.log('COMPOUND_ASSIGN_SUCCESS');\n}}\nmain();",
+        result.js_code
+    );
+
+    let test_file = "test_compound_assign_runner.mjs";
+    fs::write(test_file, runner_code).expect("Should write test runner file");
+
+    let output = Command::new("node")
+        .arg(test_file)
+        .output()
+        .expect("Failed to execute node command");
+
+    let _ = fs::remove_file(test_file);
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "Node.js failed: stdout: {}, stderr: {}",
+        stdout,
+        stderr
+    );
+    assert!(
+        stdout.contains("COMPOUND_ASSIGN_SUCCESS"),
+        "Expected COMPOUND_ASSIGN_SUCCESS output"
+    );
+}

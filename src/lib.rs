@@ -4,6 +4,7 @@ pub mod ast;
 pub mod backend;
 pub mod bindgen;
 pub mod build_tags;
+pub mod cli;
 pub mod codegen;
 pub mod codegen_cranelift;
 pub mod codegen_go;
@@ -18,6 +19,14 @@ pub mod sourcemap;
 pub mod testing;
 pub mod typechecker;
 pub mod watcher;
+
+/// The version of the Aura Language compiler and toolchain.
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Returns the current version of the Aura Language compiler.
+pub fn version() -> &'static str {
+    VERSION
+}
 
 pub use ast::{
     AstMetrics, AstMetricsCollector, AstVisitor, walk_expr, walk_item, walk_module, walk_pattern,
@@ -50,7 +59,7 @@ pub use testing::{
     BenchmarkResult, CoverageReport, FileCoverage, TestCaseResult, TestConfig, TestFile,
     TestFunction, TestKind, TestStatus, TestSummary, discover_test_files, run_tests,
 };
-use typechecker::TypeChecker;
+pub use typechecker::{TypeChecker, TypeError};
 
 use std::path::{Path, PathBuf};
 
@@ -70,22 +79,12 @@ pub struct CompilationResult {
 /// 2. Syntactic Parsing (`Parser`)
 /// 3. Static Type Checking & Module Resolution (`TypeChecker`)
 /// 4. Code Generation (`CodeGen` / `BackendStrategy`)
+#[derive(Default)]
 pub struct CompilerPipeline<'a> {
     base_path: Option<&'a Path>,
     sourcemap_info: Option<(&'a str, &'a str)>,
     dts_inputs: Vec<(&'a str, &'a str)>,
     backend_strategy: Option<Box<dyn backend::BackendStrategy>>,
-}
-
-impl<'a> Default for CompilerPipeline<'a> {
-    fn default() -> Self {
-        Self {
-            base_path: None,
-            sourcemap_info: None,
-            dts_inputs: Vec::new(),
-            backend_strategy: None,
-        }
-    }
 }
 
 impl<'a> CompilerPipeline<'a> {
@@ -259,23 +258,24 @@ fn resolve_local_imports_recursive(
                 package::resolve_package_import(&imp.source, base_path)
             };
 
-            if let Some(cand) = target_file {
-                if cand.exists() && !imported_sources.contains(&cand) {
-                    imported_sources.insert(cand.clone());
-                    let cand_base = cand.parent();
-                    if let Ok(dep_content) = std::fs::read_to_string(&cand) {
-                        let mut dep_lexer = Lexer::new(&dep_content);
-                        if let Ok(dep_tokens) = dep_lexer.tokenize() {
-                            let mut dep_parser = Parser::new(dep_tokens);
-                            if let Ok(dep_module) = dep_parser.parse_module() {
-                                resolve_local_imports_recursive(
-                                    &dep_module,
-                                    cand_base,
-                                    typechecker,
-                                    imported_sources,
-                                );
-                                let _ = typechecker.check_module(&dep_module);
-                            }
+            if let Some(cand) = target_file
+                && cand.exists()
+                && !imported_sources.contains(&cand)
+            {
+                imported_sources.insert(cand.clone());
+                let cand_base = cand.parent();
+                if let Ok(dep_content) = std::fs::read_to_string(&cand) {
+                    let mut dep_lexer = Lexer::new(&dep_content);
+                    if let Ok(dep_tokens) = dep_lexer.tokenize() {
+                        let mut dep_parser = Parser::new(dep_tokens);
+                        if let Ok(dep_module) = dep_parser.parse_module() {
+                            resolve_local_imports_recursive(
+                                &dep_module,
+                                cand_base,
+                                typechecker,
+                                imported_sources,
+                            );
+                            let _ = typechecker.check_module(&dep_module);
                         }
                     }
                 }
@@ -398,33 +398,34 @@ fn compile_local_deps_recursive(
                 package::resolve_package_import(&imp.source, base_path)
             };
 
-            if let Some(cand) = target_file {
-                if cand.exists() && cand.is_file() && !visited.contains(&cand) {
-                    visited.insert(cand.clone());
-                    let cand_base = cand.parent();
-                    if let Ok(content) = std::fs::read_to_string(&cand) {
-                        if let Ok(res) = compile_backend(&content, cand_base, &[]) {
-                            let target_mjs =
-                                if cand.extension().and_then(|s| s.to_str()) == Some("aura") {
-                                    cand.with_extension("mjs")
-                                } else {
-                                    PathBuf::from(format!("{}.mjs", cand.display()))
-                                };
-                            if std::fs::write(&target_mjs, &res.js_code).is_ok() {
-                                compiled_files.push(target_mjs);
-                            }
-                            let mut dep_lexer = Lexer::new(&content);
-                            if let Ok(dep_tokens) = dep_lexer.tokenize() {
-                                let mut dep_parser = Parser::new(dep_tokens);
-                                if let Ok(dep_module) = dep_parser.parse_module() {
-                                    compile_local_deps_recursive(
-                                        &dep_module,
-                                        cand_base,
-                                        visited,
-                                        compiled_files,
-                                    );
-                                }
-                            }
+            if let Some(cand) = target_file
+                && cand.exists()
+                && cand.is_file()
+                && !visited.contains(&cand)
+            {
+                visited.insert(cand.clone());
+                let cand_base = cand.parent();
+                if let Ok(content) = std::fs::read_to_string(&cand)
+                    && let Ok(res) = compile_backend(&content, cand_base, &[])
+                {
+                    let target_mjs = if cand.extension().and_then(|s| s.to_str()) == Some("aura") {
+                        cand.with_extension("mjs")
+                    } else {
+                        PathBuf::from(format!("{}.mjs", cand.display()))
+                    };
+                    if std::fs::write(&target_mjs, &res.js_code).is_ok() {
+                        compiled_files.push(target_mjs);
+                    }
+                    let mut dep_lexer = Lexer::new(&content);
+                    if let Ok(dep_tokens) = dep_lexer.tokenize() {
+                        let mut dep_parser = Parser::new(dep_tokens);
+                        if let Ok(dep_module) = dep_parser.parse_module() {
+                            compile_local_deps_recursive(
+                                &dep_module,
+                                cand_base,
+                                visited,
+                                compiled_files,
+                            );
                         }
                     }
                 }
@@ -434,7 +435,6 @@ fn compile_local_deps_recursive(
 }
 
 /// Compiles an Aura source code string resolving local .aura module imports relative to base_path.
-
 pub fn compile_with_base_path(
     source: &str,
     base_path: Option<&Path>,

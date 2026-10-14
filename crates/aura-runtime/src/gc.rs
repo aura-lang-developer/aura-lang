@@ -20,22 +20,30 @@ pub const TYPE_LIST: u32 = 3;
 pub const TYPE_MUTEX: u32 = 4;
 pub const TYPE_CHANNEL: u32 = 5;
 pub const TYPE_VARIANT: u32 = 6;
+pub const TYPE_DB_POOL: u32 = 7;
+pub const TYPE_DB_ROWS: u32 = 8;
+pub const TYPE_DB_TX: u32 = 9;
+pub const TYPE_DB_EXEC_RESULT: u32 = 10;
+pub const TYPE_REDIS_CLIENT: u32 = 11;
+pub const TYPE_MONGO_CLIENT: u32 = 12;
+pub const TYPE_MONGO_DATABASE: u32 = 13;
+pub const TYPE_MONGO_COLLECTION: u32 = 14;
 
-use std::collections::HashMap;
-use std::sync::LazyLock;
+use rustc_hash::FxHashMap;
+use std::sync::{LazyLock, RwLock};
 
 const SHARD_COUNT: usize = 64;
 
 #[repr(align(64))]
 struct PointerShard {
-    map: Mutex<HashMap<usize, u32>>,
+    map: RwLock<FxHashMap<usize, u32>>,
 }
 
 static POINTER_SHARDS: LazyLock<Vec<PointerShard>> = LazyLock::new(|| {
     let mut shards = Vec::with_capacity(SHARD_COUNT);
     for _ in 0..SHARD_COUNT {
         shards.push(PointerShard {
-            map: Mutex::new(HashMap::with_capacity(256)),
+            map: RwLock::new(FxHashMap::with_capacity_and_hasher(256, Default::default())),
         });
     }
     shards
@@ -50,7 +58,7 @@ fn get_shard(ptr: usize) -> &'static PointerShard {
 pub fn register_valid_ptr(ptr: usize, type_id: u32) {
     if ptr >= 0x1000 {
         let shard = get_shard(ptr);
-        if let Ok(mut map) = shard.map.lock() {
+        if let Ok(mut map) = shard.map.write() {
             map.insert(ptr, type_id);
         }
     }
@@ -59,7 +67,7 @@ pub fn register_valid_ptr(ptr: usize, type_id: u32) {
 pub fn unregister_valid_ptr(ptr: usize) {
     if ptr >= 0x1000 {
         let shard = get_shard(ptr);
-        if let Ok(mut map) = shard.map.lock() {
+        if let Ok(mut map) = shard.map.write() {
             map.remove(&ptr);
         }
     }
@@ -70,7 +78,7 @@ pub fn lookup_valid_ptr(ptr: usize) -> Option<u32> {
         return None;
     }
     let shard = get_shard(ptr);
-    if let Ok(map) = shard.map.lock() {
+    if let Ok(map) = shard.map.read() {
         map.get(&ptr).copied()
     } else {
         None

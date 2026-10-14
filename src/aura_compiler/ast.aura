@@ -43,10 +43,15 @@ export type TokenKind =
   | TGreater
   | TGreaterEqual
   | TPlus
+  | TPlusEqual
   | TMinus
+  | TMinusEqual
   | TStar
+  | TStarEqual
   | TSlash
+  | TSlashEqual
   | TPercent
+  | TPercentEqual
   | TAndAnd
   | TOrOr
   | TBang
@@ -76,8 +81,87 @@ export type Token = {
 }
 
 // -----------------------------------------------------------------------------
+// SOURCE SPANS, SYMBOLS & DIAGNOSTICS
+// -----------------------------------------------------------------------------
+
+/// Source location span for error reporting and diagnostics.
+/// - `line`: 1-indexed source line.
+/// - `column`: 1-indexed column start.
+/// - `length`: Character width of the syntax node.
+/// - `file`: Source file path or module name.
+export type Span = {
+  line: Int,
+  column: Int,
+  length: Int,
+  file: String
+}
+
+/// Severity classification for compiler diagnostics.
+export type DiagnosticSeverity =
+  | DiagError
+  | DiagWarning
+  | DiagInfo
+  | DiagHint
+
+/// Rich diagnostic record providing actionable error feedback.
+/// - `severity`: Classification level (error, warning, info, hint).
+/// - `code`: Unique error code (e.g. `E0024`, `W0002`).
+/// - `message`: Human-readable error description.
+/// - `span`: Optional source code location of the fault.
+/// - `help`: Additional contextual help or explanation.
+/// - `suggestion`: Actionable fix suggestion or typo candidate.
+export type Diagnostic = {
+  severity: DiagnosticSeverity,
+  code: String,
+  message: String,
+  span: Option<Span>,
+  help: Option<String>,
+  suggestion: Option<String>
+}
+
+/// Symbol interning table mapping identifier strings to integer IDs.
+/// Optimizes memory allocations and enables O(1) identifier equality checks.
+export type SymbolTable = {
+  symbols: List<String>
+}
+
+/// Creates a new empty SymbolTable.
+export fn newSymbolTable(): SymbolTable {
+  return { symbols: [] };
+}
+
+/// Interns a string into the SymbolTable and returns its unique integer ID.
+export fn internSymbol(table: SymbolTable, name: String): Int {
+  let mut idx: Int = 0;
+  let total: Int = table.symbols.length;
+  while (idx < total) {
+    if (table.symbols[idx] == name) {
+      return idx;
+    }
+    idx = idx + 1;
+  }
+  let _ = table.symbols.push(name);
+  return total;
+}
+
+/// Looks up an interned string name by its unique symbol ID.
+export fn lookupSymbol(table: SymbolTable, symId: Int): Option<String> {
+  if (symId >= 0 && symId < table.symbols.length) {
+    return Some(table.symbols[symId]);
+  }
+  return None;
+}
+
+
+// -----------------------------------------------------------------------------
 // AST TYPE EXPRESSIONS
 // -----------------------------------------------------------------------------
+
+/// Named key-value field in record type annotations.
+export type TypeField = {
+  key: String,
+  value: TypeNode
+}
 
 /// Type representation nodes within type annotations and declarations.
 /// - `TyNamed`: Named type reference with optional generic arguments (e.g. `List<Int>`).
@@ -88,7 +172,7 @@ export type Token = {
 export type TypeNode =
   | TyNamed { name: String, args: List<TypeNode> }
   | TyFunction { params: List<TypeNode>, returnType: TypeNode }
-  | TyRecord { fields: List<{ key: String, value: TypeNode }> }
+  | TyRecord { fields: List<TypeField> }
   | TyTuple { items: List<TypeNode> }
   | TyUnit
 
@@ -134,6 +218,12 @@ export type UnOperator =
 // PATTERN MATCHING NODES
 // -----------------------------------------------------------------------------
 
+/// Named key-pattern in record destructuring patterns.
+export type PatternField = {
+  key: String,
+  pat: PatternNode
+}
+
 /// Pattern matching targets destructured in `match` expressions.
 /// - `PatWildcard`: Wildcard pattern `_` matching any value without binding.
 /// - `PatVariable`: Variable binding pattern capturing value by name.
@@ -147,7 +237,7 @@ export type PatternNode =
   | PatLiteral { lit: LiteralValue }
   | PatConstructor { name: String, args: List<PatternNode> }
   | PatList { items: List<PatternNode>, rest: Option<String> }
-  | PatRecord { fields: List<{ key: String, pat: PatternNode }> }
+  | PatRecord { fields: List<PatternField> }
 
 /// A single branch in a `match` expression.
 /// - `pattern`: Target pattern to match against subject.
@@ -163,26 +253,13 @@ export type MatchArmNode = {
 // AST EXPRESSION NODES
 // -----------------------------------------------------------------------------
 
+/// Named key-expression in record literal expressions.
+export type RecordField = {
+  key: String,
+  value: ExprNode
+}
+
 /// Complete set of expression nodes evaluated in Aura.
-/// - `ExprLit`: Constant literal value expression.
-/// - `ExprIdent`: Variable or function identifier reference.
-/// - `ExprBinary`: Binary infix expression (`left op right`).
-/// - `ExprUnary`: Unary prefix expression (`op expr`).
-/// - `ExprPipe`: Pipeline operator expression (`left |> right`).
-/// - `ExprCall`: Function or method call invocation (`callee(args...)`).
-/// - `ExprMember`: Property or field access expression (`obj.field`).
-/// - `ExprIndex`: Collection indexing expression (`obj[index]`).
-/// - `ExprIf`: Conditional expression (`if cond => then else => else`).
-/// - `ExprWhile`: Iterative loop expression (`while cond { body }`).
-/// - `ExprForIn`: For-in loop over collection or channel (`for item in iter { body }`).
-/// - `ExprMatch`: Exhaustive pattern matching expression (`match subject { arms }`).
-/// - `ExprBlock`: Scoped sequence of statements yielding final expression value.
-/// - `ExprList`: Array or list literal expression (`[a, b, c]`).
-/// - `ExprRecord`: Anonymous record constructor (`{ key: val }`).
-/// - `ExprTry`: Try / unwrap operator expression (`inner?`).
-/// - `ExprReturn`: Explicit return expression (`return val`).
-/// - `ExprBreak`: Loop termination statement.
-/// - `ExprContinue`: Loop next iteration statement.
 export type ExprNode =
   | ExprLit { lit: LiteralValue }
   | ExprIdent { name: String }
@@ -198,7 +275,7 @@ export type ExprNode =
   | ExprMatch { subject: ExprNode, arms: List<MatchArmNode> }
   | ExprBlock { stmts: List<StmtNode> }
   | ExprList { items: List<ExprNode> }
-  | ExprRecord { fields: List<{ key: String, value: ExprNode }> }
+  | ExprRecord { fields: List<RecordField> }
   | ExprTry { inner: ExprNode }
   | ExprReturn { val: Option<ExprNode> }
   | ExprBreak

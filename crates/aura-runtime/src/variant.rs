@@ -42,3 +42,12 @@ pub extern "C" fn aura_result_ok(val: i64) -> *mut AuraVariant {
 pub extern "C" fn aura_result_err(err: i64) -> *mut AuraVariant {
     aura_variant_new(2, err)
 }
+
+#[unsafe(no_mangle)]
+pub extern "C" fn aura_variant_free(v: *mut AuraVariant) {
+    if !v.is_null() {
+        unsafe {
+            drop(Box::from_raw(v));
+        }
+    }
+}

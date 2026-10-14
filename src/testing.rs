@@ -187,10 +187,10 @@ pub fn discover_test_files(paths: &[PathBuf]) -> Result<Vec<TestFile>, String> {
             discover_in_dir(Path::new(base), &mut files, &mut visited)?;
         } else if path.is_dir() {
             discover_in_dir(path, &mut files, &mut visited)?;
-        } else if path.is_file() {
-            if let Some(tf) = process_test_file(path)? {
-                files.push(tf);
-            }
+        } else if path.is_file()
+            && let Some(tf) = process_test_file(path)?
+        {
+            files.push(tf);
         }
     }
 
@@ -219,11 +219,13 @@ fn discover_in_dir(
 
     for entry in entries.flatten() {
         let path = entry.path();
-        if let Some(name) = path.file_name().and_then(|s| s.to_str()) {
-            if name.starts_with('.') || name == "node_modules" || name == "target" || name == "dist"
-            {
-                continue;
-            }
+        if let Some(name) = path.file_name().and_then(|s| s.to_str())
+            && (name.starts_with('.')
+                || name == "node_modules"
+                || name == "target"
+                || name == "dist")
+        {
+            continue;
         }
 
         if path.is_dir() {
@@ -917,16 +919,16 @@ pub fn run_tests(config: &TestConfig) -> Result<TestSummary, String> {
             covered_statements: covered_stmts,
         };
 
-        if let Some(ref prof_path) = config.coverprofile {
-            if let Err(e) = write_coverprofile(prof_path, &report) {
-                eprintln!("Warning: Failed to write coverprofile: {}", e);
-            }
+        if let Some(ref prof_path) = config.coverprofile
+            && let Err(e) = write_coverprofile(prof_path, &report)
+        {
+            eprintln!("Warning: Failed to write coverprofile: {}", e);
         }
 
-        if let Some(ref html_path) = config.coverage_html {
-            if let Err(e) = write_coverage_html(html_path, &report, &discovered_files) {
-                eprintln!("Warning: Failed to write coverage HTML: {}", e);
-            }
+        if let Some(ref html_path) = config.coverage_html
+            && let Err(e) = write_coverage_html(html_path, &report, &discovered_files)
+        {
+            eprintln!("Warning: Failed to write coverage HTML: {}", e);
         }
 
         Some(report)
@@ -1222,12 +1224,12 @@ fn calculate_file_coverage(
 
     // If runner tracked lines, extract them
     let mut tracked_lines_set = HashSet::new();
-    if let Some(ref cv) = cov_data {
-        if let Some(lines_obj) = cv.get("lines").and_then(|v| v.as_object()) {
-            for (k, _) in lines_obj {
-                if let Ok(line_no) = k.parse::<usize>() {
-                    tracked_lines_set.insert(line_no);
-                }
+    if let Some(ref cv) = cov_data
+        && let Some(lines_obj) = cv.get("lines").and_then(|v| v.as_object())
+    {
+        for k in lines_obj.keys() {
+            if let Ok(line_no) = k.parse::<usize>() {
+                tracked_lines_set.insert(line_no);
             }
         }
     }
@@ -1375,8 +1377,58 @@ pub fn write_coverage_html(
 // CLI DISPATCHER FOR AURATEST & AURAC TEST
 // -----------------------------------------------------------------------------
 
+/// Prints help information for the test runner.
+pub fn print_test_help() {
+    println!(
+        "Aura Test Runner (auratest / aurac --test) v{} (Go-test style)",
+        env!("CARGO_PKG_VERSION")
+    );
+    println!("Usage:");
+    println!("  auratest [flags] [packages/paths...]");
+    println!("  aurac test [flags] [packages/paths...]");
+    println!("  aurac --test [flags] [packages/paths...]");
+    println!("  aurac <file.aura> --test [flags...]");
+    println!();
+    println!("Flags:");
+    println!("  -v, --verbose           Verbose output: print all test names and logs");
+    println!("  -run <pattern>          Run only tests matching the regular expression");
+    println!("  -bench <pattern>        Run benchmarks matching the regular expression");
+    println!("  -cover, --coverage      Enable code coverage analysis");
+    println!("  -coverprofile <file>    Write coverage profile to file");
+    println!("  --coverage-html <file>  Generate standalone interactive HTML coverage report");
+    println!("  --unit                  Run only unit tests");
+    println!("  --integration           Run only integration tests");
+    println!("  --e2e                   Run only end-to-end (E2E) tests");
+    println!("  -timeout <duration>     Test execution timeout (e.g. 30s, 5000ms)");
+    println!("  -failfast               Stop execution on first test failure");
+    println!("  -parallel <n>           Number of test files to run in parallel");
+    println!("  -count <n>              Run each test and benchmark n times");
+    println!("  -json                   Output test results in machine-readable JSON");
+    println!("  -l, --list              List discovered tests without running them");
+    println!("  -w, --watch             Watch mode: re-run tests on file changes");
+    println!();
+    println!("Examples:");
+    println!("  aurac --test");
+    println!("  aurac --test ./...");
+    println!("  aurac --test -v ./examples/tests/math_unit_test.aura");
+    println!("  aurac ./examples/tests/math_unit_test.aura --test");
+    println!("  auratest -run TestCalculateDiscount -cover");
+    println!("  auratest -bench .");
+    println!("  auratest --integration");
+}
+
 /// Parses command line arguments and runs the test suite.
 pub fn run_cli(args: &[String]) {
+    if args.iter().any(|a| a == "--version" || a == "-V" || a == "version") {
+        println!("auratest {}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
+
+    if args.iter().any(|a| a == "--help" || a == "-h" || a == "help") {
+        print_test_help();
+        return;
+    }
+
     let mut config = TestConfig::default();
     let mut paths = Vec::new();
     let mut i = 0;
@@ -1544,15 +1596,15 @@ fn run_watch_mode(config: TestConfig) {
         let mut changed = false;
         if let Ok(files) = discover_test_files(&config.paths) {
             for f in files {
-                if let Ok(meta) = fs::metadata(&f.path) {
-                    if let Ok(mtime) = meta.modified() {
-                        if let Some(prev) = last_modified.get(&f.path) {
-                            if *prev != mtime {
-                                changed = true;
-                            }
-                        }
-                        last_modified.insert(f.path.clone(), mtime);
+                if let Ok(meta) = fs::metadata(&f.path)
+                    && let Ok(mtime) = meta.modified()
+                {
+                    if let Some(prev) = last_modified.get(&f.path)
+                        && *prev != mtime
+                    {
+                        changed = true;
                     }
+                    last_modified.insert(f.path.clone(), mtime);
                 }
             }
         }

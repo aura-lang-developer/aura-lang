@@ -1,0 +1,114 @@
+module Aura.Compiler.Diagnostics
+
+import {
+  Span, Diagnostic, DiagnosticSeverity,
+  DiagError, DiagWarning, DiagInfo, DiagHint
+} from "./ast"
+
+// -----------------------------------------------------------------------------
+// DIAGNOSTIC FACTORY CONSTRUCTORS
+// -----------------------------------------------------------------------------
+
+/// Creates a new Error Diagnostic.
+export fn error(code: String, message: String, span: Option<Span>, help: Option<String>, suggestion: Option<String>): Diagnostic {
+  return {
+    severity: DiagError,
+    code: code,
+    message: message,
+    span: span,
+    help: help,
+    suggestion: suggestion
+  };
+}
+
+/// Creates and formats an error diagnostic string directly.
+export fn formatError(code: String, message: String, span: Option<Span>, help: Option<String>, suggestion: Option<String>): String {
+  let diag = error(code, message, span, help, suggestion);
+  return formatDiagnostic(diag, "");
+}
+
+/// Creates a new Warning Diagnostic.
+export fn warning(code: String, message: String, span: Option<Span>, help: Option<String>): Diagnostic {
+  return {
+    severity: DiagWarning,
+    code: code,
+    message: message,
+    span: span,
+    help: help,
+    suggestion: None
+  };
+}
+
+// -----------------------------------------------------------------------------
+// LEVENSHTEIN DISTANCE & FUZZY SUGGESTIONS ("Did you mean...?")
+// -----------------------------------------------------------------------------
+
+/// Computes string similarity distance based on character differences and length delta.
+export fn levenshtein(a: String, b: String): Int {
+  if (a == b) { return 0; }
+  let lenA: Int = a.length;
+  let lenB: Int = b.length;
+  if (lenA == 0) { return lenB; }
+  if (lenB == 0) { return lenA; }
+
+  let mut diff: Int = 0;
+  let mut minLen: Int = lenA;
+  if (lenB < minLen) { minLen = lenB; }
+
+  let mut idx: Int = 0;
+  while (idx < minLen) {
+    if (a.charAt(idx) != b.charAt(idx)) {
+      diff = diff + 1;
+    }
+    idx = idx + 1;
+  }
+
+  let lenDiff: Int = if (lenA > lenB) { lenA - lenB } else { lenB - lenA };
+  return diff + lenDiff;
+}
+
+/// Finds the closest candidate string in a list using edit distance threshold <= 3.
+export fn findClosestMatch(query: String, candidates: List<String>): Option<String> {
+  let mut bestMatch: Option<String> = None;
+  let mut bestDistance: Int = 4; // Threshold max edit distance of 3
+
+  let mut idx: Int = 0;
+  let total: Int = candidates.length;
+  while (idx < total) {
+    let candidate = candidates[idx];
+    let dist: Int = levenshtein(query, candidate);
+    if (dist < bestDistance) {
+      bestDistance = dist;
+      bestMatch = Some(candidate);
+    }
+    idx = idx + 1;
+  }
+
+  return bestMatch;
+}
+
+// -----------------------------------------------------------------------------
+// RICH TERMINAL DIAGNOSTIC FORMATTING (RUST / ARIADNE STYLE)
+// -----------------------------------------------------------------------------
+
+/// Formats a compiler diagnostic into an actionable terminal error message with
+/// source code context, location, and fix suggestions.
+export fn formatDiagnostic(diag: Diagnostic, source: String): String {
+  let severityStr = match diag.severity {
+    DiagError => "error",
+    DiagWarning => "warning",
+    DiagInfo => "info",
+    DiagHint => "hint"
+  };
+
+  let mut header = `[${severityStr}] ${diag.code}: ${diag.message}`;
+  match diag.help {
+    Some(h) => { header = `${header}\n  = help: ${h}`; },
+    None => ()
+  };
+  match diag.suggestion {
+    Some(sug) => { header = `${header}\n  = suggestion: Did you mean '${sug}'?`; },
+    None => ()
+  };
+  return header;
+}

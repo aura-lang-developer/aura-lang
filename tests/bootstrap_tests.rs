@@ -1,38 +1,54 @@
 use std::fs;
 use std::process::Command;
+use std::sync::Once;
+
+static STAGE1_BOOTSTRAP: Once = Once::new();
+
+fn run_stage1_compilation() {
+    STAGE1_BOOTSTRAP.call_once(|| {
+        let _ = fs::create_dir_all("dist");
+        let modules = [
+            ("src/aura_compiler/ast.aura", "dist/ast.mjs"),
+            ("src/aura_compiler/diagnostics.aura", "dist/diagnostics.mjs"),
+            ("src/aura_compiler/lexer.aura", "dist/lexer.mjs"),
+            ("src/aura_compiler/parser.aura", "dist/parser.mjs"),
+            ("src/aura_compiler/typechecker.aura", "dist/typechecker.mjs"),
+            ("src/aura_compiler/codegen.aura", "dist/codegen.mjs"),
+            ("src/aura_compiler/codegen_go.aura", "dist/codegen_go.mjs"),
+            ("src/aura_compiler/main.aura", "dist/aurac.mjs"),
+        ];
+
+        for (src, out) in &modules {
+            let status = Command::new(env!("CARGO_BIN_EXE_aurac"))
+                .args(["compile", src, "-o", out])
+                .status()
+                .expect("Failed to execute aurac compile");
+
+            assert!(
+                status.success(),
+                "Failed to compile stage 1 module: {}",
+                src
+            );
+            assert!(
+                fs::metadata(out).is_ok(),
+                "Output file does not exist: {}",
+                out
+            );
+        }
+    });
+}
 
 #[test]
 fn test_bootstrap_stage1_rust_compiles_aura_compiler() {
-    let modules = [
-        ("src/aura_compiler/ast.aura", "dist/ast.mjs"),
-        ("src/aura_compiler/lexer.aura", "dist/lexer.mjs"),
-        ("src/aura_compiler/parser.aura", "dist/parser.mjs"),
-        ("src/aura_compiler/codegen.aura", "dist/codegen.mjs"),
-        ("src/aura_compiler/main.aura", "dist/aurac.mjs"),
-    ];
-
-    for (src, out) in &modules {
-        let status = Command::new("cargo")
-            .args(["run", "--bin", "aurac", "--", "compile", src, "-o", out])
-            .status()
-            .expect("Failed to execute cargo run aurac compile");
-
-        assert!(
-            status.success(),
-            "Failed to compile stage 1 module: {}",
-            src
-        );
-        assert!(
-            fs::metadata(out).is_ok(),
-            "Output file does not exist: {}",
-            out
-        );
-    }
+    run_stage1_compilation();
 }
 
 #[test]
 fn test_bootstrap_stage2_aura_compiler_compiles_sample_programs() {
-    // 1. Compile hello.aura with the self-hosted compiler (dist/aurac.mjs)
+    // 1. Ensure stage 1 compiler is compiled first (thread-safe synchronization)
+    run_stage1_compilation();
+
+    // 2. Compile hello.aura with the self-hosted compiler (dist/aurac.mjs)
     let compile_status = Command::new("node")
         .args([
             "dist/aurac.mjs",
@@ -52,7 +68,7 @@ fn test_bootstrap_stage2_aura_compiler_compiles_sample_programs() {
         "Generated JS output does not exist"
     );
 
-    // 2. Execute the compiled JS program and verify stdout
+    // 3. Execute the compiled JS program and verify stdout
     let run_output = Command::new("node")
         .arg("examples/bootstrap_demo/hello.js")
         .output()
@@ -74,3 +90,129 @@ fn test_bootstrap_stage2_aura_compiler_compiles_sample_programs() {
         stdout
     );
 }
+
+#[test]
+fn test_bootstrap_stage3_native_binary_build_and_execution() {
+    let _ = fs::create_dir_all("dist");
+    let native_bin = "dist/test-self-hosted-bin";
+    let compiled_js = "dist/hello_from_native.js";
+
+    // 1. Build self-hosted compiler into a native standalone binary
+    let build_status = Command::new(env!("CARGO_BIN_EXE_aurac"))
+        .args(["build", "src/aura_compiler/main.aura", "-o", native_bin])
+        .status()
+        .expect("Failed to execute aurac build");
+
+    assert!(
+        build_status.success(),
+        "Failed to compile self-hosted compiler to standalone native binary"
+    );
+    assert!(
+        fs::metadata(native_bin).is_ok(),
+        "Native binary does not exist at {}",
+        native_bin
+    );
+
+    // 2. Run the native binary to compile examples/hello.aura
+    let run_bin_status = Command::new(format!("./{}", native_bin))
+        .args(["examples/hello.aura", "-o", compiled_js])
+        .status()
+        .expect("Failed to execute native self-hosted compiler binary");
+
+    assert!(
+        run_bin_status.success(),
+        "Native self-hosted compiler failed to compile examples/hello.aura"
+    );
+    assert!(
+        fs::metadata(compiled_js).is_ok(),
+        "Compiled JS output does not exist at {}",
+        compiled_js
+    );
+
+    // 3. Execute the JS output with node and verify output
+    let node_output = Command::new("node")
+        .arg(compiled_js)
+        .output()
+        .expect("Failed to run node on compiled output");
+
+    assert!(
+        node_output.status.success(),
+        "Node failed to execute compiled JS"
+    );
+    let stdout = String::from_utf8_lossy(&node_output.stdout);
+    assert!(
+        stdout.contains("Hello Developer from Self-Hosted Aura Compiler!"),
+        "Stdout did not match expected greeting: {}",
+        stdout
+    );
+
+    // Cleanup
+    let _ = fs::remove_file(native_bin);
+    let _ = fs::remove_file(compiled_js);
+}
+
+#[test]
+fn test_bootstrap_stage4_typechecking_mode() {
+    run_stage1_compilation();
+
+    let check_status = Command::new("node")
+        .args([
+            "dist/aurac.mjs",
+            "examples/bootstrap_demo/hello.aura",
+            "--check",
+        ])
+        .output()
+        .expect("Failed to execute node dist/aurac.mjs --check");
+
+    assert!(
+        check_status.status.success(),
+        "Self-hosted typechecker failed on hello.aura"
+    );
+    let stdout = String::from_utf8_lossy(&check_status.stdout);
+    assert!(
+        stdout.contains("0 errors"),
+        "Stdout missing 0 errors: {}",
+        stdout
+    );
+}
+
+#[test]
+fn test_bootstrap_stage5_go_target_codegen() {
+    run_stage1_compilation();
+
+    let go_out = "dist/hello_self_hosted.go";
+    let compile_status = Command::new("node")
+        .args([
+            "dist/aurac.mjs",
+            "examples/bootstrap_demo/hello.aura",
+            "-o",
+            go_out,
+            "--target",
+            "go",
+        ])
+        .status()
+        .expect("Failed to execute node dist/aurac.mjs --target go");
+
+    assert!(
+        compile_status.success(),
+        "Self-hosted Go codegen failed"
+    );
+    assert!(
+        fs::metadata(go_out).is_ok(),
+        "Generated Go file does not exist"
+    );
+
+    let go_code = fs::read_to_string(go_out).unwrap();
+    assert!(
+        go_code.contains("package main"),
+        "Generated Go code missing package main"
+    );
+    assert!(
+        go_code.contains("func main()"),
+        "Generated Go code missing func main"
+    );
+
+    let _ = fs::remove_file(go_out);
+}
+
+

@@ -4,6 +4,47 @@ use crate::ast::*;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
+
+fn relative_path_between(target: &Path, base: &Path) -> String {
+    let target = target.canonicalize().unwrap_or_else(|_| {
+        if target.is_relative() {
+            std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")).join(target)
+        } else {
+            target.to_path_buf()
+        }
+    });
+    let base = base.canonicalize().unwrap_or_else(|_| {
+        if base.is_relative() {
+            std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")).join(base)
+        } else {
+            base.to_path_buf()
+        }
+    });
+
+    let target_comps: Vec<_> = target.components().collect();
+    let base_comps: Vec<_> = base.components().collect();
+
+    let mut common = 0;
+    while common < target_comps.len() && common < base_comps.len() && target_comps[common] == base_comps[common] {
+        common += 1;
+    }
+
+    let mut rel = PathBuf::new();
+    for _ in common..base_comps.len() {
+        rel.push("..");
+    }
+    for comp in &target_comps[common..] {
+        rel.push(comp.as_os_str());
+    }
+
+    let s = rel.to_string_lossy().replace("\\", "/");
+    if s.starts_with("./") || s.starts_with("../") {
+        s
+    } else {
+        format!("./{}", s)
+    }
+}
+
 fn escape_js_string(s: &str) -> String {
     let mut out = String::from("\"");
     for c in s.chars() {
@@ -26,6 +67,12 @@ pub struct CodeGen {
     dts_output: String,
     is_current_func_async: bool,
     pub base_path: Option<PathBuf>,
+}
+
+impl Default for CodeGen {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CodeGen {
@@ -142,9 +189,9 @@ impl CodeGen {
 
         let map_filename = format!("{}.map", js_file);
         let comment = crate::sourcemap::SourceMapBuilder::generate_mapping_comment(&map_filename);
-        js_code.push_str("\n");
+        js_code.push('\n');
         js_code.push_str(&comment);
-        js_code.push_str("\n");
+        js_code.push('\n');
 
         let map_json = map_builder.to_json();
         (js_code, dts_code, map_json)
@@ -225,7 +272,7 @@ const __aura_import = async (m) => {
         self.write_line("    const unsigned = `${parts[0]}.${parts[1]}`;");
         self.write_line("    const expectedSig = cryptoMod.createHmac('sha256', secret).update(unsigned).digest('base64url');");
         self.write_line(
-            "    if (parts[2] !== expectedSig) return Err('Firma de token JWT inválida');",
+            "    if (parts[2] !== expectedSig) return Err('Invalid JWT token signature');",
         );
         self.write_line("    try {");
         self.write_line(
@@ -234,7 +281,9 @@ const __aura_import = async (m) => {
         self.write_line(
             "      try { return Ok(JSON.parse(decoded)); } catch (_) { return Ok(decoded); }",
         );
-        self.write_line("    } catch (e) { return Err(`No se pudo decodificar payload de token: ${e?.message || e}`); }");
+        self.write_line(
+            "    } catch (e) { return Err(`Failed to decode token payload: ${e?.message || e}`); }",
+        );
         self.write_line("  },");
         self.write_line("});");
         self.write_line("");
@@ -876,7 +925,163 @@ const __aura_import = async (m) => {
         self.write_line("  return await targetCase.fn(winner.val);");
         self.write_line("};\n");
 
-        self.write_line("// --- Aura Standard HTTP Server (Golang Style) ---");
+        self.write_line("// --- Aura Standard HTTP Server, Request, Response & ResponseWriter (Golang Style) ---");
+        self.write_line("class __AuraHttpRequest {");
+        self.write_line("  constructor(nodeReq, params = {}, query = {}, body = '') {");
+        self.write_line("    this.raw = nodeReq;");
+        self.write_line("    this.method = nodeReq ? (nodeReq.method || 'GET') : 'GET';");
+        self.write_line("    this.url = nodeReq ? (nodeReq.url || '/') : '/';");
+        self.write_line("    const host = (nodeReq && nodeReq.headers && nodeReq.headers.host) || 'localhost';");
+        self.write_line("    let pathname = '/';");
+        self.write_line("    try {");
+        self.write_line("      const parsed = new URL(this.url, `http://${host}`);");
+        self.write_line("      pathname = parsed.pathname;");
+        self.write_line("      this.urlParsed = parsed;");
+        self.write_line("      this.query = query && Object.keys(query).length > 0 ? query : Object.fromEntries(parsed.searchParams.entries());");
+        self.write_line("    } catch (_) {");
+        self.write_line("      this.query = query || {};");
+        self.write_line("    }");
+        self.write_line("    this.path = pathname;");
+        self.write_line("    this.params = params || {};");
+        self.write_line("    this.headers = (nodeReq && nodeReq.headers) || {};");
+        self.write_line("    this.body = body || (nodeReq && nodeReq.rawBody) || '';");
+        self.write_line("    this.rawBody = this.body;");
+        self.write_line("    this.remoteAddr = (nodeReq && (nodeReq.socket?.remoteAddress || nodeReq.connection?.remoteAddress)) || '';");
+        self.write_line("    this.host = host;");
+        self.write_line("    this.proto = nodeReq ? `HTTP/${nodeReq.httpVersion || '1.1'}` : 'HTTP/1.1';");
+        self.write_line("  }");
+        self.write_line("  pathValue(name) { return (this.params && this.params[name]) || ''; }");
+        self.write_line("  param(name) { return this.pathValue(name); }");
+        self.write_line("  query(name) {");
+        self.write_line("    if (this.urlParsed && this.urlParsed.searchParams) {");
+        self.write_line("      return this.urlParsed.searchParams.get(name) || '';");
+        self.write_line("    }");
+        self.write_line("    return (this.query && this.query[name]) || '';");
+        self.write_line("  }");
+        self.write_line("  header(name) { return this.getHeader(name); }");
+        self.write_line("  getHeader(name) { return (this.headers && this.headers[String(name || '').toLowerCase()]) || ''; }");
+        self.write_line("  setHeader(name, val) { if (this.headers) this.headers[String(name || '').toLowerCase()] = String(val); }");
+        self.write_line("  async parseJson() {");
+        self.write_line("    if (this.body && typeof this.body === 'string') {");
+        self.write_line("      try { return Ok(JSON.parse(this.body)); } catch (e) { return Err(`Invalid JSON body: ${e.message}`); }");
+        self.write_line("    }");
+        self.write_line("    if (!this.raw || typeof this.raw.on !== 'function') return Ok({});");
+        self.write_line("    return new Promise((resolve) => {");
+        self.write_line("      let b = '';");
+        self.write_line("      this.raw.on('data', chunk => { b += chunk; });");
+        self.write_line("      this.raw.on('end', () => {");
+        self.write_line("        this.body = b; this.rawBody = b;");
+        self.write_line("        try { resolve(Ok(b ? JSON.parse(b) : {})); } catch (e) { resolve(Err(`Invalid JSON body: ${e.message}`)); }");
+        self.write_line("      });");
+        self.write_line("      this.raw.on('error', (err) => resolve(Err(`Request error: ${err.message}`)));");
+        self.write_line("    });");
+        self.write_line("  }");
+        self.write_line("  async json() { return this.parseJson(); }");
+        self.write_line("  async text() {");
+        self.write_line("    if (this.body) return Ok(this.body);");
+        self.write_line("    if (!this.raw || typeof this.raw.on !== 'function') return Ok('');");
+        self.write_line("    return new Promise((resolve) => {");
+        self.write_line("      let b = '';");
+        self.write_line("      this.raw.on('data', chunk => { b += chunk; });");
+        self.write_line("      this.raw.on('end', () => { this.body = b; this.rawBody = b; resolve(Ok(b)); });");
+        self.write_line("      this.raw.on('error', (err) => resolve(Err(`Request error: ${err.message}`)));");
+        self.write_line("    });");
+        self.write_line("  }");
+        self.write_line("  context() { return { isCancelled: () => false, deadline: null, value: () => null }; }");
+        self.write_line("  on(event, handler) { if (this.raw && typeof this.raw.on === 'function') this.raw.on(event, handler); }");
+        self.write_line("  static new(method = 'GET', url = '/') { return new __AuraHttpRequest({ method, url, headers: {} }); }");
+        self.write_line("  static get(url) { return new __AuraHttpRequest({ method: 'GET', url, headers: {} }); }");
+        self.write_line("  static post(url, body) { const b = typeof body === 'string' ? body : JSON.stringify(body); return new __AuraHttpRequest({ method: 'POST', url, headers: { 'content-type': 'application/json' } }, {}, {}, b); }");
+        self.write_line("}");
+        self.write_line("");
+        self.write_line("class __AuraHttpResponse {");
+        self.write_line("  constructor(status = 200, body = '', headers = {}) {");
+        self.write_line("    this.status = status;");
+        self.write_line("    this.statusCode = status;");
+        self.write_line("    this.statusText = status === 200 ? 'OK' : (status === 201 ? 'Created' : (status === 204 ? 'No Content' : (status === 404 ? 'Not Found' : (status === 500 ? 'Internal Server Error' : 'OK'))));");
+        self.write_line("    this.headers = { ...headers };");
+        self.write_line("    this.body = typeof body === 'object' ? JSON.stringify(body) : String(body ?? '');");
+        self.write_line("    this.__aura_is_response = true;");
+        self.write_line("  }");
+        self.write_line("  setHeader(name, value) { this.headers[name] = String(value); return this; }");
+        self.write_line("  getHeader(name) { return this.headers[name] || this.headers[String(name).toLowerCase()] || ''; }");
+        self.write_line("  static new(status = 200, body = '') { return new __AuraHttpResponse(status, body); }");
+        self.write_line("  static json(data, status = 200) { return new __AuraHttpResponse(status, JSON.stringify(data), { 'Content-Type': 'application/json; charset=utf-8' }); }");
+        self.write_line("  static text(message, status = 200) { return new __AuraHttpResponse(status, String(message ?? ''), { 'Content-Type': 'text/plain; charset=utf-8' }); }");
+        self.write_line("  static html(content, status = 200) { return new __AuraHttpResponse(status, String(content ?? ''), { 'Content-Type': 'text/html; charset=utf-8' }); }");
+        self.write_line("  static error(message, status = 500) { return new __AuraHttpResponse(status, String(message ?? 'Internal Server Error'), { 'Content-Type': 'text/plain; charset=utf-8' }); }");
+        self.write_line("  static redirect(url, status = 302) { return new __AuraHttpResponse(status, '', { 'Location': url }); }");
+        self.write_line("}");
+        self.write_line("");
+        self.write_line("class __AuraResponseWriter {");
+        self.write_line("  constructor(nodeRes) {");
+        self.write_line("    this.raw = nodeRes;");
+        self.write_line("    this.statusCode = 200;");
+        self.write_line("    this.headers = {};");
+        self.write_line("    this.headersSent = false;");
+        self.write_line("  }");
+        self.write_line("  header() { return this.headers; }");
+        self.write_line("  Header() { return this.headers; }");
+        self.write_line("  getHeader(name) {");
+        self.write_line("    if (this.raw && typeof this.raw.getHeader === 'function') {");
+        self.write_line("      return this.raw.getHeader(name) || this.headers[name] || '';");
+        self.write_line("    }");
+        self.write_line("    return this.headers[name] || '';");
+        self.write_line("  }");
+        self.write_line("  setHeader(name, value) {");
+        self.write_line("    this.headers[name] = String(value);");
+        self.write_line("    if (this.raw && typeof this.raw.setHeader === 'function' && !this.raw.headersSent) {");
+        self.write_line("      this.raw.setHeader(name, value);");
+        self.write_line("    }");
+        self.write_line("    return this;");
+        self.write_line("  }");
+        self.write_line("  writeHead(status, headers = {}) {");
+        self.write_line("    this.statusCode = status;");
+        self.write_line("    Object.assign(this.headers, headers);");
+        self.write_line("    if (this.raw && typeof this.raw.writeHead === 'function' && !this.raw.headersSent) {");
+        self.write_line("      this.raw.writeHead(status, headers);");
+        self.write_line("      this.headersSent = true;");
+        self.write_line("    }");
+        self.write_line("  }");
+        self.write_line("  writeHeader(status) { this.writeHead(status); }");
+        self.write_line("  WriteHeader(status) { this.writeHead(status); }");
+        self.write_line("  write(chunk) { if (this.raw && typeof this.raw.write === 'function') return this.raw.write(chunk); return true; }");
+        self.write_line("  Write(chunk) { return this.write(chunk); }");
+        self.write_line("  writeString(chunk) { return this.write(String(chunk)); }");
+        self.write_line("  writeBytes(bytes) { return this.write(Buffer.from(bytes)); }");
+        self.write_line("  end(chunk) { if (this.raw && typeof this.raw.end === 'function' && !this.raw.writableEnded) { this.raw.end(chunk); this.headersSent = true; } }");
+        self.write_line("  json(a, b) {");
+        self.write_line("    const status = (typeof a === 'number') ? a : 200;");
+        self.write_line("    const data = (typeof a === 'number') ? b : a;");
+        self.write_line("    const payload = JSON.stringify(data);");
+        self.write_line("    this.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(payload) });");
+        self.write_line("    this.end(payload);");
+        self.write_line("  }");
+        self.write_line("  text(a, b) {");
+        self.write_line("    const status = (typeof a === 'number') ? a : 200;");
+        self.write_line("    const message = (typeof a === 'number') ? b : a;");
+        self.write_line("    const payload = String(message ?? '');");
+        self.write_line("    this.writeHead(status, { 'Content-Type': 'text/plain; charset=utf-8', 'Content-Length': Buffer.byteLength(payload) });");
+        self.write_line("    this.end(payload);");
+        self.write_line("  }");
+        self.write_line("  html(a, b) {");
+        self.write_line("    const status = (typeof a === 'number') ? a : 200;");
+        self.write_line("    const htmlContent = (typeof a === 'number') ? b : a;");
+        self.write_line("    const payload = String(htmlContent ?? '');");
+        self.write_line("    this.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': Buffer.byteLength(payload) });");
+        self.write_line("    this.end(payload);");
+        self.write_line("  }");
+        self.write_line("  error(message, status = 500) {");
+        self.write_line("    const payload = String(message ?? 'Internal Server Error');");
+        self.write_line("    this.writeHead(status, { 'Content-Type': 'text/plain; charset=utf-8', 'Content-Length': Buffer.byteLength(payload) });");
+        self.write_line("    this.end(payload);");
+        self.write_line("  }");
+        self.write_line("  redirect(url, status = 302) {");
+        self.write_line("    this.writeHead(status, { 'Location': url });");
+        self.write_line("    this.end();");
+        self.write_line("  }");
+        self.write_line("}");
+        self.write_line("");
         self.write_line("class __AuraServeMux {");
         self.write_line("  constructor() {");
         self.write_line("    this.routes = [];");
@@ -977,10 +1182,23 @@ const __aura_import = async (m) => {
         self.write_line("  async serveHTTP(req, res) {");
         self.write_line("    const url = new URL(req.url || '/', `http://${req.headers?.host || 'localhost'}`);");
         self.write_line("    req.urlParsed = url;");
+        self.write_line("    req.path = url.pathname;");
         self.write_line("    req.query = Object.fromEntries(url.searchParams.entries());");
-        self.write_line("    req.params = {};");
+        self.write_line("    req.params = req.params || {};");
+        self.write_line("    req.pathValue = (k) => (req.params && req.params[k]) || '';");
+        self.write_line("    req.param = (k) => (req.params && req.params[k]) || '';");
         self.write_line("    req.getHeader = (k) => (req.headers && req.headers[String(k || '').toLowerCase()]) || '';");
         self.write_line("    req.header = (k) => (req.headers && req.headers[String(k || '').toLowerCase()]) || '';");
+        self.write_line("    req.setHeader = (k, v) => { if (req.headers) req.headers[String(k || '').toLowerCase()] = String(v); };");
+        self.write_line("    req.parseJson = () => http.parseJson(req);");
+        self.write_line("    req.json = () => http.parseJson(req);");
+        self.write_line("    req.context = () => ({ isCancelled: () => false, deadline: null, value: () => null });");
+        self.write_line("    res.json = (a, b) => { const st = (typeof a === 'number') ? a : 200; const dt = (typeof a === 'number') ? b : a; http.json(res, st, dt); };");
+        self.write_line("    res.text = (a, b) => { const st = (typeof a === 'number') ? a : 200; const msg = (typeof a === 'number') ? b : a; http.text(res, st, msg); };");
+        self.write_line("    res.html = (a, b) => { const st = (typeof a === 'number') ? a : 200; const h = (typeof a === 'number') ? b : a; http.html(res, st, h); };");
+        self.write_line("    res.error = (msg, st = 500) => http.error(res, msg, st);");
+        self.write_line("    res.redirect = (u, st = 302) => http.redirect(res, u, st);");
+        self.write_line("    res.writeHeader = (st) => res.writeHead(st);");
         self.write_line("    let matched = null;");
         self.write_line("    for (const route of this.routes) {");
         self.write_line("      if (route.method && route.method !== req.method) continue;");
@@ -1013,12 +1231,23 @@ const __aura_import = async (m) => {
         self.write_line("    });");
         self.write_line("    let index = 0;");
         self.write_line("    const allHandlers = [...this.middlewares, async (q, s) => {");
+        self.write_line("      let resOrRet;");
         self.write_line("      if (typeof route.handler === 'function') {");
-        self.write_line("        return await route.handler(q, s);");
+        self.write_line("        resOrRet = await route.handler(q, s);");
         self.write_line(
             "      } else if (route.handler && typeof route.handler.serveHTTP === 'function') {",
         );
-        self.write_line("        return await route.handler.serveHTTP(q, s);");
+        self.write_line("        resOrRet = await route.handler.serveHTTP(q, s);");
+        self.write_line("      }");
+        self.write_line("      if (resOrRet && (resOrRet instanceof __AuraHttpResponse || resOrRet.__aura_is_response || (resOrRet.status !== undefined && resOrRet.body !== undefined))) {");
+        self.write_line("        if (!s.headersSent) {");
+        self.write_line("          const hdrs = resOrRet.headers || {};");
+        self.write_line("          if (!hdrs['Content-Type'] && !hdrs['content-type']) {");
+        self.write_line("            hdrs['Content-Type'] = 'application/json; charset=utf-8';");
+        self.write_line("          }");
+        self.write_line("          s.writeHead(resOrRet.status || 200, hdrs);");
+        self.write_line("          s.end(resOrRet.body || '');");
+        self.write_line("        }");
         self.write_line("      }");
         self.write_line("    }];");
         self.write_line("    const next = async () => {");
@@ -1215,6 +1444,30 @@ const __aura_import = async (m) => {
         self.write_line("  }");
         self.write_line("}");
         self.write_line("const __defaultMux = new __AuraServeMux();");
+        self.write_line("export const Request = __AuraHttpRequest;");
+        self.write_line("export const HttpRequest = __AuraHttpRequest;");
+        self.write_line("export const Response = __AuraHttpResponse;");
+        self.write_line("export const HttpResponse = __AuraHttpResponse;");
+        self.write_line("export const ResponseWriter = __AuraResponseWriter;");
+        self.write_line("export const Server = __AuraServeMux;");
+        self.write_line("export const ServeMux = __AuraServeMux;");
+        self.write_line("export const StatusOK = 200;");
+        self.write_line("export const StatusCreated = 201;");
+        self.write_line("export const StatusAccepted = 202;");
+        self.write_line("export const StatusNoContent = 204;");
+        self.write_line("export const StatusMovedPermanently = 301;");
+        self.write_line("export const StatusFound = 302;");
+        self.write_line("export const StatusSeeOther = 303;");
+        self.write_line("export const StatusBadRequest = 400;");
+        self.write_line("export const StatusUnauthorized = 401;");
+        self.write_line("export const StatusForbidden = 403;");
+        self.write_line("export const StatusNotFound = 404;");
+        self.write_line("export const StatusMethodNotAllowed = 405;");
+        self.write_line("export const StatusConflict = 409;");
+        self.write_line("export const StatusUnprocessableEntity = 422;");
+        self.write_line("export const StatusInternalServerError = 500;");
+        self.write_line("export const StatusBadGateway = 502;");
+        self.write_line("export const StatusServiceUnavailable = 503;");
         self.write_line("export const http = {");
         self.write_line("  StatusOK: 200,");
         self.write_line("  StatusCreated: 201,");
@@ -1222,6 +1475,7 @@ const __aura_import = async (m) => {
         self.write_line("  StatusNoContent: 204,");
         self.write_line("  StatusMovedPermanently: 301,");
         self.write_line("  StatusFound: 302,");
+        self.write_line("  StatusSeeOther: 303,");
         self.write_line("  StatusBadRequest: 400,");
         self.write_line("  StatusUnauthorized: 401,");
         self.write_line("  StatusForbidden: 403,");
@@ -1232,8 +1486,17 @@ const __aura_import = async (m) => {
         self.write_line("  StatusInternalServerError: 500,");
         self.write_line("  StatusBadGateway: 502,");
         self.write_line("  StatusServiceUnavailable: 503,");
+        self.write_line("  Request: __AuraHttpRequest,");
+        self.write_line("  HttpRequest: __AuraHttpRequest,");
+        self.write_line("  Response: __AuraHttpResponse,");
+        self.write_line("  HttpResponse: __AuraHttpResponse,");
+        self.write_line("  ResponseWriter: __AuraResponseWriter,");
+        self.write_line("  Server: __AuraServeMux,");
+        self.write_line("  ServeMux: __AuraServeMux,");
         self.write_line("  newServeMux: () => new __AuraServeMux(),");
         self.write_line("  NewServeMux: () => new __AuraServeMux(),");
+        self.write_line("  newServer: (addr) => new __AuraServeMux(),");
+        self.write_line("  NewServer: (addr) => new __AuraServeMux(),");
         self.write_line("  handleFunc: (path, handler) => __defaultMux.handleFunc(path, handler),");
         self.write_line("  handle: (path, handler) => __defaultMux.handle(path, handler),");
         self.write_line("  get: (path, handler) => __defaultMux.get(path, handler),");
@@ -1252,40 +1515,54 @@ const __aura_import = async (m) => {
         self.write_line("  serveHTTP: (req, res) => __defaultMux.serveHTTP(req, res),");
         self.write_line("  close: () => __defaultMux.close(),");
         self.write_line("  json: (res, statusCode, data) => {");
-        self.write_line("    const payload = JSON.stringify(data);");
-        self.write_line("    res.writeHead(statusCode, {");
-        self.write_line("      'Content-Type': 'application/json; charset=utf-8',");
-        self.write_line("      'Content-Length': Buffer.byteLength(payload)");
-        self.write_line("    });");
-        self.write_line("    res.end(payload);");
+        self.write_line("    const st = (typeof statusCode === 'number') ? statusCode : 200;");
+        self.write_line("    const dt = (typeof statusCode === 'number') ? data : statusCode;");
+        self.write_line("    const payload = JSON.stringify(dt);");
+        self.write_line("    if (typeof res.writeHead === 'function') {");
+        self.write_line("      res.writeHead(st, {");
+        self.write_line("        'Content-Type': 'application/json; charset=utf-8',");
+        self.write_line("        'Content-Length': Buffer.byteLength(payload)");
+        self.write_line("      });");
+        self.write_line("    }");
+        self.write_line("    if (typeof res.end === 'function') res.end(payload);");
         self.write_line("  },");
         self.write_line("  text: (res, statusCode, message) => {");
-        self.write_line("    const payload = String(message ?? '');");
-        self.write_line("    res.writeHead(statusCode, {");
-        self.write_line("      'Content-Type': 'text/plain; charset=utf-8',");
-        self.write_line("      'Content-Length': Buffer.byteLength(payload)");
-        self.write_line("    });");
-        self.write_line("    res.end(payload);");
+        self.write_line("    const st = (typeof statusCode === 'number') ? statusCode : 200;");
+        self.write_line("    const msg = (typeof statusCode === 'number') ? message : statusCode;");
+        self.write_line("    const payload = String(msg ?? '');");
+        self.write_line("    if (typeof res.writeHead === 'function') {");
+        self.write_line("      res.writeHead(st, {");
+        self.write_line("        'Content-Type': 'text/plain; charset=utf-8',");
+        self.write_line("        'Content-Length': Buffer.byteLength(payload)");
+        self.write_line("      });");
+        self.write_line("    }");
+        self.write_line("    if (typeof res.end === 'function') res.end(payload);");
         self.write_line("  },");
         self.write_line("  html: (res, statusCode, htmlContent) => {");
-        self.write_line("    const payload = String(htmlContent ?? '');");
-        self.write_line("    res.writeHead(statusCode, {");
-        self.write_line("      'Content-Type': 'text/html; charset=utf-8',");
-        self.write_line("      'Content-Length': Buffer.byteLength(payload)");
-        self.write_line("    });");
-        self.write_line("    res.end(payload);");
+        self.write_line("    const st = (typeof statusCode === 'number') ? statusCode : 200;");
+        self.write_line("    const h = (typeof statusCode === 'number') ? htmlContent : statusCode;");
+        self.write_line("    const payload = String(h ?? '');");
+        self.write_line("    if (typeof res.writeHead === 'function') {");
+        self.write_line("      res.writeHead(st, {");
+        self.write_line("        'Content-Type': 'text/html; charset=utf-8',");
+        self.write_line("        'Content-Length': Buffer.byteLength(payload)");
+        self.write_line("      });");
+        self.write_line("    }");
+        self.write_line("    if (typeof res.end === 'function') res.end(payload);");
         self.write_line("  },");
         self.write_line("  error: (res, errorMsg, statusCode = 500) => {");
         self.write_line("    const payload = String(errorMsg ?? 'Internal Server Error');");
-        self.write_line("    res.writeHead(statusCode, {");
-        self.write_line("      'Content-Type': 'text/plain; charset=utf-8',");
-        self.write_line("      'Content-Length': Buffer.byteLength(payload)");
-        self.write_line("    });");
-        self.write_line("    res.end(payload);");
+        self.write_line("    if (typeof res.writeHead === 'function') {");
+        self.write_line("      res.writeHead(statusCode, {");
+        self.write_line("        'Content-Type': 'text/plain; charset=utf-8',");
+        self.write_line("        'Content-Length': Buffer.byteLength(payload)");
+        self.write_line("      });");
+        self.write_line("    }");
+        self.write_line("    if (typeof res.end === 'function') res.end(payload);");
         self.write_line("  },");
         self.write_line("  redirect: (res, url, statusCode = 302) => {");
-        self.write_line("    res.writeHead(statusCode, { 'Location': url });");
-        self.write_line("    res.end();");
+        self.write_line("    if (typeof res.writeHead === 'function') res.writeHead(statusCode, { 'Location': url });");
+        self.write_line("    if (typeof res.end === 'function') res.end();");
         self.write_line("  },");
         self.write_line("  pathValue: (req, paramName) => {");
         self.write_line("    return (req && req.params && req.params[paramName]) || '';");
@@ -1323,6 +1600,10 @@ const __aura_import = async (m) => {
         self.write_line("  },");
         self.write_line("  parseJson: (req) => {");
         self.write_line("    return new Promise((resolve) => {");
+        self.write_line("      if (req && req.body && typeof req.body === 'string') {");
+        self.write_line("        try { return resolve(Ok(JSON.parse(req.body))); } catch (e) { return resolve(Err(`Invalid JSON body: ${e.message}`)); }");
+        self.write_line("      }");
+        self.write_line("      if (!req || typeof req.on !== 'function') return resolve(Ok({}));");
         self.write_line("      let body = '';");
         self.write_line("      req.on('data', chunk => { body += chunk; });");
         self.write_line("      req.on('end', () => {");
@@ -2431,6 +2712,56 @@ const __aura_import = async (m) => {
             "export declare function fetch(url: string, options?: any): Promise<any>;",
         );
         self.write_dts_line("export declare function __aura_select(cases: any[], defaultFn?: (() => any) | null): Promise<any>;\n");
+        self.write_dts_line("export interface HttpRequest {");
+        self.write_dts_line("  method: string;");
+        self.write_dts_line("  url: string;");
+        self.write_dts_line("  path: string;");
+        self.write_dts_line("  host: string;");
+        self.write_dts_line("  proto: string;");
+        self.write_dts_line("  remoteAddr: string;");
+        self.write_dts_line("  body: string;");
+        self.write_dts_line("  params: Record<string, string>;");
+        self.write_dts_line("  query: Record<string, string>;");
+        self.write_dts_line("  headers: Record<string, string>;");
+        self.write_dts_line("  param(name: string): string;");
+        self.write_dts_line("  pathValue(name: string): string;");
+        self.write_dts_line("  getQuery(name: string): string;");
+        self.write_dts_line("  header(name: string): string;");
+        self.write_dts_line("  getHeader(name: string): string;");
+        self.write_dts_line("  parseJson<T = any>(): Promise<{ readonly $: \"Ok\"; readonly value: T } | { readonly $: \"Err\"; readonly error: string }>;");
+        self.write_dts_line("}");
+        self.write_dts_line("export type Request = HttpRequest;");
+        self.write_dts_line("export interface HttpResponse {");
+        self.write_dts_line("  status: number;");
+        self.write_dts_line("  headers: Record<string, string>;");
+        self.write_dts_line("  body: string;");
+        self.write_dts_line("  json?: any;");
+        self.write_dts_line("}");
+        self.write_dts_line("export interface ResponseWriter {");
+        self.write_dts_line("  setHeader(key: string, value: string): void;");
+        self.write_dts_line("  writeHead(statusCode: number, headers?: Record<string, string>): void;");
+        self.write_dts_line("  write(chunk: any): boolean;");
+        self.write_dts_line("  writeString(chunk: string): boolean;");
+        self.write_dts_line("  end(chunk?: any): void;");
+        self.write_dts_line("  json(data: any, statusCode?: number): void;");
+        self.write_dts_line("  text(message: string, statusCode?: number): void;");
+        self.write_dts_line("  html(htmlContent: string, statusCode?: number): void;");
+        self.write_dts_line("  error(errorMsg: string, statusCode?: number): void;");
+        self.write_dts_line("  redirect(url: string, statusCode?: number): void;");
+        self.write_dts_line("}");
+        self.write_dts_line("export declare const Response: {");
+        self.write_dts_line("  json(data: any, statusCode?: number): HttpResponse;");
+        self.write_dts_line("  text(message: string, statusCode?: number): HttpResponse;");
+        self.write_dts_line("  html(htmlContent: string, statusCode?: number): HttpResponse;");
+        self.write_dts_line("  error(errorMsg: string, statusCode?: number): HttpResponse;");
+        self.write_dts_line("  redirect(url: string, statusCode?: number): HttpResponse;");
+        self.write_dts_line("  new(body?: string, init?: any): HttpResponse;");
+        self.write_dts_line("};");
+        self.write_dts_line("export declare const Request: {");
+        self.write_dts_line("  new(url: string, init?: any): HttpRequest;");
+        self.write_dts_line("  get(url: string, headers?: Record<string, string>): HttpRequest;");
+        self.write_dts_line("  post(url: string, body?: any, headers?: Record<string, string>): HttpRequest;");
+        self.write_dts_line("};");
         self.write_dts_line("export interface ServeMux {");
         self.write_dts_line(
             "  use(middleware: (req: any, res: any, next?: () => any) => any): this;",
@@ -2670,6 +3001,30 @@ const __aura_import = async (m) => {
     }
 
     fn emit_import(&mut self, imp: &ImportDecl) {
+        if imp.source == "net/http"
+            || imp.source == "std/http"
+            || imp.source == "http"
+            || imp.source == "net/url"
+            || imp.source == "os"
+            || imp.source == "time"
+        {
+            let mut bindings = Vec::new();
+            for item in &imp.items {
+                if let Some(ref alias) = item.alias {
+                    if alias != &item.name {
+                        bindings.push(format!("const {} = {};", alias, item.name));
+                    }
+                }
+            }
+            if !bindings.is_empty() {
+                self.write_line(&format!("// Built-in standard module import: {}", imp.source));
+                for b in bindings {
+                    self.write_line(&b);
+                }
+            }
+            return;
+        }
+
         let mut items_str = Vec::new();
         for item in &imp.items {
             if let Some(ref alias) = item.alias {
@@ -2694,23 +3049,9 @@ const __aura_import = async (m) => {
         {
             let mjs_path = resolved.with_extension("mjs");
             if let Some(ref base) = self.base_path {
-                if let Ok(rel) = mjs_path.strip_prefix(base) {
-                    format!("./{}", rel.display()).replace('\\', "/")
-                } else if let Ok(cwd) = std::env::current_dir() {
-                    if let Ok(rel) = mjs_path.strip_prefix(&cwd) {
-                        format!("./{}", rel.display()).replace('\\', "/")
-                    } else {
-                        mjs_path.to_string_lossy().replace('\\', "/")
-                    }
-                } else {
-                    mjs_path.to_string_lossy().replace('\\', "/")
-                }
+                relative_path_between(&mjs_path, base)
             } else if let Ok(cwd) = std::env::current_dir() {
-                if let Ok(rel) = mjs_path.strip_prefix(&cwd) {
-                    format!("./{}", rel.display()).replace('\\', "/")
-                } else {
-                    mjs_path.to_string_lossy().replace('\\', "/")
-                }
+                relative_path_between(&mjs_path, &cwd)
             } else {
                 mjs_path.to_string_lossy().replace('\\', "/")
             }
@@ -2790,7 +3131,7 @@ const __aura_import = async (m) => {
                 }
                 "Map" => {
                     let k_str = type_args
-                        .get(0)
+                        .first()
                         .map(|t| self.ast_type_to_dts(t))
                         .unwrap_or_else(|| "any".to_string());
                     let v_str = type_args
@@ -2815,7 +3156,7 @@ const __aura_import = async (m) => {
                 }
                 "Result" => {
                     let ok_str = type_args
-                        .get(0)
+                        .first()
                         .map(|t| self.ast_type_to_dts(t))
                         .unwrap_or_else(|| "any".to_string());
                     let err_str = type_args
@@ -2829,7 +3170,7 @@ const __aura_import = async (m) => {
                 }
                 "Task" => {
                     let ok_str = type_args
-                        .get(0)
+                        .first()
                         .map(|t| self.ast_type_to_dts(t))
                         .unwrap_or_else(|| "any".to_string());
                     let _err_str = type_args
@@ -3192,7 +3533,7 @@ const __aura_import = async (m) => {
                     || self.expr_contains_defer(then_branch)
                     || else_branch
                         .as_ref()
-                        .map_or(false, |e| self.expr_contains_defer(e))
+                        .is_some_and(|e| self.expr_contains_defer(e))
             }
             Expr::While {
                 condition, body, ..
@@ -3740,25 +4081,21 @@ const __aura_import = async (m) => {
                     self.indent_level += 1;
                     self.emit_pattern_bindings(&arm.pattern, "_subj");
 
-                    if let Expr::FunctionCall { callee, args } = &arm.body {
-                        if let Expr::Identifier(ref name) = **callee {
-                            if name == fn_name {
-                                for (p, arg) in params.iter().zip(args.iter()) {
-                                    let arg_js = self.expr_to_js_with_renames(arg, &arm_renames);
-                                    self.write_line(&format!(
-                                        "const _next_{} = {};",
-                                        p.name, arg_js
-                                    ));
-                                }
-                                for p in params {
-                                    self.write_line(&format!("_{} = _next_{};", p.name, p.name));
-                                }
-                                self.write_line("continue;");
-                                self.indent_level -= 1;
-                                self.write_line("}");
-                                continue;
-                            }
+                    if let Expr::FunctionCall { callee, args } = &arm.body
+                        && let Expr::Identifier(ref name) = **callee
+                        && name == fn_name
+                    {
+                        for (p, arg) in params.iter().zip(args.iter()) {
+                            let arg_js = self.expr_to_js_with_renames(arg, &arm_renames);
+                            self.write_line(&format!("const _next_{} = {};", p.name, arg_js));
                         }
+                        for p in params {
+                            self.write_line(&format!("_{} = _next_{};", p.name, p.name));
+                        }
+                        self.write_line("continue;");
+                        self.indent_level -= 1;
+                        self.write_line("}");
+                        continue;
                     }
 
                     let ret_js = self.expr_to_js_with_renames(&arm.body, &arm_renames);
@@ -4244,6 +4581,9 @@ const __aura_import = async (m) => {
                     }
                 }
                 if let Expr::Identifier(name) = &**callee {
+                    if name == "yield" {
+                        return "(typeof setImmediate !== 'undefined' ? setImmediate(() => {}) : setTimeout(() => {}, 0))".to_string();
+                    }
                     if (name == "len" || name == "cap" || name == "length" || name == "capacity")
                         && args.len() == 1
                     {
@@ -4336,8 +4676,8 @@ const __aura_import = async (m) => {
             Expr::Lambda { params, body, .. } => {
                 let is_async = matches!(&**body, Expr::Async(_))
                     || self.expr_contains_async(match &**body {
-                        Expr::Async(inner) => &**inner,
-                        _ => &**body,
+                        Expr::Async(inner) => inner,
+                        _ => body,
                     });
                 let async_kw = if is_async { "async " } else { "" };
                 let mut local_renames = renames.clone();

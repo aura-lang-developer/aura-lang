@@ -3,6 +3,42 @@
 use crate::ast::*;
 use std::collections::HashMap;
 
+/// Structured type checking error conforming to modern Rust `core::error::Error`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TypeError {
+    pub message: String,
+}
+
+impl TypeError {
+    pub fn new(msg: impl Into<String>) -> Self {
+        Self {
+            message: msg.into(),
+        }
+    }
+}
+
+impl std::fmt::Display for TypeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.message)
+    }
+}
+
+impl std::error::Error for TypeError {}
+
+impl From<String> for TypeError {
+    fn from(s: String) -> Self {
+        Self { message: s }
+    }
+}
+
+impl From<&str> for TypeError {
+    fn from(s: &str) -> Self {
+        Self {
+            message: s.to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum VariantFieldTypes {
     Unit,
@@ -55,32 +91,32 @@ impl std::fmt::Display for ConcreteType {
             ConcreteType::String => write!(f, "String"),
             ConcreteType::Bool => write!(f, "Bool"),
             ConcreteType::Unit => write!(f, "()"),
-            ConcreteType::Option(inner) => write!(f, "Option<{}>", inner),
-            ConcreteType::Result(ok, err) => write!(f, "Result<{}, {}>", ok, err),
-            ConcreteType::Task(ok, err) => write!(f, "Task<{}, {}>", ok, err),
-            ConcreteType::Channel(inner) => write!(f, "Channel<{}>", inner),
-            ConcreteType::SendChannel(inner) => write!(f, "SendChannel<{}>", inner),
-            ConcreteType::RecvChannel(inner) => write!(f, "RecvChannel<{}>", inner),
-            ConcreteType::Pointer(inner) => write!(f, "*{}", inner),
-            ConcreteType::Interface { name, .. } => write!(f, "interface {}", name),
+            ConcreteType::Option(inner) => write!(f, "Option<{inner}>"),
+            ConcreteType::Result(ok, err) => write!(f, "Result<{ok}, {err}>"),
+            ConcreteType::Task(ok, err) => write!(f, "Task<{ok}, {err}>"),
+            ConcreteType::Channel(inner) => write!(f, "Channel<{inner}>"),
+            ConcreteType::SendChannel(inner) => write!(f, "SendChannel<{inner}>"),
+            ConcreteType::RecvChannel(inner) => write!(f, "RecvChannel<{inner}>"),
+            ConcreteType::Pointer(inner) => write!(f, "*{inner}"),
+            ConcreteType::Interface { name, .. } => write!(f, "interface {name}"),
 
-            ConcreteType::List(elem) => write!(f, "List<{}>", elem),
-            ConcreteType::Map(k, v) => write!(f, "Map<{}, {}>", k, v),
-            ConcreteType::Set(inner) => write!(f, "Set<{}>", inner),
+            ConcreteType::List(elem) => write!(f, "List<{elem}>"),
+            ConcreteType::Map(k, v) => write!(f, "Map<{k}, {v}>"),
+            ConcreteType::Set(inner) => write!(f, "Set<{inner}>"),
             ConcreteType::Tuple(types) => {
                 write!(f, "(")?;
                 for (i, t) in types.iter().enumerate() {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
-                    write!(f, "{}", t)?;
+                    write!(f, "{t}")?;
                 }
                 write!(f, ")")
             }
             ConcreteType::Record(fields) => {
                 write!(f, "{{ ")?;
                 for (k, v) in fields {
-                    write!(f, "{}: {}, ", k, v)?;
+                    write!(f, "{k}: {v}, ")?;
                 }
                 write!(f, "}}")
             }
@@ -93,22 +129,22 @@ impl std::fmt::Display for ConcreteType {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
-                    write!(f, "{}", p)?;
+                    write!(f, "{p}")?;
                 }
-                write!(f, ") -> {}", return_type)
+                write!(f, ") -> {return_type}")
             }
             ConcreteType::SumType {
                 name, type_args, ..
             } => {
                 if type_args.is_empty() {
-                    write!(f, "{}", name)
+                    write!(f, "{name}")
                 } else {
-                    write!(f, "{}<", name)?;
+                    write!(f, "{name}<")?;
                     for (i, p) in type_args.iter().enumerate() {
                         if i > 0 {
                             write!(f, ", ")?;
                         }
-                        write!(f, "{}", p)?;
+                        write!(f, "{p}")?;
                     }
                     write!(f, ">")
                 }
@@ -243,6 +279,12 @@ pub struct TypeEnv {
     variables: HashMap<String, ConcreteType>,
     types: HashMap<String, ConcreteType>,
     parent: Option<Box<TypeEnv>>,
+}
+
+impl Default for TypeEnv {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TypeEnv {
@@ -1007,6 +1049,13 @@ impl TypeEnv {
             },
         );
         env.variables.insert(
+            "yield".to_string(),
+            ConcreteType::Function {
+                params: vec![],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        env.variables.insert(
             "parseInt".to_string(),
             ConcreteType::Function {
                 params: vec![ConcreteType::String],
@@ -1309,7 +1358,463 @@ impl TypeEnv {
             },
         );
 
-        // HTTP Standard Server (Golang style - net/http and ServeMux)
+        // ====================================================================
+        // HTTP Standard Package (Golang style - net/http, ServeMux, ResponseWriter, Request, Response)
+        // ====================================================================
+
+        // --- 1. HttpRequest & Request Interface/Struct ---
+        let mut request_fields = HashMap::new();
+        request_fields.insert("method".to_string(), ConcreteType::String);
+        request_fields.insert("url".to_string(), ConcreteType::String);
+        request_fields.insert("path".to_string(), ConcreteType::String);
+        request_fields.insert("body".to_string(), ConcreteType::String);
+        request_fields.insert("rawBody".to_string(), ConcreteType::String);
+        request_fields.insert("headers".to_string(), ConcreteType::Any);
+        request_fields.insert("params".to_string(), ConcreteType::Any);
+        request_fields.insert("query".to_string(), ConcreteType::Any);
+        request_fields.insert("queryMap".to_string(), ConcreteType::Any);
+        request_fields.insert("remoteAddr".to_string(), ConcreteType::String);
+        request_fields.insert("host".to_string(), ConcreteType::String);
+        request_fields.insert("proto".to_string(), ConcreteType::String);
+        request_fields.insert(
+            "pathValue".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String],
+                return_type: Box::new(ConcreteType::String),
+            },
+        );
+        request_fields.insert(
+            "param".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String],
+                return_type: Box::new(ConcreteType::String),
+            },
+        );
+        request_fields.insert(
+            "query".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String],
+                return_type: Box::new(ConcreteType::String),
+            },
+        );
+        request_fields.insert(
+            "header".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String],
+                return_type: Box::new(ConcreteType::String),
+            },
+        );
+        request_fields.insert(
+            "getHeader".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String],
+                return_type: Box::new(ConcreteType::String),
+            },
+        );
+        request_fields.insert(
+            "setHeader".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::String],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        request_fields.insert(
+            "parseJson".to_string(),
+            ConcreteType::Function {
+                params: vec![],
+                return_type: Box::new(ConcreteType::Task(
+                    Box::new(ConcreteType::Result(
+                        Box::new(ConcreteType::Any),
+                        Box::new(ConcreteType::String),
+                    )),
+                    Box::new(ConcreteType::String),
+                )),
+            },
+        );
+        request_fields.insert(
+            "json".to_string(),
+            ConcreteType::Function {
+                params: vec![],
+                return_type: Box::new(ConcreteType::Task(
+                    Box::new(ConcreteType::Result(
+                        Box::new(ConcreteType::Any),
+                        Box::new(ConcreteType::String),
+                    )),
+                    Box::new(ConcreteType::String),
+                )),
+            },
+        );
+        request_fields.insert(
+            "text".to_string(),
+            ConcreteType::Function {
+                params: vec![],
+                return_type: Box::new(ConcreteType::Task(
+                    Box::new(ConcreteType::Result(
+                        Box::new(ConcreteType::String),
+                        Box::new(ConcreteType::String),
+                    )),
+                    Box::new(ConcreteType::String),
+                )),
+            },
+        );
+        request_fields.insert(
+            "context".to_string(),
+            ConcreteType::Function {
+                params: vec![],
+                return_type: Box::new(ConcreteType::TypeVar("Context".to_string())),
+            },
+        );
+        request_fields.insert(
+            "on".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::Any],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        let http_request_type = ConcreteType::Record(request_fields.clone());
+        env.types
+            .insert("HttpRequest".to_string(), http_request_type.clone());
+        env.types
+            .insert("Request".to_string(), http_request_type.clone());
+        env.types
+            .insert("http.Request".to_string(), http_request_type.clone());
+        env.types
+            .insert("http.HttpRequest".to_string(), http_request_type.clone());
+
+        // Static companion value for Request
+        let mut request_static_fields = HashMap::new();
+        request_static_fields.insert(
+            "new".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::String],
+                return_type: Box::new(http_request_type.clone()),
+            },
+        );
+        request_static_fields.insert(
+            "get".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String],
+                return_type: Box::new(http_request_type.clone()),
+            },
+        );
+        request_static_fields.insert(
+            "post".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::Any],
+                return_type: Box::new(http_request_type.clone()),
+            },
+        );
+        let request_static_type = ConcreteType::Record(request_static_fields);
+        env.variables
+            .insert("Request".to_string(), request_static_type.clone());
+        env.variables
+            .insert("HttpRequest".to_string(), request_static_type.clone());
+
+        // --- 2. HttpResponse & Response Interface/Struct ---
+        let mut response_fields = HashMap::new();
+        response_fields.insert("status".to_string(), ConcreteType::Int);
+        response_fields.insert("statusCode".to_string(), ConcreteType::Int);
+        response_fields.insert("statusText".to_string(), ConcreteType::String);
+        response_fields.insert("headers".to_string(), ConcreteType::Any);
+        response_fields.insert("body".to_string(), ConcreteType::String);
+        response_fields.insert(
+            "setHeader".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::String],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        response_fields.insert(
+            "getHeader".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String],
+                return_type: Box::new(ConcreteType::String),
+            },
+        );
+        response_fields.insert(
+            "writeHead".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Int, ConcreteType::Any],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        response_fields.insert(
+            "writeHeader".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Int],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        response_fields.insert(
+            "write".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Any],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        response_fields.insert(
+            "writeString".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        response_fields.insert(
+            "writeBytes".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::List(Box::new(ConcreteType::Int))],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        response_fields.insert(
+            "end".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Any],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        response_fields.insert(
+            "json".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Any, ConcreteType::Any],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        response_fields.insert(
+            "text".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Any, ConcreteType::Any],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        response_fields.insert(
+            "html".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Any, ConcreteType::Any],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        response_fields.insert(
+            "error".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::Any],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        response_fields.insert(
+            "redirect".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::Any],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        let http_response_type = ConcreteType::Record(response_fields.clone());
+        env.types
+            .insert("HttpResponse".to_string(), http_response_type.clone());
+        env.types
+            .insert("Response".to_string(), http_response_type.clone());
+        env.types
+            .insert("http.Response".to_string(), http_response_type.clone());
+        env.types
+            .insert("http.HttpResponse".to_string(), http_response_type.clone());
+
+        // Static companion value for Response
+        let mut response_static_fields = HashMap::new();
+        response_static_fields.insert(
+            "json".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Any, ConcreteType::Any],
+                return_type: Box::new(http_response_type.clone()),
+            },
+        );
+        response_static_fields.insert(
+            "text".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Any, ConcreteType::Any],
+                return_type: Box::new(http_response_type.clone()),
+            },
+        );
+        response_static_fields.insert(
+            "html".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Any, ConcreteType::Any],
+                return_type: Box::new(http_response_type.clone()),
+            },
+        );
+        response_static_fields.insert(
+            "error".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::Any],
+                return_type: Box::new(http_response_type.clone()),
+            },
+        );
+        response_static_fields.insert(
+            "redirect".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::Any],
+                return_type: Box::new(http_response_type.clone()),
+            },
+        );
+        response_static_fields.insert(
+            "new".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Int, ConcreteType::String],
+                return_type: Box::new(http_response_type.clone()),
+            },
+        );
+        let response_static_type = ConcreteType::Record(response_static_fields);
+        env.variables
+            .insert("Response".to_string(), response_static_type.clone());
+        env.variables
+            .insert("HttpResponse".to_string(), response_static_type.clone());
+
+        // --- 3. ResponseWriter (Go-Style http.ResponseWriter) ---
+        let mut rw_methods = HashMap::new();
+        rw_methods.insert(
+            "header".to_string(),
+            ConcreteType::Function {
+                params: vec![],
+                return_type: Box::new(ConcreteType::Any),
+            },
+        );
+        rw_methods.insert(
+            "Header".to_string(),
+            ConcreteType::Function {
+                params: vec![],
+                return_type: Box::new(ConcreteType::Any),
+            },
+        );
+        rw_methods.insert(
+            "getHeader".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String],
+                return_type: Box::new(ConcreteType::String),
+            },
+        );
+        rw_methods.insert(
+            "setHeader".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::String],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        rw_methods.insert(
+            "write".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Any],
+                return_type: Box::new(ConcreteType::Int),
+            },
+        );
+        rw_methods.insert(
+            "Write".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Any],
+                return_type: Box::new(ConcreteType::Int),
+            },
+        );
+        rw_methods.insert(
+            "writeString".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String],
+                return_type: Box::new(ConcreteType::Int),
+            },
+        );
+        rw_methods.insert(
+            "writeBytes".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::List(Box::new(ConcreteType::Int))],
+                return_type: Box::new(ConcreteType::Int),
+            },
+        );
+        rw_methods.insert(
+            "writeHead".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Int, ConcreteType::Any],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        rw_methods.insert(
+            "writeHeader".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Int],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        rw_methods.insert(
+            "WriteHeader".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Int],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        rw_methods.insert(
+            "end".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Any],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        rw_methods.insert(
+            "json".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Any, ConcreteType::Any],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        rw_methods.insert(
+            "text".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Any, ConcreteType::Any],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        rw_methods.insert(
+            "html".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Any, ConcreteType::Any],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        rw_methods.insert(
+            "error".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::Any],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        rw_methods.insert(
+            "redirect".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::Any],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        let response_writer_type = ConcreteType::Record(rw_methods.clone());
+        env.types
+            .insert("ResponseWriter".to_string(), response_writer_type.clone());
+        env.types
+            .insert("http.ResponseWriter".to_string(), response_writer_type.clone());
+        env.variables
+            .insert("ResponseWriter".to_string(), response_writer_type.clone());
+
+        // --- 4. Handler Interface ---
+        let mut handler_methods = HashMap::new();
+        handler_methods.insert(
+            "serveHTTP".to_string(),
+            (
+                vec![response_writer_type.clone(), http_request_type.clone()],
+                ConcreteType::Unit,
+            ),
+        );
+        let handler_type = ConcreteType::Interface {
+            name: "Handler".to_string(),
+            methods: handler_methods,
+        };
+        env.types.insert("Handler".to_string(), handler_type.clone());
+        env.types
+            .insert("http.Handler".to_string(), handler_type);
+
+        // --- 5. ServeMux & Server ---
         let mut serve_mux_methods = HashMap::new();
         serve_mux_methods.insert(
             "handleFunc".to_string(),
@@ -1493,6 +1998,26 @@ impl TypeEnv {
         let serve_mux_type = ConcreteType::Record(serve_mux_methods.clone());
         env.types
             .insert("ServeMux".to_string(), serve_mux_type.clone());
+        env.types
+            .insert("Server".to_string(), serve_mux_type.clone());
+        env.types
+            .insert("http.ServeMux".to_string(), serve_mux_type.clone());
+        env.types
+            .insert("http.Server".to_string(), serve_mux_type.clone());
+
+        let mut server_static_methods = HashMap::new();
+        server_static_methods.insert(
+            "new".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Any],
+                return_type: Box::new(serve_mux_type.clone()),
+            },
+        );
+        let server_static_type = ConcreteType::Record(server_static_methods);
+        env.variables
+            .insert("Server".to_string(), server_static_type.clone());
+        env.variables
+            .insert("ServeMux".to_string(), server_static_type);
 
         let mut http_methods = serve_mux_methods.clone();
         http_methods.insert(
@@ -1506,6 +2031,20 @@ impl TypeEnv {
             "NewServeMux".to_string(),
             ConcreteType::Function {
                 params: vec![],
+                return_type: Box::new(serve_mux_type.clone()),
+            },
+        );
+        http_methods.insert(
+            "newServer".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Any],
+                return_type: Box::new(serve_mux_type.clone()),
+            },
+        );
+        http_methods.insert(
+            "NewServer".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Any],
                 return_type: Box::new(serve_mux_type.clone()),
             },
         );
@@ -1610,6 +2149,7 @@ impl TypeEnv {
         http_methods.insert("StatusNoContent".to_string(), ConcreteType::Int);
         http_methods.insert("StatusMovedPermanently".to_string(), ConcreteType::Int);
         http_methods.insert("StatusFound".to_string(), ConcreteType::Int);
+        http_methods.insert("StatusSeeOther".to_string(), ConcreteType::Int);
         http_methods.insert("StatusBadRequest".to_string(), ConcreteType::Int);
         http_methods.insert("StatusUnauthorized".to_string(), ConcreteType::Int);
         http_methods.insert("StatusForbidden".to_string(), ConcreteType::Int);
@@ -1620,6 +2160,24 @@ impl TypeEnv {
         http_methods.insert("StatusInternalServerError".to_string(), ConcreteType::Int);
         http_methods.insert("StatusBadGateway".to_string(), ConcreteType::Int);
         http_methods.insert("StatusServiceUnavailable".to_string(), ConcreteType::Int);
+
+        // Types and companion values on http
+        http_methods.insert("Request".to_string(), request_static_type.clone());
+        http_methods.insert("HttpRequest".to_string(), request_static_type);
+        http_methods.insert("Response".to_string(), response_static_type.clone());
+        http_methods.insert("HttpResponse".to_string(), response_static_type);
+        http_methods.insert("ResponseWriter".to_string(), response_writer_type);
+
+        let http_status_names = [
+            "StatusOK", "StatusCreated", "StatusAccepted", "StatusNoContent",
+            "StatusMovedPermanently", "StatusFound", "StatusSeeOther", "StatusBadRequest",
+            "StatusUnauthorized", "StatusForbidden", "StatusNotFound", "StatusMethodNotAllowed",
+            "StatusConflict", "StatusUnprocessableEntity", "StatusInternalServerError",
+            "StatusBadGateway", "StatusServiceUnavailable",
+        ];
+        for s in http_status_names {
+            env.variables.insert(s.to_string(), ConcreteType::Int);
+        }
 
         let http_type = ConcreteType::Record(http_methods);
         env.types
@@ -2167,6 +2725,233 @@ impl TypeEnv {
             .insert("postgres".to_string(), pg_module_type.clone());
         env.variables.insert("pg".to_string(), pg_module_type);
 
+        // --- Native SQL & SQLite Database Standard Library Integration ---
+        let mut sql_rows_methods = HashMap::new();
+        sql_rows_methods.insert(
+            "next".to_string(),
+            ConcreteType::Function {
+                params: vec![],
+                return_type: Box::new(ConcreteType::Bool),
+            },
+        );
+        sql_rows_methods.insert(
+            "getInt".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Int],
+                return_type: Box::new(ConcreteType::Int),
+            },
+        );
+        sql_rows_methods.insert(
+            "getString".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Int],
+                return_type: Box::new(ConcreteType::String),
+            },
+        );
+        sql_rows_methods.insert(
+            "getFloat".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Int],
+                return_type: Box::new(ConcreteType::Float),
+            },
+        );
+        sql_rows_methods.insert(
+            "getBool".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Int],
+                return_type: Box::new(ConcreteType::Bool),
+            },
+        );
+        sql_rows_methods.insert(
+            "get".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Any],
+                return_type: Box::new(ConcreteType::Any),
+            },
+        );
+        sql_rows_methods.insert(
+            "toRecord".to_string(),
+            ConcreteType::Function {
+                params: vec![],
+                return_type: Box::new(ConcreteType::Any),
+            },
+        );
+        sql_rows_methods.insert(
+            "toList".to_string(),
+            ConcreteType::Function {
+                params: vec![],
+                return_type: Box::new(ConcreteType::List(Box::new(ConcreteType::Any))),
+            },
+        );
+        sql_rows_methods.insert(
+            "error".to_string(),
+            ConcreteType::Function {
+                params: vec![],
+                return_type: Box::new(ConcreteType::String),
+            },
+        );
+        sql_rows_methods.insert(
+            "close".to_string(),
+            ConcreteType::Function {
+                params: vec![],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        let sql_rows_type = ConcreteType::Record(sql_rows_methods);
+        env.types
+            .insert("SqlRows".to_string(), sql_rows_type.clone());
+        env.types
+            .insert("Rows".to_string(), sql_rows_type.clone());
+
+        let mut sql_exec_result_fields = HashMap::new();
+        sql_exec_result_fields.insert("rowsAffected".to_string(), ConcreteType::Int);
+        sql_exec_result_fields.insert("lastInsertId".to_string(), ConcreteType::Int);
+        sql_exec_result_fields.insert("error".to_string(), ConcreteType::String);
+        let sql_exec_result_type = ConcreteType::Record(sql_exec_result_fields);
+        env.types
+            .insert("SqlExecResult".to_string(), sql_exec_result_type.clone());
+        env.types
+            .insert("ExecResult".to_string(), sql_exec_result_type.clone());
+
+        let mut sql_tx_methods = HashMap::new();
+        sql_tx_methods.insert(
+            "query".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::Any],
+                return_type: Box::new(sql_rows_type.clone()),
+            },
+        );
+        sql_tx_methods.insert(
+            "exec".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::Any],
+                return_type: Box::new(sql_exec_result_type.clone()),
+            },
+        );
+        sql_tx_methods.insert(
+            "execute".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::Any],
+                return_type: Box::new(sql_exec_result_type.clone()),
+            },
+        );
+        sql_tx_methods.insert(
+            "commit".to_string(),
+            ConcreteType::Function {
+                params: vec![],
+                return_type: Box::new(ConcreteType::Int),
+            },
+        );
+        sql_tx_methods.insert(
+            "rollback".to_string(),
+            ConcreteType::Function {
+                params: vec![],
+                return_type: Box::new(ConcreteType::Int),
+            },
+        );
+        sql_tx_methods.insert(
+            "close".to_string(),
+            ConcreteType::Function {
+                params: vec![],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        let sql_tx_type = ConcreteType::Record(sql_tx_methods);
+        env.types
+            .insert("SqlTx".to_string(), sql_tx_type.clone());
+        env.types
+            .insert("Tx".to_string(), sql_tx_type.clone());
+
+        let mut sql_db_methods = HashMap::new();
+        sql_db_methods.insert(
+            "query".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::Any],
+                return_type: Box::new(sql_rows_type.clone()),
+            },
+        );
+        sql_db_methods.insert(
+            "exec".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::Any],
+                return_type: Box::new(sql_exec_result_type.clone()),
+            },
+        );
+        sql_db_methods.insert(
+            "execute".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::Any],
+                return_type: Box::new(sql_exec_result_type),
+            },
+        );
+        sql_db_methods.insert(
+            "begin".to_string(),
+            ConcreteType::Function {
+                params: vec![],
+                return_type: Box::new(sql_tx_type),
+            },
+        );
+        sql_db_methods.insert(
+            "ping".to_string(),
+            ConcreteType::Function {
+                params: vec![],
+                return_type: Box::new(ConcreteType::Int),
+            },
+        );
+        sql_db_methods.insert(
+            "close".to_string(),
+            ConcreteType::Function {
+                params: vec![],
+                return_type: Box::new(ConcreteType::Unit),
+            },
+        );
+        let sql_db_type = ConcreteType::Record(sql_db_methods);
+        env.types
+            .insert("SqlDB".to_string(), sql_db_type.clone());
+        env.types
+            .insert("DB".to_string(), sql_db_type.clone());
+        env.types
+            .insert("SqlPool".to_string(), sql_db_type.clone());
+
+        let mut sqlite_module_methods = HashMap::new();
+        sqlite_module_methods.insert(
+            "open".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Any],
+                return_type: Box::new(sql_db_type.clone()),
+            },
+        );
+        sqlite_module_methods.insert(
+            "connect".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Any],
+                return_type: Box::new(sql_db_type.clone()),
+            },
+        );
+        let sqlite_module_type = ConcreteType::Record(sqlite_module_methods);
+        env.types
+            .insert("SqliteModule".to_string(), sqlite_module_type.clone());
+        env.variables
+            .insert("sqlite".to_string(), sqlite_module_type.clone());
+        env.variables
+            .insert("sqlite3".to_string(), sqlite_module_type);
+
+        let mut sql_module_methods = HashMap::new();
+        sql_module_methods.insert(
+            "open".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::Any],
+                return_type: Box::new(sql_db_type.clone()),
+            },
+        );
+        let sql_module_type = ConcreteType::Record(sql_module_methods);
+        env.types
+            .insert("SqlModule".to_string(), sql_module_type.clone());
+        env.variables
+            .insert("sql".to_string(), sql_module_type.clone());
+        env.variables
+            .insert("db".to_string(), sql_module_type);
+
         // MongoDB Database Standard Library Integration
         let mut mongo_insert_result_fields = HashMap::new();
         mongo_insert_result_fields.insert("insertedId".to_string(), ConcreteType::Any);
@@ -2254,6 +3039,19 @@ impl TypeEnv {
                 params: vec![ConcreteType::Any],
                 return_type: Box::new(ConcreteType::Task(
                     Box::new(ConcreteType::Result(
+                        Box::new(mongo_insert_result_type.clone()),
+                        Box::new(ConcreteType::String),
+                    )),
+                    Box::new(ConcreteType::Any),
+                )),
+            },
+        );
+        mongo_collection_methods.insert(
+            "insert".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Any],
+                return_type: Box::new(ConcreteType::Task(
+                    Box::new(ConcreteType::Result(
                         Box::new(mongo_insert_result_type),
                         Box::new(ConcreteType::String),
                     )),
@@ -2329,7 +3127,20 @@ impl TypeEnv {
         mongo_collection_methods.insert(
             "countDocuments".to_string(),
             ConcreteType::Function {
-                params: vec![],
+                params: vec![ConcreteType::Any],
+                return_type: Box::new(ConcreteType::Task(
+                    Box::new(ConcreteType::Result(
+                        Box::new(ConcreteType::Int),
+                        Box::new(ConcreteType::String),
+                    )),
+                    Box::new(ConcreteType::Any),
+                )),
+            },
+        );
+        mongo_collection_methods.insert(
+            "count".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Any],
                 return_type: Box::new(ConcreteType::Task(
                     Box::new(ConcreteType::Result(
                         Box::new(ConcreteType::Int),
@@ -2381,26 +3192,14 @@ impl TypeEnv {
             "listCollections".to_string(),
             ConcreteType::Function {
                 params: vec![],
-                return_type: Box::new(ConcreteType::Task(
-                    Box::new(ConcreteType::Result(
-                        Box::new(ConcreteType::List(Box::new(ConcreteType::Any))),
-                        Box::new(ConcreteType::String),
-                    )),
-                    Box::new(ConcreteType::Any),
-                )),
+                return_type: Box::new(ConcreteType::List(Box::new(ConcreteType::String))),
             },
         );
         mongo_db_methods.insert(
             "dropDatabase".to_string(),
             ConcreteType::Function {
                 params: vec![],
-                return_type: Box::new(ConcreteType::Task(
-                    Box::new(ConcreteType::Result(
-                        Box::new(ConcreteType::Bool),
-                        Box::new(ConcreteType::String),
-                    )),
-                    Box::new(ConcreteType::Any),
-                )),
+                return_type: Box::new(ConcreteType::Bool),
             },
         );
         let mongo_db_type = ConcreteType::Record(mongo_db_methods);
@@ -2411,7 +3210,7 @@ impl TypeEnv {
         mongo_client_methods.insert(
             "db".to_string(),
             ConcreteType::Function {
-                params: vec![],
+                params: vec![ConcreteType::String],
                 return_type: Box::new(mongo_db_type.clone()),
             },
         );
@@ -2426,26 +3225,14 @@ impl TypeEnv {
             "ping".to_string(),
             ConcreteType::Function {
                 params: vec![],
-                return_type: Box::new(ConcreteType::Task(
-                    Box::new(ConcreteType::Result(
-                        Box::new(ConcreteType::Bool),
-                        Box::new(ConcreteType::String),
-                    )),
-                    Box::new(ConcreteType::Any),
-                )),
+                return_type: Box::new(ConcreteType::Int),
             },
         );
         mongo_client_methods.insert(
             "close".to_string(),
             ConcreteType::Function {
                 params: vec![],
-                return_type: Box::new(ConcreteType::Task(
-                    Box::new(ConcreteType::Result(
-                        Box::new(ConcreteType::Unit),
-                        Box::new(ConcreteType::String),
-                    )),
-                    Box::new(ConcreteType::Any),
-                )),
+                return_type: Box::new(ConcreteType::Unit),
             },
         );
         let mongo_client_type = ConcreteType::Record(mongo_client_methods);
@@ -2513,6 +3300,19 @@ impl TypeEnv {
                 return_type: Box::new(ConcreteType::Task(
                     Box::new(ConcreteType::Result(
                         Box::new(ConcreteType::Option(Box::new(ConcreteType::String))),
+                        Box::new(ConcreteType::String),
+                    )),
+                    Box::new(ConcreteType::Any),
+                )),
+            },
+        );
+        redis_client_methods.insert(
+            "getStr".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String],
+                return_type: Box::new(ConcreteType::Task(
+                    Box::new(ConcreteType::Result(
+                        Box::new(ConcreteType::String),
                         Box::new(ConcreteType::String),
                     )),
                     Box::new(ConcreteType::Any),
@@ -2673,6 +3473,75 @@ impl TypeEnv {
                 return_type: Box::new(ConcreteType::Task(
                     Box::new(ConcreteType::Result(
                         Box::new(ConcreteType::Int),
+                        Box::new(ConcreteType::String),
+                    )),
+                    Box::new(ConcreteType::Any),
+                )),
+            },
+        );
+        redis_client_methods.insert(
+            "lpush".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::Any],
+                return_type: Box::new(ConcreteType::Task(
+                    Box::new(ConcreteType::Result(
+                        Box::new(ConcreteType::Int),
+                        Box::new(ConcreteType::String),
+                    )),
+                    Box::new(ConcreteType::Any),
+                )),
+            },
+        );
+        redis_client_methods.insert(
+            "push".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::Any],
+                return_type: Box::new(ConcreteType::Task(
+                    Box::new(ConcreteType::Result(
+                        Box::new(ConcreteType::Int),
+                        Box::new(ConcreteType::String),
+                    )),
+                    Box::new(ConcreteType::Any),
+                )),
+            },
+        );
+        redis_client_methods.insert(
+            "rpop".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String],
+                return_type: Box::new(ConcreteType::Task(
+                    Box::new(ConcreteType::Result(
+                        Box::new(ConcreteType::String),
+                        Box::new(ConcreteType::String),
+                    )),
+                    Box::new(ConcreteType::Any),
+                )),
+            },
+        );
+        redis_client_methods.insert(
+            "pop".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String],
+                return_type: Box::new(ConcreteType::Task(
+                    Box::new(ConcreteType::Result(
+                        Box::new(ConcreteType::String),
+                        Box::new(ConcreteType::String),
+                    )),
+                    Box::new(ConcreteType::Any),
+                )),
+            },
+        );
+        redis_client_methods.insert(
+            "lrange".to_string(),
+            ConcreteType::Function {
+                params: vec![
+                    ConcreteType::String,
+                    ConcreteType::Int,
+                    ConcreteType::Int,
+                ],
+                return_type: Box::new(ConcreteType::Task(
+                    Box::new(ConcreteType::Result(
+                        Box::new(ConcreteType::List(Box::new(ConcreteType::String))),
                         Box::new(ConcreteType::String),
                     )),
                     Box::new(ConcreteType::Any),
@@ -2943,6 +3812,12 @@ pub struct TypeChecker {
     pub type_alias_map: HashMap<String, ConcreteType>,
 }
 
+impl Default for TypeChecker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TypeChecker {
     pub fn new() -> Self {
         Self {
@@ -3023,12 +3898,11 @@ impl TypeChecker {
                         variants: variants.clone(),
                     });
                 }
-            } else if let ConcreteType::Generic(_, ref inner) = ty {
-                if let ConcreteType::SumType { variants, .. } = inner.as_ref() {
-                    if variants.contains_key(variant_name) {
-                        return Some(ty.clone());
-                    }
-                }
+            } else if let ConcreteType::Generic(_, ref inner) = ty
+                && let ConcreteType::SumType { variants, .. } = inner.as_ref()
+                && variants.contains_key(variant_name)
+            {
+                return Some(ty.clone());
             }
         }
         None
@@ -3107,6 +3981,31 @@ impl TypeChecker {
                         iface_ty
                     };
                     self.env.insert_type(iface.name.clone(), iface_ty);
+                }
+                Item::Import(imp) => {
+                    if imp.source == "net/http"
+                        || imp.source == "std/http"
+                        || imp.source == "http"
+                        || imp.source == "net/url"
+                        || imp.source == "os"
+                        || imp.source == "time"
+                    {
+                        for item in &imp.items {
+                            let target_name = item.alias.as_ref().unwrap_or(&item.name);
+                            if let Some(ty) = self.env.lookup_type(&item.name) {
+                                self.env.insert_type(target_name.clone(), ty);
+                            }
+                            if let Some(var_ty) = self.env.lookup_var(&item.name) {
+                                self.env.insert_var(target_name.clone(), var_ty);
+                            } else if item.name.starts_with("Status") {
+                                self.env.insert_var(target_name.clone(), ConcreteType::Int);
+                            } else if let Some(ConcreteType::Record(fields)) = self.env.lookup_var("http") {
+                                if let Some(field_ty) = fields.get(&item.name) {
+                                    self.env.insert_var(target_name.clone(), field_ty.clone());
+                                }
+                            }
+                        }
+                    }
                 }
                 Item::Extern(ext) => {
                     for f in &ext.functions {
@@ -3197,33 +4096,30 @@ impl TypeChecker {
 
         // Pass 3: Type check function bodies
         for item in &module.items {
-            match item {
-                Item::Function(func) => {
-                    let mut scope = self.env.enter_scope();
-                    if let Some(ref recv) = func.receiver {
-                        let recv_ty = self.resolve_ast_type(&recv.target_type)?;
-                        scope.insert_var(recv.name.clone(), recv_ty);
-                    }
-                    for p in &func.params {
-                        let p_ty = if let Some(ref t) = p.type_annotation {
-                            self.resolve_ast_type(t)?
-                        } else {
-                            ConcreteType::Any
-                        };
-                        scope.insert_var(p.name.clone(), p_ty);
-                    }
-
-                    let inferred_body_ty = self.infer_expr(&func.body, &mut scope)?;
-                    if let Some(ref declared_ret) = func.return_type {
-                        let declared_ty = self.resolve_ast_type(declared_ret)?;
-                        self.unify(
-                            &declared_ty,
-                            &inferred_body_ty,
-                            &format!("Function '{}' return type", func.name),
-                        )?;
-                    }
+            if let Item::Function(func) = item {
+                let mut scope = self.env.enter_scope();
+                if let Some(ref recv) = func.receiver {
+                    let recv_ty = self.resolve_ast_type(&recv.target_type)?;
+                    scope.insert_var(recv.name.clone(), recv_ty);
                 }
-                _ => {}
+                for p in &func.params {
+                    let p_ty = if let Some(ref t) = p.type_annotation {
+                        self.resolve_ast_type(t)?
+                    } else {
+                        ConcreteType::Any
+                    };
+                    scope.insert_var(p.name.clone(), p_ty);
+                }
+
+                let inferred_body_ty = self.infer_expr(&func.body, &mut scope)?;
+                if let Some(ref declared_ret) = func.return_type {
+                    let declared_ty = self.resolve_ast_type(declared_ret)?;
+                    self.unify(
+                        &declared_ty,
+                        &inferred_body_ty,
+                        &format!("Function '{}' return type", func.name),
+                    )?;
+                }
             }
         }
 
@@ -3337,7 +4233,7 @@ impl TypeChecker {
                 }
                 "Result" => {
                     let ok = type_args
-                        .get(0)
+                        .first()
                         .ok_or("Result requires 2 type arguments (Ok, Err)")?;
                     let err = type_args
                         .get(1)
@@ -3349,7 +4245,7 @@ impl TypeChecker {
                 }
                 "Task" => {
                     let ok = type_args
-                        .get(0)
+                        .first()
                         .ok_or("Task requires 2 type arguments (Ok, Err)")?;
                     let err = type_args
                         .get(1)
@@ -3395,7 +4291,17 @@ impl TypeChecker {
                     let resolved_args: Result<Vec<ConcreteType>, String> =
                         type_args.iter().map(|t| self.resolve_ast_type(t)).collect();
                     let resolved_args = resolved_args?;
-                    if let Some(ty) = self.env.lookup_type(custom) {
+                    let lookup = self
+                        .env
+                        .lookup_type(custom)
+                        .or_else(|| {
+                            if custom.starts_with("http.") {
+                                self.env.lookup_type(&custom["http.".len()..])
+                            } else {
+                                None
+                            }
+                        });
+                    if let Some(ty) = lookup {
                         if let ConcreteType::Generic(params, inner) = ty {
                             if params.len() == resolved_args.len() {
                                 let mut bindings = std::collections::HashMap::new();
@@ -3727,12 +4633,7 @@ impl TypeChecker {
                                 return Ok(ConcreteType::List(Box::new(ret_ty)));
                             }
                         }
-                    } else if member == "filter" {
-                        if let Some(arg) = args.first() {
-                            let _ = self.infer_expr(arg, env)?;
-                        }
-                        return Ok(obj_ty);
-                    } else if member == "sort" {
+                    } else if member == "filter" || member == "sort" {
                         if let Some(arg) = args.first() {
                             let _ = self.infer_expr(arg, env)?;
                         }
@@ -4291,6 +5192,26 @@ impl TypeChecker {
                         }),
                         _ => Ok(ConcreteType::Any),
                     },
+                    ConcreteType::Task(ref inner, _) => {
+                        let mut sub_ty = &**inner;
+                        if let ConcreteType::Result(ok, _) = sub_ty {
+                            sub_ty = ok;
+                        }
+                        if let ConcreteType::Record(fields) = sub_ty {
+                            if let Some(field_ty) = fields.get(member) {
+                                return Ok(field_ty.clone());
+                            }
+                        }
+                        Ok(ConcreteType::Any)
+                    }
+                    ConcreteType::Result(ref ok, _) => {
+                        if let ConcreteType::Record(fields) = &**ok {
+                            if let Some(field_ty) = fields.get(member) {
+                                return Ok(field_ty.clone());
+                            }
+                        }
+                        Ok(ConcreteType::Any)
+                    }
                     ConcreteType::Any => Ok(ConcreteType::Any),
                     other => Err(format!("Cannot access property on type {}", other)),
                 }
@@ -4529,7 +5450,7 @@ impl TypeChecker {
                 match task_ty {
                     ConcreteType::Task(ok, _) => Ok(*ok),
                     ConcreteType::Any => Ok(ConcreteType::Any),
-                    other => Err(format!("Cannot await non-task type {}", other)),
+                    other => Ok(other),
                 }
             }
             Expr::ConstructorCall { name, args } => {
@@ -4865,13 +5786,12 @@ impl TypeChecker {
                     }
                     _ => None,
                 };
-                if let Some(variants_map) = variants {
-                    if let Some(shape) = variants_map.get(name) {
-                        if let VariantFieldTypes::Tuple(tys) = shape {
-                            for (p, ty) in patterns.iter().zip(tys.iter()) {
-                                self.bind_pattern_with_type(p, ty, env)?;
-                            }
-                        }
+                if let Some(variants_map) = variants
+                    && let Some(shape) = variants_map.get(name)
+                    && let VariantFieldTypes::Tuple(tys) = shape
+                {
+                    for (p, ty) in patterns.iter().zip(tys.iter()) {
+                        self.bind_pattern_with_type(p, ty, env)?;
                     }
                 }
                 Ok(())
@@ -4884,10 +5804,10 @@ impl TypeChecker {
                     ConcreteType::SumType { variants, .. } => {
                         let mut found = None;
                         for (vname, shape) in variants {
-                            if let Some(tname) = type_name {
-                                if vname != tname {
-                                    continue;
-                                }
+                            if let Some(tname) = type_name
+                                && vname != tname
+                            {
+                                continue;
                             }
                             if let VariantFieldTypes::Record(f) = shape {
                                 found = Some(f.clone());
@@ -4988,13 +5908,13 @@ impl TypeChecker {
                 self.validate_sendable_type(v)
             }
             ConcreteType::Record(fields) => {
-                for (_, f_ty) in fields {
+                for f_ty in fields.values() {
                     self.validate_sendable_type(f_ty)?;
                 }
                 Ok(())
             }
             ConcreteType::SumType { variants, .. } => {
-                for (_, v_fields) in variants {
+                for v_fields in variants.values() {
                     match v_fields {
                         VariantFieldTypes::Unit => {}
                         VariantFieldTypes::Tuple(tys) => {
@@ -5003,7 +5923,7 @@ impl TypeChecker {
                             }
                         }
                         VariantFieldTypes::Record(fields) => {
-                            for (_, ty) in fields {
+                            for ty in fields.values() {
                                 self.validate_sendable_type(ty)?;
                             }
                         }
@@ -5181,10 +6101,10 @@ impl TypeChecker {
                 ConcreteType::List(elem),
             ) => {
                 if exp_name == "Iterator" || exp_name == "Interator" {
-                    if let Some((_, ret)) = exp_methods.get("next") {
-                        if let ConcreteType::Option(inner) = ret {
-                            return self.unify(inner, elem, context);
-                        }
+                    if let Some((_, ret)) = exp_methods.get("next")
+                        && let ConcreteType::Option(inner) = ret
+                    {
+                        return self.unify(inner, elem, context);
                     }
                     Ok(())
                 } else {

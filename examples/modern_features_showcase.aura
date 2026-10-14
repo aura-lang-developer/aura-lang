@@ -1,0 +1,170 @@
+// ==============================================================================
+// Aura Language: Modern Features Showcase
+// ==============================================================================
+// This example showcases the modern paradigm of Aura:
+// 1. Algebraic Data Types (Sum Types) & Pattern Matching
+// 2. Go-Style Slices ([]T, len, cap, append, sub-slicing)
+// 3. Defer & Errdefer (LIFO deterministic cleanup & transactional rollback)
+// 4. Structs & Receiver Methods (PascalCase public vs camelCase private)
+// 5. Result<T, E> error handling with '?' propagation
+// 6. Pipeline Operator (|>)
+// 7. Go-Style CSP Concurrency (spawn, Channel, select, WaitGroup)
+// ==============================================================================
+
+// --- 1. Algebraic Data Types (ADTs) & Pattern Matching ---
+
+export type ProcessStatus =
+  | Pending
+  | InProgress(Int)
+  | Completed(String)
+  | Failed(String);
+
+fn describeStatus(status: ProcessStatus): String => {
+  match status {
+    Pending => "Job is waiting in queue",
+    InProgress(pct) => `Job is running: ${pct}% completed`,
+    Completed(msg) => `Job finished successfully: ${msg}`,
+    Failed(err) => `Job encountered an error: ${err}`
+  }
+}
+
+// --- 2. Struct with Receiver Methods & Visibility ---
+
+export struct TelemetryRecord {
+  serviceId: String,
+  latencyMs: Float,
+  statusCode: Int
+};
+
+// Public method with receiver (PascalCase)
+fn (r: TelemetryRecord) IsHealthy(): Bool => {
+  r.statusCode >= 200 && r.statusCode < 400 && r.latencyMs < 500.0
+}
+
+// Public method with receiver
+fn (r: TelemetryRecord) Summary(): String => {
+  let status = if r.IsHealthy() { "HEALTHY" } else { "DEGRADED" };
+  `[${r.serviceId}] Status: ${status} | Latency: ${r.latencyMs}ms | HTTP ${r.statusCode}`
+}
+
+// --- 3. Resource Cleanup with Defer & Errdefer ---
+
+fn processTelemetryBatch(records: []TelemetryRecord, shouldFail: Bool): Result<Int, String> => {
+  println("\n--- Processing Telemetry Batch ---");
+  println("1. Opening metrics buffer...");
+  defer println("  [Defer] Closing metrics buffer (LIFO cleanup)");
+
+  println("2. Initializing telemetry transaction...");
+  errdefer println("  [ErrDefer] Transaction rolled back due to error!");
+
+  if shouldFail {
+    println("3. Validation failed: simulated network timeout");
+    return Err("connection_timeout");
+  }
+
+  println(`3. Validated ${len(records)} records successfully.`);
+  Ok(len(records))
+}
+
+// --- 4. Pipeline Transformations ---
+
+fn doubleVal(x: Int): Int => { x * 2 }
+fn addTen(x: Int): Int => { x + 10 }
+fn squareVal(x: Int): Int => { x * x }
+
+// --- 5. Main Execution Entrypoint ---
+
+export fn main(): Task<Unit, String> => {
+  println("=================================================");
+  println("✨ Welcome to Aura Language Modern Features Demo");
+  println("=================================================");
+
+  // 1. ADT & Pattern Matching
+  println("\n--- 1. Algebraic Data Types & Pattern Matching ---");
+  let s1 = Pending;
+  let s2 = InProgress(65);
+  let s3 = Completed("Report compiled in 1.4s");
+  let s4 = Failed("Disk quota exceeded");
+
+  println(`s1: ${describeStatus(s1)}`);
+  println(`s2: ${describeStatus(s2)}`);
+  println(`s3: ${describeStatus(s3)}`);
+  println(`s4: ${describeStatus(s4)}`);
+
+  // 2. Go-Style Slices
+  println("\n--- 2. Go-Style Slices & Slicing Expressions ---");
+  let mut latencies: []Int = [12, 15, 28, 45, 90, 110, 240];
+  println(`Initial slice: len=${len(latencies)}, cap=${cap(latencies)}`);
+
+  let sub = latencies[2: 5];
+  println(`latencies[2:5] sub-slice: len=${len(sub)}, elements=[${sub[0]}, ${sub[1]}, ${sub[2]}]`);
+
+  let extended = append(latencies, 320);
+  println(`After append(latencies, 320): len=${len(extended)}`);
+
+  // 3. Structs & Receiver Methods
+  println("\n--- 3. Structs & Receiver Methods ---");
+  let rec1: TelemetryRecord = {
+    serviceId: "auth-service",
+    latencyMs: 42.5,
+    statusCode: 200
+  };
+  let rec2: TelemetryRecord = {
+    serviceId: "payment-gateway",
+    latencyMs: 780.0,
+    statusCode: 504
+  };
+
+  println(rec1.Summary());
+  println(rec2.Summary());
+
+  // 4. Defer & Errdefer
+  let records: []TelemetryRecord = [rec1, rec2];
+  let successRes = processTelemetryBatch(records, false);
+  match successRes {
+    Ok(count) => println(`Batch result: ${count} processed`),
+    Err(e) => println(`Batch failed: ${e}`)
+  }
+
+  let failedRes = processTelemetryBatch(records, true);
+  match failedRes {
+    Ok(count) => println(`Batch result: ${count} processed`),
+    Err(e) => println(`Batch failed: ${e}`)
+  }
+
+  // 5. Pipeline Operator (|>)
+  println("\n--- 5. Pipeline Operator (|>) ---");
+  let pipedResult = 5 |> doubleVal |> addTen |> squareVal;
+  // (5 * 2 = 10) -> (10 + 10 = 20) -> (20^2 = 400)
+  println(`5 |> doubleVal |> addTen |> squareVal = ${pipedResult}`);
+
+  // 6. Go-Style CSP Concurrency
+  println("\n--- 6. CSP Concurrency & Channels ---");
+  let ch = Channel.make<String>(5);
+
+  spawn {
+    ch <- "Event: user_login";
+    ch <- "Event: order_created";
+    ch <- "Event: payment_authorized";
+  };
+
+  let m1 = <-ch;
+  match m1 {
+    Some(val) => println(`Received from channel: ${val}`),
+    None => println("Channel closed")
+  }
+  let m2 = <-ch;
+  match m2 {
+    Some(val) => println(`Received from channel: ${val}`),
+    None => println("Channel closed")
+  }
+  let m3 = <-ch;
+  match m3 {
+    Some(val) => println(`Received from channel: ${val}`),
+    None => println("Channel closed")
+  }
+
+  println("\n=================================================");
+  println("🚀 All Aura features executed cleanly and safely!");
+  println("=================================================");
+}

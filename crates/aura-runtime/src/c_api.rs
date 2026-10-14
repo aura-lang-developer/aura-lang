@@ -23,8 +23,7 @@ pub extern "C" fn aura_rt_start(main_fn: extern "C" fn()) {
 
     sched.spawn(main_trampoline, main_fn as *mut ());
     let num_threads = std::thread::available_parallelism()
-        .map(|p| p.get())
-        .unwrap_or(4)
+        .map_or(4, std::num::NonZero::get)
         .max(4);
     sched.run_workers(num_threads);
 }
@@ -98,17 +97,17 @@ pub extern "C" fn aura_println_str(ptr: *const u8, len: usize) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn aura_println_i64(val: i64) {
-    println!("{}", val);
+    println!("{val}");
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn aura_println_f64(val: f64) {
-    println!("{}", val);
+    println!("{val}");
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn aura_println_bool(val: bool) {
-    println!("{}", val);
+    println!("{val}");
 }
 
 #[unsafe(no_mangle)]
@@ -163,7 +162,7 @@ pub extern "C" fn aura_val_eq(v1: i64, v2: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn aura_val_to_str(val: i64) -> *mut crate::string::AuraString {
     if val == 0 {
-        return crate::string::aura_string_from_rust_str("");
+        return crate::string::aura_string_from_rust_str("0");
     }
     let aval = crate::record::infer_val_from_i64(val);
     match aval {

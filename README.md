@@ -1,437 +1,700 @@
+> 🌍 **Languages / Idiomas:** **English** | [Español](README-ES.md)
+
 # 🌟 Aura Language (`aurac`)
 
 [![Rust CI](https://img.shields.io/badge/Rust_CI-250_tests_passing-brightgreen.svg)](tests)
-[![Compiler Speed](https://img.shields.io/badge/Speed-850k%2B_LOC%2Fs-blue.svg)#-benchmarks-y-rendimiento-empírico)
-[![Native Backend](<https://img.shields.io/badge/Backend-Cranelift_Native_(Mach--O_/_ELF)-orange.svg>)#-arquitectura-del-compilador-y-runtime)
-[![Go Backend](https://img.shields.io/badge/Backend-Golang_Toolchain_Transpiler-blue.svg)#-backend-nativo-y-modelo-golang)
-[![Concurrency](https://img.shields.io/badge/Concurrency-Go--style_CSP_Fibers_%26_Channels-purple.svg)#8-concurrencia-csp-modelo-estilo-go)
-[![Self-Hosted](https://img.shields.io/badge/Self--Hosted-Stage_1_Bootstrapped-success.svg)#-compilador-self-hosted-y-bootstrapping)
+[![Compiler Speed](https://img.shields.io/badge/Speed-850k%2B_LOC%2Fs-blue.svg)#-benchmarks-and-empirical-performance)
+[![Native Backend](<https://img.shields.io/badge/Backend-Cranelift_Native_(Mach--O_/_ELF)-orange.svg>)#-compiler-and-runtime-architecture)
+[![Go Backend](https://img.shields.io/badge/Backend-Golang_Toolchain_Transpiler-blue.svg)#-native-backend-and-golang-model)
+[![Concurrency](https://img.shields.io/badge/Concurrency-Go--style_CSP_Fibers_%26_Channels-purple.svg)#8-csp-concurrency-go-style-model)
+[![Self-Hosted](https://img.shields.io/badge/Self--Hosted-Stage_1_Bootstrapped-success.svg)#-self-hosted-compiler-and-bootstrapping)
+[![Spanish Docs](https://img.shields.io/badge/Docs-Espa%C3%B1ol-yellow.svg)](README-ES.md)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**Aura** es un lenguaje de programación de sistemas y servicios backend de alto rendimiento, fuertemente tipado, con inmutabilidad por defecto y compilación a código máquina nativo. Fusiona armónicamente la sintaxis moderna y ergonómica de **TypeScript y Go** con la seguridad estática formal, los tipos algebraicos (ADTs), la verificación exhaustiva de patrones y el manejo seguro de errores de **Rust y ML**.
+**Aura** is a high-performance, strongly typed systems and backend services programming language featuring default immutability and native machine code compilation. It harmoniously combines the modern, ergonomic syntax of **TypeScript and Go** with the formal static type safety, algebraic data types (ADTs), exhaustive pattern matching, and robust error handling of **Rust and ML**.
 
-Aura se compila directamente a **binarios nativos ejecutables autónomos** (formato Mach-O en macOS, ELF en Linux) con cero dependencias externas de runtime gracias a su backend nativo [**Cranelift**](https://cranelift.dev/) y a su runtime M:N ultraligero (`aura-runtime`), o alternativamente mediante transpilación directa a la cadena de herramientas de **Golang**. Su motor de compilación escrito en Rust procesa más de **850,000 líneas de código por segundo** con un tiempo de arranque en frío (_cold-start_) inferior a **2 ms**.
-
----
-
-## 📑 Tabla de Contenidos
-
-1. [🚀 Inicio Rápido](#-inicio-rápido)
-   - [Construcción de la Cadena de Herramientas](#1-construir-la-cadena-de-herramientas-de-aura)
-   - [Primer Programa en Aura](#2-tu-primer-programa-en-aura)
-   - [Modos de Compilación y Ejecución](#3-modos-de-compilación-y-ejecución)
-2. [✨ Características Principales](#-características-principales)
-3. [⚡ Benchmarks y Rendimiento Empírico](#-benchmarks-y-rendimiento-empírico)
-   - [Tiempos de Ejecución y Consumo de Memoria (Peak RSS)](#1-tiempos-de-ejecución-y-consumo-de-memoria-peak-rss)
-   - [Tamaño de Binarios Autónomos](#2-tamaño-de-binarios-autónomos-cero-dependencias)
-   - [Tiempos de Compilación y Verificación Estática](#3-tiempos-de-compilación-y-verificación-estática)
-   - [Benchmark del Servidor HTTP y Microservicio REST](#4-servidor-http--microservicio-rest-10000-requests-concurrencia--50)
-   - [Throughput de Compilación frente a TypeScript (`tsc`)](#5-rendimiento-de-compilación-frente-a-typescript-tsc)
-   - [Cómo Reproducir la Suite de Pruebas](#6-cómo-ejecutar-la-suite-de-benchmarks)
-4. [📁 Arquitectura del Compilador y Runtime](#-arquitectura-del-compilador-y-runtime)
-   - [Diagrama de Flujo del Pipeline](#diagrama-de-flujo-del-pipeline)
-   - [Organización del Código Fuente](#organización-del-código-fuente)
-   - [El Runtime Nativo Autónomo (`aura-runtime`)](#el-runtime-nativo-autónomo-cratesaura-runtime)
-5. [📘 Guía Completa del Lenguaje Aura](#-guía-completa-del-lenguaje-aura)
-   - [1. Sistema de Tipos de Datos Completo](#1-sistema-de-tipos-de-datos-completo)
-   - [2. Variables, Inmutabilidad y Desestructuración](#2-variables-inmutabilidad-y-desestructuración)
-   - [3. Control de Flujo, Expresiones y Bucles Etiquetados](#3-control-de-flujo-expresiones-y-bucles-etiquetados)
-   - [4. Slices y Segmentación de Colecciones (Modelo Golang)](#4-slices-y-segmentación-de-colecciones-modelo-golang)
-   - [5. Tipos Suma (ADTs) y Pattern Matching Exhaustivo](#5-tipos-suma-adts-y-pattern-matching-exhaustivo)
-   - [6. Manejo de Errores con Result, Option y Operador `?`](#6-manejo-de-errores-con-result-option-y-operador-)
-   - [7. Pipelines (`|>`) y Optimización Tail-Call (TCO)](#7-pipelines--y-optimización-de-llamadas-por-la-cola-tco)
-   - [8. Concurrencia CSP (Fibers, Canales, Select y Sync)](#8-concurrencia-csp-modelo-estilo-go)
-   - [9. Seguridad en Concurrencia (`Sendable`) y Deadlock Sentinel](#9-seguridad-en-concurrencia-sendable-y-deadlock-sentinel)
-   - [10. Limpieza Garantizada: Defer LIFO y ErrDefer Condicional](#10-limpieza-garantizada-defer-lifo-y-errdefer-condicional-zig)
-   - [11. Métodos con Receptor, Visibilidad e Interfaces Implícitas](#11-métodos-con-receptor-visibilidad-e-interfaces-implícitas)
-   - [12. Punteros Explícitos, Packed Structs y C FFI (`extern "C"`)](#12-punteros-explícitos-packed-structs-y-c-ffi-extern-c)
-   - [13. Generador Automático de Cabeceras FFI (`aurac bindgen`)](#13-generador-automático-de-cabeceras-ffi-aurac-bindgen)
-   - [14. Contexto y Cancelación Propagada (`Context`)](#14-contexto-y-cancelación-propagada-context)
-   - [15. Genéricos y Polimorfismo Paramétrico](#15-genéricos-y-polimorfismo-paramétrico)
-   - [16. Struct Tags y Build Tags Condicionales](#16-struct-tags-y-build-tags-condicionales)
-   - [17. Ingestión de TypeScript (`.d.ts`) e Inclusión Estática (`embed`)](#17-ingestión-de-typescript-dts-e-inclusión-estática-embed)
-6. [🗄️ Librería Estándar, Servidor Web y Bases de Datos](#️-librería-estándar-servidor-web-y-bases-de-datos)
-   - [Servidor Web HTTP ServeMux (`net/http`)](#-servidor-web-http-y-mux-de-enrutamiento-nethttp)
-   - [Métricas Prometheus y Trazabilidad W3C Traceparent](#-métricas-prometheus-y-trazabilidad-distribuida)
-   - [Controlador Nativo de PostgreSQL (`pg` / `postgres`)](#-controlador-nativo-de-postgresql-pg--postgres)
-   - [Controlador Nativo de MySQL (`mysql`)](#-controlador-nativo-de-mysql-mysql)
-   - [Controlador Nativo de MongoDB (`mongodb` / `mongo`)](#-controlador-nativo-de-mongodb-mongodb--mongo)
-   - [Cliente Nativo de Redis (`redis`)](#-cliente-nativo-de-redis-redis)
-   - [Módulos OS, Time, Crypto, JWT y JSON](#-módulos-del-sistema-os-time-crypto-jwt-y-json)
-   - [Microservicio REST de Producción: `bookstore_api`](#-microservicio-rest-de-producción-bookstore_api)
-7. [🐛 Depuración Interactiva y Source Maps V3](#-depuración-interactiva-y-source-maps-v3)
-   - [Depurador Paso a Paso en Terminal (`aurac step`)](#depurador-paso-a-paso-en-terminal-aurac-step)
-   - [Servidor de Depuración V8 / DAP (`aurac debug`)](#servidor-de-depuración-v8--dap-aurac-debug)
-8. [🛠️ Referencia Completa de Herramientas y CLI](#️-referencia-completa-de-herramientas-y-cli)
-   - [Compilador Central (`aurac`)](#1-compilador-central-aurac)
-   - [Runner de Pruebas, Benchmarks y Cobertura (`auratest`)](#2-runner-de-pruebas-benchmarks-y-cobertura-auratest)
-   - [Formateador de Código Opinado (`aurafmt`)](#3-formateador-de-código-aurafmt-estilo-gofmt)
-   - [Servidor LSP de Lenguaje (`auralsp`)](#4-servidor-de-lenguaje-auralsp--aurac-lsp)
-   - [Gestor Descentralizado de Módulos (`auramod` / `aurac mod`)](#5-gestor-descentralizado-de-módulos-auramod--aurac-mod)
-   - [Generador de Bindings FFI C/Rust (`aurabindgen`)](#6-generador-de-bindings-ffi-aurabindgen--aurac-bindgen)
-   - [Playground Web Interactivo (`aurac playground`)](#7-playground-web-interactivo)
-9. [🧩 Configuración en Editores](#-configuración-en-editores)
-10. [🔄 Compilador Self-Hosted y Bootstrapping](#-compilador-self-hosted-y-bootstrapping)
-11. [🗺️ Estado Actual, Roadmap e Hitos](#️-estado-actual-roadmap-e-hitos)
-12. [📄 Licencia y Marcas Registradas](#-licencia)
+Aura compiles directly into **standalone native executable binaries** (Mach-O on macOS, ELF on Linux) with zero external runtime dependencies thanks to its native [**Cranelift**](https://cranelift.dev/) backend and ultra-lightweight M:N runtime (`aura-runtime`), or alternatively via direct transpilation targeting the **Golang** toolchain. Its compiler engine written in Rust processes more than **850,000 lines of code per second** with a cold-start time of under **2 ms**.
 
 ---
 
-## 🚀 Inicio Rápido
+## 📑 Table of Contents
 
-### 1. Construir la Cadena de Herramientas de Aura
+1. [🚀 Quick Start](#-quick-start)
+   - [Building the Toolchain with Cargo](#1-building-the-aura-toolchain-with-cargo)
+   - [Your First Aura Program](#2-your-first-aura-program)
+   - [Compilation and Execution Modes](#3-compilation-and-execution-modes)
+2. [🚀 What's New in v0.2.0: Unified Native Database Subsystem & NoSQL Engines](#-whats-new-in-v020-unified-native-database-subsystem--nosql-engines)
+3. [✨ Key Features](#-key-features)
+4. [⚡ Benchmarks and Empirical Performance](#-benchmarks-and-empirical-performance)
+   - [Execution Times and Peak RSS Memory](#1-execution-times-and-memory-consumption-peak-rss)
+   - [Standalone Binary Sizes](#2-standalone-binary-sizes-zero-dependencies)
+   - [Compilation and Static Checking Times](#3-compilation-and-static-typecheck-times)
+   - [HTTP Server and REST Microservice Benchmark](#4-http-server--rest-microservice-10000-requests-concurrency--50)
+   - [Compilation Throughput vs TypeScript (`tsc`)](#5-compilation-throughput-vs-typescript-tsc)
+   - [How to Reproduce the Benchmark Suite](#6-how-to-run-the-benchmark-suite)
+5. [📁 Compiler and Runtime Architecture](#-compiler-and-runtime-architecture)
+   - [Pipeline Flow Diagram](#pipeline-flow-diagram)
+   - [Dual-Target Strategy: Native Binaries & JavaScript Interoperability](#dual-target-strategy-native-binaries--javascript-interoperability)
+   - [Why Rust for the Implementation: Advantages and Trade-offs](#why-rust-for-the-implementation-advantages-and-trade-offs)
+   - [Source Code Organization](#source-code-organization)
+   - [The Standalone Native Runtime (`aura-runtime`)](#the-standalone-native-runtime-cratesaura-runtime)
+6. [📘 Complete Aura Language Guide](#-complete-aura-language-guide)
+   - [1. Comprehensive Type System](#1-comprehensive-type-system)
+   - [2. Variables, Immutability, and Destructuring](#2-variables-immutability-and-destructuring)
+   - [3. Control Flow, Expressions, and Labeled Loops](#3-control-flow-expressions-and-labeled-loops)
+   - [4. Slices and Collection Segmentation (Golang Model)](#4-slices-and-collection-segmentation-golang-model)
+   - [5. Sum Types (ADTs) and Exhaustive Pattern Matching](#5-sum-types-adts-and-exhaustive-pattern-matching)
+   - [6. Error Handling with Result, Option, and `?` Operator](#6-error-handling-with-result-option-and--operator)
+   - [7. Pipelines (`|>`) and Tail-Call Optimization (TCO)](#7-pipelines--and-tail-call-optimization-tco)
+   - [8. CSP Concurrency (Fibers, Channels, Select, and Sync)](#8-csp-concurrency-go-style-model)
+   - [9. Compile-Time Concurrency Safety (`Sendable`) and Deadlock Sentinel](#9-concurrency-safety-sendable-and-deadlock-sentinel)
+   - [10. Guaranteed Cleanup: LIFO Defer and Conditional ErrDefer](#10-guaranteed-cleanup-lifo-defer-and-conditional-errdefer-zig)
+   - [11. Receiver Methods, Visibility, and Implicit Interfaces](#11-receiver-methods-visibility-and-implicit-interfaces)
+   - [12. Explicit Pointers, Packed Structs, and C FFI (`extern "C"`)](#12-explicit-pointers-packed-structs-and-c-ffi-extern-c)
+   - [13. Automatic FFI Header Generator (`aurac bindgen`)](#13-automatic-ffi-header-generator-aurac-bindgen)
+   - [14. Context and Propagated Cancellation (`Context`)](#14-context-and-propagated-cancellation-context)
+   - [15. Generics and Parametric Polymorphism](#15-generics-and-parametric-polymorphism)
+   - [16. Compilation Directives, Build Tags, and Struct Tags](#16-compilation-directives-build-tags-and-struct-tags)
+   - [17. TypeScript Ingestion (`.d.ts`) and Static Embedding (`embed`)](#17-typescript-ingestion-dts-and-static-asset-embedding-embed)
+   - [18. Testing Directives, Assertions, and Benchmarking](#18-testing-directives-assertions-and-benchmarking)
+7. [🗄️ Standard Library, Web Server, and Databases](#️-standard-library-web-server-and-databases)
+   - [HTTP Web Server & ServeMux Router (`net/http`)](#-http-web-server-and-routing-mux-nethttp)
+   - [Prometheus Metrics and W3C Traceparent Tracing](#-prometheus-metrics-and-distributed-tracing)
+   - [Unified Native Database Subsystem & Connection Pools](#-unified-native-database-subsystem--connection-pools)
+   - [Native Embedded SQLite Driver (`sqlite`)](#-native-embedded-sqlite-driver-sqlite)
+   - [Native PostgreSQL Driver (`postgres` / `pg`)](#-native-postgresql-driver-postgres--pg)
+   - [Native MySQL Driver (`mysql`)](#-native-mysql-driver-mysql)
+   - [Generic SQL Interface (`database/sql` / `sql`)](#-generic-sql-interface-databasesql--sql)
+   - [Native Database Driver Example Suite](#-native-database-driver-example-suite)
+   - [Native Redis Driver & In-Memory Cache (`redis` / `std/redis`)](#-native-redis-driver--in-memory-cache-redis--stdredis)
+   - [Native MongoDB Driver & Document Store (`mongodb` / `mongo` / `std/mongodb`)](#-native-mongodb-driver--document-store-mongodb--mongo--stdmongodb)
+   - [System Modules: OS, Time, Crypto, JWT, and JSON](#-system-modules-os-time-crypto-jwt-and-json)
+   - [Production REST Microservice: `bookstore_api`](#-production-rest-microservice-bookstore_api)
+8. [🐛 Interactive Debugging and Source Maps V3](#-interactive-debugging-and-source-maps-v3)
+   - [Terminal Step-by-Step Debugger (`aurac step`)](#terminal-step-by-step-debugger-aurac-step)
+   - [V8 / DAP Debugger Server (`aurac debug`)](#v8--dap-debugger-server-aurac-debug)
+9. [🛠️ Full Tooling and CLI Reference](#️-full-tooling-and-cli-reference)
+   - [Core Compiler (`aurac`)](#1-core-compiler-aurac)
+   - [Test, Benchmark, and Coverage Runner (`auratest`)](#2-test-benchmark-and-coverage-runner-auratest)
+   - [Opinionated Code Formatter (`aurafmt`)](#3-opinionated-code-formatter-aurafmt-gofmt-style)
+   - [Language Server (`auralsp`)](#4-language-server-auralsp--aurac-lsp)
+   - [Decentralized Module Manager (`auramod` / `aurac mod`)](#5-decentralized-module-manager-auramod--aurac-mod)
+   - [C/Rust FFI Binding Generator (`aurabindgen`)](#6-c-rust-ffi-binding-generator-aurabindgen--aurac-bindgen)
+   - [Interactive Web Playground (`aurac playground`)](#7-interactive-web-playground)
+10. [🧩 Editor Configuration](#-editor-configuration)
+11. [🔄 Self-Hosted Compiler and Bootstrapping](#-self-hosted-compiler-and-bootstrapping)
+12. [🗺️ Current Status, Roadmap, and Milestones](#️-current-status-roadmap-and-milestones)
+13. [📄 License and Trademarks](#-license)
 
-Asegúrate de contar con un entorno Rust moderno (edición 2024):
+---
+
+## 🚀 Quick Start
+
+### 1. Building the Aura Toolchain with Cargo
+
+Aura is implemented in Rust (2024 edition) and uses Cargo as the build system and package manager for the compiler engine and its native runtime ([`crates/aura-runtime`](crates/aura-runtime)).
+
+#### A. Prerequisites
+
+Ensure you have a modern Rust toolchain installed:
 
 ```bash
-git clone https://github.com/mrojasb2000/aura-lang.git
-cd aura-lang
-cargo build --release
+rustc --version # Requires Rust 1.85+ (2024 Edition)
+cargo --version
 ```
 
-Los ejecutables compilados se ubicarán en `target/release/`:
+#### B. Clone and Build the Complete Toolchain
 
-- `aurac`: Compilador central, constructor nativo, ejecutor en caliente, watch, depurador y playground.
-- `auratest`: Suite completa de pruebas unitarias, benchmarks (`ns/op`) y cobertura HTML.
-- `aurafmt`: Formateador de código rápido, idempotente y opinado (estilo `gofmt`).
-- `auralsp`: Demonio del Language Server Protocol (LSP) compatible con cualquier editor moderno.
-- `auramod` / `aurapkg`: Gestor de paquetes descentralizado (`aura.mod` y `aura.lock`).
-- `aurabindgen`: Generador automático de bindings FFI a partir de archivos de cabecera C (`.h`).
+```bash
+git clone https://github.com/aura-lang-developer/aura-lang.git
+cd aura-lang
 
-### 2. Tu Primer Programa en Aura
+# Optimized production compilation (Release with Thin LTO, 1 codegen-unit, and symbol stripping)
+cargo build --release
 
-Crea un archivo llamado `hello.aura`:
+# Or fast development compilation (Debug)
+cargo build
+```
+
+The workspace is configured with centralized `[workspace.dependencies]`, unified `[workspace.lints]`, and optimized release profiles in `Cargo.toml`.
+
+The compiled binaries will be placed in `target/release/` (or `target/debug/`):
+
+- `aura` (or `aurac`): Unified CLI toolchain and core compiler, native builder, hot runner (`run`), test engine (`test` / `--test`), watcher, debugger, and playground.
+- `auratest`: Complete unit test, benchmark (`ns/op`), and HTML coverage suite.
+- `aurafmt`: Fast, idempotent, and opinionated code formatter (`gofmt` style).
+- `auralsp`: Language Server Protocol (LSP) daemon compatible with any modern editor.
+- `auramod` / `aurapkg`: Decentralized package manager (`aura.mod` and `aura.lock`).
+- `aurabindgen`: Automated FFI binding generator from C header files (`.h`).
+
+#### C. Selective Binary Compilation
+
+You can compile individual binaries using the `--bin` flag:
+
+```bash
+# Compile the primary toolchain binary (or --bin aurac)
+cargo build --release --bin aura
+
+# Compile only the test and benchmark runner
+cargo build --release --bin auratest
+
+# Compile only the code formatter
+cargo build --release --bin aurafmt
+
+# Compile only the Language Server
+cargo build --release --bin auralsp
+```
+
+#### D. Direct Invocation via Cargo (Without modifying PATH)
+
+You can invoke the tools directly using `cargo run`, separating Aura flags with `--`:
+
+```bash
+# Build an Aura program into a standalone native binary:
+cargo run --release --bin aurac -- build examples/hello.aura -o dist/hello
+
+# Rapid hot execution:
+cargo run --bin aurac -- run examples/hello.aura
+
+# Static type checking (Hindley-Milner):
+cargo run --bin aurac -- check examples/hello.aura
+
+# Compile with conditional build tags:
+cargo run --bin aurac -- build examples/build_tags_demo.aura -o dist/build_demo --tags "pro"
+
+# Run Aura tests:
+cargo run --bin auratest -- examples/tests/
+
+# Format Aura files:
+cargo run --bin aurafmt -- -w examples/
+```
+
+#### E. Global System Installation
+
+To make all Aura commands (`aurac`, `auratest`, `aurafmt`, etc.) available globally in your shell:
+
+```bash
+cargo install --path .
+```
+
+This installs all binaries into `$HOME/.cargo/bin`. Make sure `$HOME/.cargo/bin` is in your `PATH`.
+
+#### F. Internal Compiler Verification with Cargo
+
+To verify the compiler implementation and its test suite:
+
+```bash
+# Run all unit tests for the compiler library
+cargo test --lib
+
+# Run end-to-end integration and bootstrapping tests
+cargo test --test bootstrap_tests -- --test-threads=1
+
+# Run concurrency and build tag evaluation tests
+cargo test --test build_tags_and_race_tests
+```
+
+### 2. Your First Aura Program
+
+Create a file named `hello.aura`:
 
 ```aura
 export fn main(): Unit => {
-    println("¡Hola desde Aura Lang!");
+    println("Hello from Aura Lang!");
 }
 ```
 
-Puedes agregar un alias ergonómico a tu shell (`~/.zshrc` o `~/.bashrc`):
+Verify your installation:
 
 ```bash
-alias aura="aurac"
+aura --version
+# Output: aura 0.5.0
+aurac --version
+# Output: aurac 0.5.0
 ```
 
-### 3. Modos de Compilación y Ejecución
+### 3. Compilation and Execution Modes
 
-#### A. Ejecución Rápida en Desarrollo:
+#### A. Rapid Development Execution:
 
 ```bash
 aurac run hello.aura
-# Salida: ¡Hola desde Aura Lang!
+# Output: Hello from Aura Lang!
 ```
 
-#### B. Compilación a Binario Nativo Independiente (Cranelift):
+#### B. Standalone Native Binary Compilation (Cranelift):
 
-Genera un binario nativo autónomo sin dependencias externas:
+Generates a standalone native binary without external runtime dependencies:
 
 ```bash
 aurac build hello.aura -o hello --target native
 ./hello
-# Salida: ¡Hola desde Aura Lang!
+# Output: Hello from Aura Lang!
 ```
 
-#### C. Compilación Optimizada con SIMD y Dead-Code Stripping:
+#### C. Optimized Compilation with SIMD and Dead-Code Stripping:
 
 ```bash
 aurac build hello.aura -o hello --release -O3
 ```
 
-#### D. Compilación mediante la Cadena de Herramientas de Go:
+#### D. Compilation via the Go Toolchain:
 
 ```bash
 aurac build hello.aura -o hello --target go
 ./hello
-# O generar el código fuente Go puro inspeccionable:
+# Or emit pure, inspectable Go source code:
 aurac emit-go hello.aura -o hello.go
 ```
 
 ---
 
-## ✨ Características Principales
+## 🚀 What's New in v0.2.0: Unified Native Database Subsystem & NoSQL Engines
 
-- **🏎️ Backend Nativo Cranelift**: Genera código máquina nativo (Mach-O en macOS, ELF en Linux) enlazado estáticamente con el runtime ligero en Rust (`libaura_runtime.a`), sin intérpretes ni dependencias dinámicas.
-- **🔒 Inferencia de Tipos Hindley-Milner Bidireccional**: Resolución de tipos robusta, genéricos paramétricos completos (`<T, E>`) y eliminación total de errores de puntero nulo (`null` / `undefined`) mediante los tipos algebraicos estándar `Option<T>` (`Some(v)` / `None`) y `Result<T, E>` (`Ok(v)` / `Err(e)`).
-- **🔪 Slices y Colecciones Dinámicas (Modelo Go)**: Sintaxis concisa `[]T` (equivalente a `List<T>`), expresiones de segmentación semiabiertas `s[low:high]`, `s[:high]`, `s[low:]`, `s[:]` y segmentación con 3 índices `s[low:high:max]`, con funciones nativas `len`, `cap`, `append`, `make` y soporte en todos los backends.
-- **🔄 Concurrencia CSP (Estilo Go)**: Fibers livianos sobre un scheduler M:N con stack switching (`spawn`), canales fuertemente tipados con buffers configurables (`Channel<T>`), canales direccionales (`SendChannel<T>`, `RecvChannel<T>`), iteración de canales (`for val in ch`), multiplexación selectiva (`select`) con soporte de timeouts y ramas por defecto, además de primitivas de sincronización (`Mutex`, `RWMutex`, `WaitGroup`, `Once`, `Pool`).
-- **🛡️ Concurrencia Segura en Compilación (`Sendable`)**: El compilador valida estáticamente que únicamente estructuras libres de punteros crudos puedan cruzar canales, erradicando _data races_ y bloqueando errores en tiempo de compilación.
-- **🛡️ Semántica Robusta de Recursos (Go + Zig)**: Sentencias `defer` con garantía LIFO incondicional y sentencias **`errdefer`** que ejecutan limpiezas o rollbacks transaccionales **exclusivamente si ocurre un error o pánico**.
-- **🧩 Interfaces Implícitas (Duck Typing Estructural)**: Separación estricta de datos y comportamiento. Las estructuras definen datos y los métodos se asocian mediante receptores por valor `fn (s: Type) ...` o puntero `fn (s: *Type) ...`. Las interfaces se satisfacen automáticamente sin palabras clave como `implements`.
-- **⚡ Optimización Tail-Call (TCO)**: Las funciones recursivas en posición de cola se transforman automáticamente en bucles iterativos `while (true)` con consumo de stack $O(1)$.
-- **🗄️ Librería Estándar "Batteries-Included"**: Controladores nativos tipados para **PostgreSQL**, **MySQL**, **MongoDB** y **Redis**, junto con un servidor web **HTTP ServeMux** de ultra alto rendimiento (**126k+ req/s**).
-- **📊 Observabilidad Nativa**: Servidor HTTP con endpoint `/metrics` en formato Prometheus y propagación distribuida de contexto W3C `traceparent` (OpenTelemetry).
-- **📦 Gestor de Paquetes Descentralizado (`auramod`)**: Resolución de dependencias mediante URLs y Git (`github.com/user/pkg`), manifiesto `aura.mod`, lockfile criptográfico `aura.lock` con árbol de hashes SHA-256 (`h1:...`), vendoring offline y verificación de integridad.
-- **🔌 Generador de Bindings C/Rust FFI (`aurabindgen`)**: Parsea cabeceras `.h` y genera automáticamente declaraciones `extern "C"`, structs empaquetados (`packed struct`) y funciones wrapper seguras.
-- **🐛 Depurador Interactivo de Terminal y Source Maps V3**: Depurador nativo con comandos de paso a paso (`aurac step`), e integración con DAP / V8 Inspector (`aurac debug`) para editores modernos.
-- **🔄 Compilador Self-Hosted**: Implementación completa del compilador escrita en el propio lenguaje Aura (`src/aura_compiler/`).
+Aura **v0.2.0** introduces a high-performance, strongly-typed native database subsystem designed specifically for standalone binary executables compiled directly via **Cranelift**. It operates with **zero external dynamic runtime dependencies** (no `.so` or `.dylib` library prerequisites), bundles pure-Rust network wire protocols, and integrates embedded in-memory fallback execution:
+
+### 🌟 Architectural Highlights
+
+1. **Pure-Rust Embedded & Wire Protocols (Zero External Shared Libraries)**:
+   - **Embedded SQLite 3**: Statically bundled SQLite engine supporting lightning-fast in-memory stores (`:memory:`) and persistent single-file databases.
+   - **Pure-Rust PostgreSQL Wire Protocol (3.0)**: Parameterized extended query execution (`$1, $2`), cursor streaming, and MD5 authentication without requiring `libpq`.
+   - **Pure-Rust MySQL Protocol (10)**: Prepared statement parameter binding (`?`), binary result set parsing, and SHA-1 authentication handshakes without `libmysqlclient`.
+   - **Pure-Rust Redis Client (RESP)**: Native Redis serialization protocol engine with standalone in-memory cache fallback (`:memory:`).
+   - **Pure-Rust MongoDB Document Engine**: Native document store supporting nested JSON/BSON records, dynamic query filters, atomic field updates, and multi-stage aggregation pipelines with standalone `:memory:` fallback.
+
+2. **Polymorphic Generic SQL Interface (`database/sql` / `sql`)**:
+   - Go-style connection pooling (`DB`) with configurable worker limits (`maxConns`), health checks (`db.ping()`), and deterministic cleanup (`db.close()`).
+   - Atomic ACID Transactions (`Tx`) with automatic `commit()` and `rollback()` guarantees, fully compatible with transactional `errdefer`.
+   - Strongly-typed cursor iteration (`Rows`) with zero-copy row scanners (`getInt`, `getString`, `getFloat`, `getBool`, `toRecord`, `toList`).
+
+3. **High-Performance NoSQL & Key-Value Engines**:
+   - **Redis (`std/database/redis` / `std/redis`)**: Full support for Strings (KV with TTL), Structured Hash maps (`hset`, `hget`, `hdel`, `hgetall`), Atomic counters (`incr`, `decr`), FIFO Queues and Lists (`lpush`, `rpop`, `lrange`), Key expiration (`expire`, `ttl`), and Health checks (`ping`).
+   - **MongoDB (`std/database/mongodb` / `std/mongo`)**: Full CRUD support (`insertOne`, `insertMany`, `findOne`, `find`, `updateOne`, `updateMany`, `deleteOne`, `deleteMany`, `count`), rich filter operators (`$gt`, `$gte`, `$lt`, `$lte`, `$ne`, `$in`), atomic modifiers (`$set`, `$inc`, `$unset`), and multi-stage aggregation pipelines (`$match`, `$group`, `$sum`, `$avg`).
+
+4. **Direct Cranelift Native Machine Code Emission**:
+   - 33+ C ABI runtime entrypoints registered in `libaura_runtime.a` and mapped directly into Cranelift native machine code.
+   - Transparent member access and seamless interoperability between synchronous Go-style syntax (`let res = col.insertOne({...});`) and asynchronous TypeScript-style syntax (`let res = await col.insertOne({...});`).
+
+5. **7 Production-Grade Standalone Examples**:
+   - Complete suite of runnable examples in [`examples/`](examples) demonstrating SQLite CRUD, ACID bank transactions, generic SQL connection pools, PostgreSQL order processing, MySQL inventory management, all-in-one SQL showcase, and Redis + MongoDB NoSQL workflows.
 
 ---
 
-## ⚡ Benchmarks y Rendimiento Empírico
+## ✨ Key Features
 
-Aura incluye una suite de pruebas de rendimiento automatizada y reproducible ubicada en [`benchmarks/`](benchmarks), evaluada rigurosamente en hardware Apple Silicon (Darwin arm64) comparando **Aura Lang (`aurac`)** frente a **Golang (`go 1.27+`)**.
+- **🏎️ Native Cranelift Backend**: Generates native machine code (Mach-O on macOS, ELF on Linux) statically linked with the lightweight Rust runtime (`libaura_runtime.a`), without interpreters or dynamic dependencies.
+- **🔒 Bidirectional Hindley-Milner Type Inference**: Robust type resolution, complete parametric generics (`<T, E>`), and total elimination of null pointer exceptions (`null` / `undefined`) through standard algebraic types `Option<T>` (`Some(v)` / `None`) and `Result<T, E>` (`Ok(v)` / `Err(e)`).
+- **🔪 Slices and Dynamic Collections (Go Model)**: Concise `[]T` syntax (equivalent to `List<T>`), half-open slicing expressions `s[low:high]`, `s[:high]`, `s[low:]`, `s[:]`, and 3-index slicing `s[low:high:max]`, with built-in functions `len`, `cap`, `append`, `make`, and full backend support.
+- **🔄 CSP Concurrency (Go Style)**: Lightweight fibers on an M:N scheduler with stack switching (`spawn`), strongly typed channels with configurable buffers (`Channel<T>`), directional channels (`SendChannel<T>`, `RecvChannel<T>`), channel iteration (`for val in ch`), selective multiplexing (`select`) with timeout and default branches, plus synchronization primitives (`Mutex`, `RWMutex`, `WaitGroup`, `Once`, `Pool`).
+- **🛡️ Compile-Time Concurrency Safety (`Sendable`)**: The compiler statically validates that only data structures free of raw pointers may traverse channels, eradicating data races and catching bugs at compile time.
+- **🛡️ Robust Resource Semantics (Go + Zig)**: Unconditional LIFO `defer` statements and **`errdefer`** statements that execute cleanup or transactional rollbacks **exclusively if an error or panic occurs**.
+- **🧩 Implicit Interfaces (Structural Duck Typing)**: Strict separation of data and behavior. Structs define data layout, and methods are bound via value receivers `fn (s: Type) ...` or pointer receivers `fn (s: *Type) ...`. Interfaces are satisfied automatically without keywords like `implements`.
+- **⚡ Tail-Call Optimization (TCO)**: Tail-recursive functions are automatically transformed into iterative `while (true)` loops with $O(1)$ stack consumption.
+- **🗄️ "Batteries-Included" Standard Library**: Typed native drivers for **PostgreSQL**, **MySQL**, **MongoDB**, and **Redis**, alongside an ultra-high-performance **HTTP ServeMux** web server (**126k+ req/s**).
+- **📊 Native Observability**: HTTP server with `/metrics` endpoint in Prometheus format and distributed context propagation via W3C `traceparent` (OpenTelemetry).
+- **📦 Decentralized Package Manager (`auramod`)**: Dependency resolution via Git URLs (`github.com/user/pkg`), `aura.mod` manifest, cryptographic `aura.lock` lockfile with SHA-256 hash trees (`h1:...`), offline vendoring, and integrity checks.
+- **🔌 C/Rust FFI Binding Generator (`aurabindgen`)**: Parses `.h` headers and automatically generates `extern "C"` declarations, packed structs (`packed struct`), and safe wrapper functions.
+- **🐛 Interactive Terminal Debugger and Source Maps V3**: Native debugger with step-by-step commands (`aurac step`), plus DAP / V8 Inspector integration (`aurac debug`) for modern editors.
+- **🔄 Self-Hosted Compiler**: Complete compiler implementation written in the Aura language itself (`src/aura_compiler/`).
 
-### 1. Tiempos de Ejecución y Consumo de Memoria (Peak RSS)
+---
 
-| Escenario Evaluado                      | Aura Lang (`aurac`) | Golang (`go`) |     Ratio (Aura vs Go)      | Memoria Aura (RSS) | Memoria Go (RSS) |        Ventaja / Estado        |
-| :-------------------------------------- | :-----------------: | :-----------: | :-------------------------: | :----------------: | :--------------: | :----------------------------: |
-| **Fibonacci Recursivo ($N=38$)**        |      188.08 ms      |   142.74 ms   |            1.32x            |    **3.19 MB**     |     4.14 MB      |      **-23.0% menos RAM**      |
-| **Criba de Eratóstenes (2M primos)**    |      17.23 ms       |   11.21 ms    | 1.54x *(mejora desde 2.66x)*|      18.45 MB      |     6.30 MB      | Optimizado con `Array.repeat`  |
-| **Pipeline Funcional (1M items)**       |    **12.16 ms**     |   11.86 ms    | **1.03x (Paridad Total)**   |      20.55 MB      |     20.44 MB     | 🚀 **Paridad total con Go**    |
-| **Canales CSP Ping-Pong (200k msgs)**   |    **29.71 ms**     |   29.58 ms    | **1.00x (Paridad Absoluta)**|      9.00 MB       |     4.36 MB      | 🚀 **Paridad absoluta con Go** |
-| **Spawn Concurrente (50k tareas)**      |      17.57 ms       |   15.98 ms    | **1.10x (Casi paridad)**    |      11.38 MB      |     6.86 MB      |   Scheduler O(1) + Stack Pool  |
-| **Arranque en Frío / Cold-Start (CLI)** |     **7.10 ms**     |   11.86 ms    | **0.60x (40% más veloz)**   |    **3.09 MB**     |     4.30 MB      | 🏆 **-28.1% RAM y +40% speed**  |
-| **Sincronización Mutex (50k ops)**      |      22.53 ms       |   19.80 ms    |            1.14x            |      13.80 MB      |     8.55 MB      |       Fast-path atómico        |
-| **Cache KV Concurrente (50k ops)**      |    **22.26 ms**     |   30.67 ms    | **0.73x (27% más rápido)**  |      15.42 MB      |     11.17 MB     | 🏆 **Aura 1.37x más veloz**    |
+## ⚡ Benchmarks and Empirical Performance
 
-### 2. Tamaño de Binarios Autónomos (Cero Dependencias)
+Aura includes an automated, reproducible benchmark suite located in [`benchmarks/`](benchmarks), rigorously evaluated on Apple Silicon hardware (Darwin arm64) comparing **Aura Lang (`aurac`)** against **Golang (`go 1.27+`)**.
 
-| Escenario                              | Binario Go (MB) | Binario Go Stripped (`-s -w`) | Binario Standalone Aura |                  Ratio Aura vs Go                  |
-| :------------------------------------- | :-------------: | :---------------------------: | :---------------------: | :------------------------------------------------: |
-| **Cálculo Numérico (Cranelift)**       |     2.32 MB     |            1.51 MB            |       **1.77 MB**       |         **0.76x (Aura más pequeño que Go)**        |
-| **Pipeline de Datos (Cranelift)**      |     2.32 MB     |            1.51 MB            |       **1.77 MB**       |         **0.76x (Aura más pequeño que Go)**        |
-| **Servidor HTTP REST / Microservicio** |     8.85 MB     |            5.96 MB            |       **1.77 MB**       | **0.20x (Aura 80% más liviano / 5x más compacto)** |
-| **Concurrencia CSP / Canales**         |     2.33 MB     |            1.53 MB            |       **5.07 MB**       |                       2.17x                        |
+### 1. Execution Times and Memory Consumption (Peak RSS)
 
-### 3. Tiempos de Compilación y Verificación Estática
+| Evaluated Scenario                      | Aura Lang (`aurac`) | Golang (`go`) |     Ratio (Aura vs Go)      | Aura Memory (RSS) | Go Memory (RSS) |        Status / Aura Advantage        |
+| :-------------------------------------- | :-----------------: | :-----------: | :-------------------------: | :---------------: | :-------------: | :-----------------------------------: |
+| **Recursive Fibonacci ($N=38$)**        |      188.08 ms      |   142.74 ms   |            1.32x            |    **3.19 MB**    |     4.14 MB     |         **-23.0% less RAM**           |
+| **Sieve of Eratosthenes (2M primes)**   |      17.23 ms       |   11.21 ms    | 1.54x *(improved from 2.66x)*|     18.45 MB      |     6.30 MB     |     Optimized with `Array.repeat`     |
+| **Functional Pipeline (1M items)**      |    **12.16 ms**     |   11.86 ms    |  **1.03x (Full Parity)**    |     20.55 MB      |    20.44 MB     | 🚀 **Full performance parity with Go**|
+| **CSP Ping-Pong Channels (200k msgs)**  |    **29.71 ms**     |   29.58 ms    | **1.00x (Absolute Parity)** |      9.00 MB      |     4.36 MB     | 🚀 **Absolute parity with Go**        |
+| **Concurrent Spawn (50k tasks)**        |      17.57 ms       |   15.98 ms    |   **1.10x (Near Parity)**   |     11.38 MB      |     6.86 MB     |      Scheduler O(1) + Stack Pool      |
+| **Cold Start (CLI process)**            |     **7.10 ms**     |   11.86 ms    |  **0.60x (40% faster)**     |    **3.09 MB**    |     4.30 MB     | 🏆 **-28.1% RAM and +40% faster**     |
+| **Mutex Synchronization (50k ops)**     |      22.53 ms       |   19.80 ms    |            1.14x            |     13.80 MB      |     8.55 MB     |           Atomic fast-path            |
+| **Concurrent KV Cache (50k ops)**       |    **22.26 ms**     |   30.67 ms    |   **0.73x (27% faster)**    |     15.42 MB      |    11.17 MB     |   🏆 **Aura 1.37x faster than Go**    |
 
-| Escenario                 | `aurac check` (HM Typecheck) | `aurac build` (Standalone) | `go build` |
-| :------------------------ | :--------------------------: | :------------------------: | :--------: |
-| **Fibonacci Recursivo**   |         **17.2 ms**          |        **84.0 ms**         |  369.0 ms  |
-| **Criba de Eratóstenes**  |          **8.8 ms**          |        **50.7 ms**         |  366.8 ms  |
-| **Pipeline de Datos**     |          **8.5 ms**          |        **51.3 ms**         |  215.2 ms  |
-| **Canales CSP Ping-Pong** |          **7.7 ms**          |        **184.6 ms**        |  234.1 ms  |
-| **Spawn Concurrente**     |          **7.1 ms**          |        **508.5 ms**        |  469.0 ms  |
-| **Cold Start (CLI)**      |         **11.7 ms**          |        **54.3 ms**         |  252.4 ms  |
-| **Sincronización Mutex**  |         **10.6 ms**          |        **511.2 ms**        |  356.9 ms  |
-| **Cache KV Concurrente**  |         **11.3 ms**          |        **532.5 ms**        |  248.0 ms  |
+### 2. Standalone Binary Sizes (Zero Dependencies)
 
-### 4. Servidor HTTP / Microservicio REST (10,000 requests, Concurrencia = 50)
+| Scenario                                | Go Binary (MB) | Go Stripped (`-s -w`) | Aura Standalone Binary |               Ratio Aura vs Go                |
+| :-------------------------------------- | :------------: | :-------------------: | :--------------------: | :-------------------------------------------: |
+| **Numerical Calculation (Cranelift)**   |    2.32 MB     |        1.51 MB        |      **1.77 MB**       |         **0.76x (Aura smaller than Go)**      |
+| **Data Pipeline (Cranelift)**           |    2.32 MB     |        1.51 MB        |      **1.77 MB**       |         **0.76x (Aura smaller than Go)**      |
+| **HTTP REST Server / Microservice**     |    8.85 MB     |        5.96 MB        |      **1.77 MB**       | **0.20x (Aura 80% lighter / 5x more compact)**|
+| **CSP Concurrency / Channels**          |    2.33 MB     |        1.53 MB        |      **5.07 MB**       |                     2.17x                     |
 
-Evaluación de throughput y percentiles de latencia en peticiones concurrentes contra endpoints JSON:
+### 3. Compilation and Static Typecheck Times
 
-| Métrica de Rendimiento             | Aura Standalone Server | Go Native Server (`net/http`) |          Ventaja de Aura Lang          |
+| Scenario                 | `aurac check` (HM Typecheck) | `aurac build` (Standalone) | `go build` |
+| :----------------------- | :--------------------------: | :------------------------: | :--------: |
+| **Recursive Fibonacci**  |         **17.2 ms**          |        **84.0 ms**         |  369.0 ms  |
+| **Sieve of Eratosthenes**|          **8.8 ms**          |        **50.7 ms**         |  366.8 ms  |
+| **Data Pipeline**        |          **8.5 ms**          |        **51.3 ms**         |  215.2 ms  |
+| **CSP Channels**         |          **7.7 ms**          |        **184.6 ms**        |  234.1 ms  |
+| **Concurrent Spawn**     |          **7.1 ms**          |        **508.5 ms**        |  469.0 ms  |
+| **Cold Start (CLI)**     |         **11.7 ms**          |        **54.3 ms**         |  252.4 ms  |
+| **Mutex Synchronization**|         **10.6 ms**          |        **511.2 ms**        |  356.9 ms  |
+| **Concurrent KV Cache**  |         **11.3 ms**          |        **532.5 ms**        |  248.0 ms  |
+
+### 4. HTTP Server / REST Microservice (10,000 requests, Concurrency = 50)
+
+Throughput and latency percentile evaluation under concurrent requests against JSON endpoints:
+
+| Performance Metric                 | Aura Standalone Server | Go Native Server (`net/http`) |           Aura Advantage               |
 | :--------------------------------- | :--------------------: | :---------------------------: | :------------------------------------: |
-| **Throughput (req/s)**             |    **33,293 req/s**    |         66,809 req/s          |      Rendimiento masivo en carga       |
-| **Latencia Media**                 |      **1.44 ms**       |            0.67 ms            |    Alta estabilidad en concurrencia    |
-| **Latencia Mediana (p50)**         |      **0.46 ms**       |            0.50 ms            |   🏆 **Aura más rápido en mediana**    |
-| **Latencia Percentil 95 (p95)**    |      **1.71 ms**       |            1.61 ms            |       Latencia predecible en cola      |
-| **Tamaño de Binario Distribuible** |      **1.77 MB**       |  8.85 MB (5.96 MB stripped)   | 🏆 **5x más compacto (-80% de disco)** |
+| **Throughput (req/s)**             |    **33,293 req/s**    |         66,809 req/s          |        Massive load throughput         |
+| **Mean Latency**                   |      **1.44 ms**       |            0.67 ms            |    High stability under concurrency    |
+| **Median Latency (p50)**           |      **0.46 ms**       |            0.50 ms            |   🏆 **Aura faster median (0.46 ms)**  |
+| **95th Percentile Latency (p95)**  |      **1.71 ms**       |            1.61 ms            |       Predictable tail latency         |
+| **Distributable Binary Size**      |      **1.77 MB**       |  8.85 MB (5.96 MB stripped)   | 🏆 **5x more compact (-80% disk)**     |
 
-### 5. Rendimiento de Compilación frente a TypeScript (`tsc`)
+### 5. Compilation Throughput vs TypeScript (`tsc`)
 
-| Métrica Clave                    |      Aura Lang (`aurac`)       |   TypeScript (`tsc`)   |          Ventaja de Aura           |
+| Key Metric                       |      Aura Lang (`aurac`)       |   TypeScript (`tsc`)   |           Aura Advantage           |
 | :------------------------------- | :----------------------------: | :--------------------: | :--------------------------------: |
-| **Arranque Frío de Compilador**  |     **~1.50 ms – 1.78 ms**     |    ~130 ms – 150 ms    |    🚀 **~80x – 100x más veloz**    |
-| **Latencia Interna del Motor**   |    **0.016 ms – 0.089 ms**     |     ~15 ms – 45 ms     | ⚡ **~200x – 500x menor latencia** |
-| **Throughput de Compilación**    | **~850,000 – 1,680,000 LOC/s** | ~25,000 – 60,000 LOC/s | 📈 **~20x – 40x mayor throughput** |
-| **Consumo de Memoria RAM (RSS)** |          **2.27 MB**           |  103.9 MB – 143.0 MB   |      📉 **45x menor consumo**      |
+| **Compiler Cold Start**          |     **~1.50 ms – 1.78 ms**     |    ~130 ms – 150 ms    |    🚀 **~80x – 100x faster**       |
+| **Internal Engine Latency**      |    **0.016 ms – 0.089 ms**     |     ~15 ms – 45 ms     | ⚡ **~200x – 500x lower latency**   |
+| **Compilation Throughput**       | **~850,000 – 1,680,000 LOC/s** | ~25,000 – 60,000 LOC/s | 📈 **~20x – 40x higher throughput**|
+| **RAM Consumption (Peak RSS)**   |          **2.27 MB**           |  103.9 MB – 143.0 MB   |      📉 **45x lower memory**       |
 
-### 6. Cómo Ejecutar la Suite de Benchmarks
+### 6. How to Run the Benchmark Suite
 
-Para reproducir de forma determinista todas las mediciones en tu propia máquina:
+To deterministically reproduce all measurements on your local machine:
 
 ```bash
-# Compilar y ejecutar la suite automatizada:
+# Compile and run the automated suite:
 go run benchmarks/benchmark_suite.go
 
-# O invocar el binario precompilado:
+# Or run the precompiled binary:
 ./benchmarks/benchmark_suite
 ```
 
-Los resultados completos quedarán guardados en formato JSON estructurado en [`benchmarks/results.json`](benchmarks/results.json).
+Complete results are stored in structured JSON format in [`benchmarks/results.json`](benchmarks/results.json).
 
 ---
 
-## 📁 Arquitectura del Compilador y Runtime
+## 📁 Compiler and Runtime Architecture
 
-### Diagrama de Flujo del Pipeline
+### Pipeline Flow Diagram
 
 ```mermaid
 flowchart TD
-    Src["Código Fuente Aura (*.aura)"] --> Lex["Lexer Determinista (lexer.rs)"]
-    Lex --> Parse["Parser Pratt Recursivo (parser.rs)"]
-    Parse --> AST["Árbol de Sintaxis Abstracta (ast.rs)"]
+    Src["Aura Source Code (*.aura)"] --> Lex["Deterministic Lexer (lexer.rs)"]
+    Lex --> Parse["Recursive Pratt Parser (parser.rs)"]
+    Parse --> AST["Abstract Syntax Tree (ast.rs)"]
 
-    DTS["Definiciones TypeScript (*.d.ts)"] --> DTSP["DTS Parser (dts_parser.rs)"]
+    DTS["TypeScript Definitions (*.d.ts)"] --> DTSP["DTS Parser (dts_parser.rs)"]
     DTSP --> TC
 
-    HDR["Cabeceras C (*.h)"] --> BGEN["Aura Bindgen (bindgen.rs)"]
+    HDR["C Headers (*.h)"] --> BGEN["Aura Bindgen (bindgen.rs)"]
     BGEN --> AST
 
-    AST --> TC["TypeChecker Hindley-Milner (typechecker.rs)<br/>• Inferencia Bidireccional & Genéricos<br/>• Structural Duck Typing<br/>• Sendable Concurrency Safety [E0401]"]
+    AST --> TC["Hindley-Milner TypeChecker (typechecker.rs)<br/>• Bidirectional Inference & Generics<br/>• Structural Duck Typing<br/>• Sendable Concurrency Safety [E0401]"]
 
-    TC --> BackendMux{"Selector de Backend<br/>(aurac build / run)"}
+    TC --> BackendMux{"Backend Selector<br/>(aurac build / run)"}
 
-    BackendMux -->|"--target native (por defecto)"| CL["Cranelift Native Backend (codegen_cranelift.rs)<br/>• Generación de IR Cranelift<br/>• Autovectorización SIMD (-O3)<br/>• Optimización LTO de Código Muerto"]
-    CL --> Runtime["Runtime Nativo (crates/aura-runtime)<br/>• M:N Fiber Scheduler & Stack Switching<br/>• Mark-and-Sweep Garbage Collector (GC)<br/>• Canales CSP & Deadlock Sentinel<br/>• Servidor HTTP Zero-Alloc & Métricas Prometheus"]
-    Runtime --> BinNative["Binario Nativo Autónomo<br/>(Mach-O en macOS / ELF en Linux)"]
+    BackendMux -->|"--target native (default)"| CL["Cranelift Native Backend (codegen_cranelift.rs)<br/>• Cranelift IR Generation<br/>• SIMD Autovectorization (-O3)<br/>• LTO Dead-Code Stripping"]
+    CL --> Runtime["Native Runtime (crates/aura-runtime)<br/>• M:N Fiber Scheduler & Stack Switching<br/>• Mark-and-Sweep Garbage Collector (GC)<br/>• CSP Channels & Deadlock Sentinel<br/>• Zero-Alloc HTTP Server & Prometheus Metrics"]
+    Runtime --> BinNative["Standalone Native Binary<br/>(Mach-O on macOS / ELF on Linux)"]
 
-    BackendMux -->|"--target go / emit-go"| GoCG["Transpilador Go Idiomático (codegen_go.rs)"]
+    BackendMux -->|"--target go / emit-go"| GoCG["Idiomatic Go Transpiler (codegen_go.rs)"]
     GoCG --> GoTool["Go Toolchain (go build)"]
-    GoTool --> BinGo["Binario Go Nativo Autónomo"]
+    GoTool --> BinGo["Standalone Native Go Binary"]
 
-    BackendMux -->|"aurac run / debug / watch"| NodeCG["Generador ES6 + Source Maps V3 (codegen.rs)"]
-    NodeCG --> NodeRuntime["Ejecución Instantánea / Inspector V8 DAP"]
+    BackendMux -->|"aurac run / debug / watch"| NodeCG["ES6 Generator + Source Maps V3 (codegen.rs)"]
+    NodeCG --> NodeRuntime["Instant Execution / V8 DAP Inspector"]
 ```
 
-### Organización del Código Fuente
+### Dual-Target Strategy: Native Binaries & JavaScript Interoperability
 
-- [`src/ast.rs`](/aura-lang/src/ast.rs) — Definición formal del AST (expresiones, sentencias, tipos algebraicos, concurrencia CSP, receptores e interfaces).
-- [`src/lexer.rs`](/aura-lang/src/lexer.rs) — Lexer determinista con soporte para operadores de tubería (`|>`), canales (`<-`, `chan<-`), punteros y palabras clave de sistemas.
-- [`src/parser.rs`](/aura-lang/src/parser.rs) — Parser descendente recursivo y de precedencia de operadores (Pratt Parser).
-- [`src/typechecker.rs`](/aura-lang/src/typechecker.rs) — Inferencia bidireccional Hindley-Milner, exhaustividad de patrones, duck typing estructural y reglas de seguridad de concurrencia (`Sendable`).
-- [`src/codegen_cranelift.rs`](/aura-lang/src/codegen_cranelift.rs) — Backend nativo que compila el AST directamente a código máquina nativo utilizando Cranelift.
-- [`src/codegen_go.rs`](/aura-lang/src/codegen_go.rs) — Generador de código idiomático de Golang (`net/http`, goroutines, canales, select, struct receivers).
-- [`src/codegen.rs`](/aura-lang/src/codegen.rs) — Generador de código para desarrollo ágil, TCO, soporte de debug y Source Maps V3.
-- [`src/bindgen.rs`](/aura-lang/src/bindgen.rs) — Analizador de cabeceras C (`.h`) y generador de bindings FFI y wrappers seguros (`aurac bindgen`).
-- [`src/package.rs`](/aura-lang/src/package.rs) — Gestor descentralizado de dependencias y módulos (`auramod` / `aurapkg`), cálculo de hashes criptográficos SHA-256 (`h1:...`) y vendoring offline.
-- [`src/backend.rs`](/aura-lang/src/backend.rs) — Orquestador de validación de backend y compilación de binarios.
-- [`src/testing.rs`](/aura-lang/src/testing.rs) — Motor de pruebas unitarias, benchmarks (`ns/op`) y reportes de cobertura HTML (`auratest`).
-- [`src/formatter.rs`](/aura-lang/src/formatter.rs) — Formateador de código fuente opinado e idempotente estilo `gofmt` (`aurafmt`).
-- [`src/lsp.rs`](/aura-lang/src/lsp.rs) — Servidor LSP JSON-RPC 2.0 (diagnósticos, hover, go to definition, autocompletado y formateo).
-- [`src/sourcemap.rs`](/aura-lang/src/sourcemap.rs) — Generador de Source Maps V3 con codificador VLQ en Base64 para depuración de alta precisión.
-- [`src/aura_compiler/`](/aura-lang/src/aura_compiler) — Compilador _self-hosted_ escrito enteramente en Aura.
+Aura is built on a hybrid **Dual-Target compilation model** that unifies the performance, memory safety, and autonomy of standalone systems programming with the rapid developer feedback, library ecosystem breadth, and web versatility of the modern JavaScript/TypeScript ecosystem.
 
-### El Runtime Nativo Autónomo (`crates/aura-runtime`)
+```mermaid
+graph TD
+    A["Aura Source Code (*.aura)"] --> B["Aura Compiler (aurac / Rust)"]
+    B --> C["TypeChecker & AST Analysis"]
+    
+    C -->|Development, Web, NPM, Edge| D["JavaScript Backend (codegen.rs)"]
+    D --> E["Node.js / Bun / Browser / Cloudflare / Serverless"]
+    
+    C -->|Production, Microservices, CLI| F["Native Backend (codegen_go.rs / Cranelift)"]
+    F --> G["Standalone Binary Executable (Mach-O / ELF)"]
+```
 
-Ubicado en [`crates/aura-runtime/`](/aura-lang/crates/aura-runtime), es una biblioteca estática en Rust (`libaura_runtime.a`) que se enlaza sin dependencias externas:
+#### Why Does Aura Generate and Support JavaScript?
 
-- **Fiber Scheduler M:N & Stack Pool Reciclable (`scheduler.rs`, `context.rs`, `fiber.rs`)**: Ejecuta miles de fibers cooperativos sobre un pool de hilos de trabajo. Incorpora un pool LIFO de hasta 1,024 stacks reciclables de 32 KB por hilo, eliminando el costo de `mmap`/`munmap` en cada spawn masivo, y resolución O(1) de tareas en el scheduler sin contención de cerrojos.
-- **Canales CSP & Deadlock Sentinel (`channel.rs`)**: Colas circulares concurrentes seguras y preasignadas para paso de mensajes de cero reasignaciones, métricas operacionales de canales y detección automática de interbloqueos (_deadlock detection_).
-- **Procesamiento Vectorizado de Listas y Pipelines (`list.rs`)**: Iteración directa sobre punteros en `filter` y `map` (sin saltos FFI indirectos), inicialización en bloque `Array.repeat` vía `memset` y cálculo acumulado acelerado `list.sum()`.
-- **Servidor HTTP Zero-Alloc (`http.rs`)**: Servidor HTTP/1.1 con Keep-Alive persistente, soporte `TCP_NODELAY`, buffers reutilizables, escrituras coalescidas de cabeceras y payload, endpoint `/metrics` en formato Prometheus y propagación W3C `traceparent`.
-- **Recolector de Basura Compacto (`gc.rs`)**: GC rápido de tipo Mark-and-Sweep adaptado a objetos de dominio y colecciones dinámicas.
-- **Primitivas de Sincronización (`sync.rs`)**: Mutex, RWMutex, Once, Pool y WaitGroup nativos con fast-paths atómicos.
-- **Serializador JSON y Registros (`json.rs`, `record.rs`)**: Codificación y decodificación binaria y de texto de alta velocidad.
+1. **Immediate Ingestion of the NPM and TypeScript Ecosystem (`.d.ts`)**:
+   Instead of waiting years for an entire third-party library ecosystem to be rewritten from scratch, Aura includes a built-in TypeScript definition parser ([`src/dts_parser.rs`](src/dts_parser.rs)). Aura programs can directly import, type-check, and invoke any existing NPM library with complete static type safety, structural duck typing, and IDE autocomplete.
+2. **Sub-20ms Developer Feedback Loop (`aurac watch` / `aurac run`)**:
+   During active local development, executing via the V8 engine (Node.js or Bun) starts in under **20 ms**, bypassing native binary linkers (like C or Go toolchain linking) for near-instant hot reloads.
+3. **Universal Portability (Web Browsers, Serverless & Edge)**:
+   Generating ECMAScript standard modules allows Aura code to run everywhere native machine code is restricted:
+   - **Interactive Web Playground**: Run the full compiler and code directly in client-side web browsers without a remote backend server.
+   - **Edge & Serverless Platforms**: Native deployment to Cloudflare Workers, AWS Lambda (Node.js runtime), Vercel Edge Functions, Deno, and Bun with zero cross-compilation friction for different CPU architectures.
+4. **Interactive Step Debugging with High-Precision Source Maps V3**:
+   Aura emits standard Source Maps V3 with Base64 VLQ encoding ([`src/sourcemap.rs`](src/sourcemap.rs)), enabling line-by-line step debugging of original `.aura` source files directly inside Chrome DevTools and VS Code / Antigravity IDE.
+
+#### When to Use Each Backend
+
+| Use Case | Compilation Target | Core Advantage |
+| :--- | :--- | :--- |
+| **Production Microservices & APIs** | `aurac build --standalone` (Go/Cranelift) | Single native binary (Mach-O / ELF), zero dependencies, high CSP fiber throughput. |
+| **Daily Local Development** | `aurac watch --run` (Node.js/Bun) | Millisecond cold start, instant live-reload. |
+| **NPM Package Integration** | Target JS (`.mjs` + `.d.ts`) | Direct reuse of mature JavaScript/TypeScript libraries. |
+| **Web & Edge Computing** | Target JS / Web | Seamless execution on Cloudflare Workers, Vercel, and browser Playgrounds. |
+
+### Why Rust for the Implementation: Advantages and Trade-offs
+
+The Aura language compiler (`aurac`), tooling ecosystem (`auralsp`, `aurafmt`, `auratest`, `auramod`), and native runtime (`crates/aura-runtime`) are implemented in **Rust (2024 Edition)**. This design choice brings profound architectural advantages for performance and safety, alongside distinct engineering trade-offs.
+
+#### 🚀 Key Advantages of Rust
+
+1. **Extreme Compilation Throughput & Zero-GC Compiler Latency**:
+   - Compiling directly to optimized machine code enables `aurac` to parse, type-check, and generate code at over **850,000 lines of code per second** with cold-start times under **2 ms**.
+   - Unlike compilers written in garbage-collected languages (such as TypeScript `tsc` or Go), the Aura compiler operates with deterministic memory management and zero GC pauses during large codebase builds.
+   - Dedicated high-performance data structures such as `FxHashMap` ([`rustc-hash`](https://crates.io/crates/rustc-hash)) power $O(1)$ symbol table lookups and record field indexing with 2x–4x faster hashing than standard algorithms.
+2. **Compile-Time Memory Safety & Data-Race Freedom**:
+   - The ownership and borrowing model guarantees that the Abstract Syntax Tree (AST), multi-pass TypeChecker, and parallel module loaders are strictly free from *use-after-free*, *null pointer dereferences*, and *data races*.
+   - In [`crates/aura-runtime`](crates/aura-runtime), Rust enables building the cooperative M:N fiber scheduler, compact garbage collector, and CSP channels with zero-overhead static references (`&'static Scheduler`) and bare atomic primitives.
+3. **Algebraic Data Types (ADTs) & Exhaustive Pattern Matching**:
+   - Compiler pipeline passes (Lexer $\to$ Parser $\to$ TypeChecker $\to$ CodeGen) naturally map to Rust's tagged `enum` variants ([`src/ast.rs`](src/ast.rs)).
+   - Adding new AST nodes, type variants, or compiler optimizations triggers exhaustive compile-time checks across all visitors, ensuring unhandled cases cannot slip into production.
+4. **Direct In-Memory Machine Code Generation (Cranelift)**:
+   - Native integration with [**Cranelift**](https://cranelift.dev/) ([`src/codegen_cranelift.rs`](src/codegen_cranelift.rs)) allows emitting standalone native binaries (Mach-O on macOS, ELF on Linux) directly from memory without relying on external C/C++ toolchains.
+5. **Standalone Self-Contained Binary Distribution**:
+   - The entire toolchain compiles to a single, compact (~6–10 MB) static binary with zero external dependencies (no Node.js, Python, or JVM installation required).
+
+#### ⚠️ Engineering Trade-offs & Challenges
+
+1. **Steep Learning Curve for Community Contributors**:
+   - Rust's strict type system, explicit lifetimes, and Borrow Checker increase the barrier to entry for casual open-source contributors compared to TypeScript, Go, or Python.
+2. **Toolchain Compilation Times (`rustc` Build Times)**:
+   - Compiling the full compiler workspace from scratch with ThinLTO and release optimizations takes 20–60 seconds on clean builds (affecting compiler engineers and CI pipelines, though not Aura end users).
+3. **Graph & Cyclic Structure Design Rigor**:
+   - Complex bidirectional symbol environments and control-flow graphs require disciplined arena-index or numeric-ID architectures rather than arbitrary raw pointers.
+4. **Dual-Maintenance During Self-Hosting Bootstrapping**:
+   - Maintaining both the reference Rust compiler implementation and the self-hosted Aura implementation ([`src/aura_compiler/`](src/aura_compiler)) during early bootstrapping phases requires synchronized language specification updates.
+
+#### ⚖️ Architectural Balance Summary
+
+| Dimension | Rust Implementation (`aurac`) | Alternative (e.g. TypeScript / Go / C++) |
+| :--- | :--- | :--- |
+| **Compiler Throughput** | 🟢 **Extreme (>850k LOC/s)** | 🟡 Moderate in Go (~400k LOC/s), 🔴 Slow in TS (~80k LOC/s) |
+| **Memory Safety** | 🟢 **100% guaranteed at compile-time** | 🔴 Unsafe in C/C++, 🟡 GC-dependent in Go/TS |
+| **Memory Footprint** | 🟢 **Minimal (~5–15 MB RAM)** | 🔴 Heavy (V8 runtime or Go runtime heap) |
+| **Native Cranelift JIT/AOT** | 🟢 **Zero-cost in-memory integration** | 🔴 Requires complex FFI bindings |
+| **Contributor Accessibility** | 🟡 **Requires advanced Rust proficiency** | 🟢 Highly accessible in TypeScript / Go |
+| **Toolchain Build Speed** | 🟡 **Moderate (`cargo build --release`)** | 🟢 Fast in Go |
+
+### Source Code Organization
+
+- [`src/ast.rs`](src/ast.rs) — Formal AST definitions (expressions, statements, algebraic types, CSP concurrency, receivers, and interfaces).
+- [`src/lexer.rs`](src/lexer.rs) — Deterministic lexer with support for pipeline operators (`|>`), channels (`<-`, `chan<-`), pointers, and systems keywords.
+- [`src/parser.rs`](src/parser.rs) — Recursive descent and Pratt operator precedence parser.
+- [`src/typechecker.rs`](src/typechecker.rs) — Bidirectional Hindley-Milner inference, pattern exhaustiveness, structural duck typing, concurrency safety rules (`Sendable`), and structured `TypeError` diagnostics conforming to `core::error::Error` (Rust 2024).
+- [`src/codegen_cranelift.rs`](src/codegen_cranelift.rs) — Native backend compiling the AST directly to machine code using Cranelift.
+- [`src/codegen_go.rs`](src/codegen_go.rs) — Idiomatic Golang code generator (`net/http`, goroutines, channels, select, struct receivers).
+- [`src/codegen.rs`](src/codegen.rs) — Code generator for rapid development, TCO, debugging support, and Source Maps V3.
+- [`src/bindgen.rs`](src/bindgen.rs) — C header parser (`.h`) and safe FFI bindings/wrappers generator (`aurac bindgen`).
+- [`src/package.rs`](src/package.rs) — Decentralized dependency and module manager (`auramod` / `aurapkg`), SHA-256 cryptographic hashing (`h1:...`), and offline vendoring.
+- [`src/backend.rs`](src/backend.rs) — Backend validation and binary compilation orchestrator.
+- [`src/testing.rs`](src/testing.rs) — Unit testing engine, benchmarks (`ns/op`), and HTML coverage reports (`auratest`).
+- [`src/formatter.rs`](src/formatter.rs) — Fast, opinionated, and idempotent source formatter (`aurafmt`, `gofmt` style).
+- [`src/lsp.rs`](src/lsp.rs) — JSON-RPC 2.0 Language Server Protocol implementation (diagnostics, hover, go to definition, autocomplete, and formatting).
+- [`src/sourcemap.rs`](src/sourcemap.rs) — Source Maps V3 generator with Base64 VLQ encoder for high-precision debugging.
+- [`src/aura_compiler/`](src/aura_compiler) — Self-hosted compiler written entirely in the Aura language.
+
+### The Standalone Native Runtime (`crates/aura-runtime`)
+
+Located in [`crates/aura-runtime/`](crates/aura-runtime), this is a static Rust library (`libaura_runtime.a`) linked without external runtime dependencies:
+
+- **M:N Fiber Scheduler (`scheduler.rs`, `fiber.rs`)**: Executes thousands of cooperative fibers over a pool of operating system threads using lightweight stack switching. Uses zero-overhead static scheduler references (`&'static Scheduler`) without atomic reference counted wrappers (`Arc`), eliminating heap allocations on startup and context switch contention across worker threads.
+- **CSP Channels & Deadlock Sentinel (`channel.rs`)**: Thread-safe concurrent circular queues for message passing, operational channel metrics, and automated deadlock detection.
+- **Zero-Alloc HTTP Server (`http.rs`)**: HTTP/1.1 server with persistent Keep-Alive, `TCP_NODELAY`, reusable buffers, coalesced header/body writes, zero-intermediate-allocation `/metrics` Prometheus endpoint via `writeln!`, and W3C `traceparent` propagation.
+- **Concurrent Compact Garbage Collector (`gc.rs`)**: Fast Mark-and-Sweep GC with 64 pointer shards protected by `RwLock` and `rustc-hash` (`FxHashMap`) for lock-free parallel reads during root and pointer validation phases.
+- **Synchronization Primitives (`sync.rs`)**: Native Mutex, RWMutex, Once, Pool, and WaitGroup with cooperative fiber yielding and spin loops.
+- **High-Speed JSON & Record Serializers (`json.rs`, `record.rs`)**: High-speed binary and text encoding/decoding, with `FxHashMap` powering 2x-4x faster record field lookups.
+>>>>>>> c339dffe124f4c996e127615cd6884b9047236c9
 
 ---
 
-## 📘 Guía Completa del Lenguaje Aura
+## 📘 Complete Aura Language Guide
 
-### 1. Sistema de Tipos de Datos Completo
+### 1. Comprehensive Type System
 
-Aura cuenta con un sistema de tipos estático y expresivo con inferencia bidireccional completa.
+Aura features an expressive static type system with full bidirectional type inference.
 
-#### A. Tipos Primitivos y Enteros de Tamaño Fijo
+#### A. Primitive Types and Fixed-Size Integers
 
 ```aura
-// Enteros estándar y con tamaño explícito
-let i: Int = 42;             // Entero nativo de 64 bits
-let i8: Int8 = 127;          // Con signo: -128 a 127
+// Standard and explicit-width signed integers
+let i: Int = 42;             // Native 64-bit signed integer
+let i8: Int8 = 127;          // Signed: -128 to 127
 let i16: Int16 = 32767;
 let i32: Int32 = 2147483647;
 let i64: Int64 = 9223372036854775807;
 
-// Enteros sin signo
-let u8: Uint8 = 255;         // Sin signo: 0 a 255 (alias Byte)
+// Unsigned integers
+let u8: Uint8 = 255;         // Unsigned: 0 to 255 (alias Byte)
 let u16: Uint16 = 65535;
 let u32: Uint32 = 4294967295;
 let u64: Uint64 = 18446744073709551615;
-let b: Byte = 255;           // Byte binario
-let r: Rune = 65;            // Rune Unicode UTF-32 (equivalente a 'A')
-let up: Uintptr = 0;         // Puntero entero para sistemas
+let b: Byte = 255;           // Binary byte
+let r: Rune = 65;            // Unicode UTF-32 Rune (equivalent to 'A')
+let up: Uintptr = 0;         // Integer pointer for systems programming
 
-// Números de coma flotante
-let f: Float = 3.14159265;   // Float de 64 bits (por defecto)
+// Floating-point numbers
+let f: Float = 3.14159265;   // 64-bit float (default)
 let f32: Float32 = 3.14;
 let f64: Float64 = 2.718281828459;
 
-// Cadenas, Booleanos y Tipo Unidad
+// Strings, Booleans, and Unit Type
 let s: String = "Aura Language";
 let flag: Bool = true;
-let empty: Unit = ();        // Representa la ausencia de valor (void)
+let empty: Unit = ();        // Represents the absence of value (void)
 ```
 
-#### B. Punteros y Direccionamiento de Memoria
+#### B. Pointers and Memory Addressing
 
-Aura permite el uso de punteros para interoperabilidad con sistemas y mutación eficiente por referencia:
+Aura supports explicit pointers for low-level systems interoperability and efficient mutation:
 
 ```aura
 let mut counter: Int = 10;
-let ptrCounter: *Int = &counter; // Operador de dirección (&)
-*ptrCounter = 20;                // Operador de desreferencia (*)
+let ptrCounter: *Int = &counter; // Address-of operator (&)
+*ptrCounter = 20;                // Dereference operator (*)
 ```
 
-#### C. Canales CSP Direccionales
+#### C. Directional CSP Channels
 
 ```aura
 let ch: Channel<String> = Channel.new(10);
-let sendOnly: SendChannel<String> = ch;  // Solo permite enviar: ch <- valor
-let recvOnly: RecvChannel<String> = ch;  // Solo permite recibir: <-ch
+let sendOnly: SendChannel<String> = ch;  // Send-only: ch <- val
+let recvOnly: RecvChannel<String> = ch;  // Receive-only: <-ch
 ```
 
-#### D. Colecciones: Slices, Mapas, Conjuntos y Tuplas
+#### D. Collections: Slices, Maps, Sets, and Tuples
 
 ```aura
-let numeros: []Int = [1, 2, 3, 4, 5];         // Slices (modelo Go)
-let usuarios = #{ "alice" => 100, "bob" => 200 }; // Mapa asociativo literal
-let etiquetas = #[ "backend", "native", "csp" ];  // Conjunto literal
-let tupla: (Int, String, Bool) = (1, "ok", true); // Tupla heterogénea
-```
-
----
-
-### 2. Variables, Inmutabilidad y Desestructuración
-
-En Aura, las variables declaradas con `let` son **inmutables por defecto**. Si una variable debe cambiar su valor, es obligatorio declararla con `let mut`:
-
-```aura
-let version = "0.1.0"; // Inmutable
-// version = "0.2.0";  // ✕ Error de compilación: Cannot assign to immutable variable
-
-let mut activo = false;
-activo = true;         // ✓ Válido
-
-// Desestructuración de Tuplas
-let (id, nombre, vigente) = (101, "Carlos", true);
-
-// Desestructuración de Registros / Estructuras
-let usuario = { uid: 42, role: "admin", email: "admin@aura.dev" };
-let { uid, role } = usuario;
+let numbers: []Int = [1, 2, 3, 4, 5];         // Slices (Go model)
+let users = #{ "alice" => 100, "bob" => 200 }; // Literal hash map
+let tags = #[ "backend", "native", "csp" ];    // Literal hash set
+let tuple: (Int, String, Bool) = (1, "ok", true); // Heterogeneous tuple
 ```
 
 ---
 
-### 3. Control de Flujo, Expresiones y Bucles Etiquetados
+### 2. Variables, Immutability, and Destructuring
 
-En Aura, los bloques `{ ... }` y las estructuras condicionales son **expresiones** que retornan el valor de su última sentencia sin punto y coma:
+In Aura, variables declared with `let` are **immutable by default**. If a variable needs to be reassigned, it must be declared with `let mut`:
 
 ```aura
-// Bloque como expresión
-let tasaTotal = {
+let version = "0.1.0"; // Immutable
+// version = "0.2.0";  // ✕ Compile error: Cannot assign to immutable variable
+
+let mut active = false;
+active = true;         // ✓ Valid
+
+// Tuple Destructuring
+let (id, name, valid) = (101, "Carlos", true);
+
+// Record / Struct Destructuring
+let user = { uid: 42, role: "admin", email: "admin@aura.dev" };
+let { uid, role } = user;
+```
+
+#### Arithmetic Operators and Compound Assignment (`+=`, `-=`, `*=`, `/=`, `%=`)
+
+Aura supports both binary arithmetic operators (`+`, `-`, `*`, `/`, `%`) and compound assignment operators to update mutable variables (`let mut`), record fields, and indexed elements in slices or collections:
+
+| Operator | Operation | Example | Internal Desugaring | Supported Types |
+|---|---|---|---|---|
+| `+=` | Addition & assignment / Concatenation | `total += x;` | `total = total + x;` | `Int`, `Float`, fixed-size numeric types, `String` |
+| `-=` | Subtraction & assignment | `balance -= withdrawal;` | `balance = balance - withdrawal;` | `Int`, `Float`, fixed-size numeric types |
+| `*=` | Multiplication & assignment | `factor *= 2;` | `factor = factor * 2;` | `Int`, `Float`, fixed-size numeric types |
+| `/=` | Division & assignment | `val /= divisor;` | `val = val / divisor;` | `Int`, `Float`, fixed-size numeric types |
+| `%=` | Modulo & assignment | `idx %= limit;` | `idx = idx % limit;` | `Int`, fixed-size integer types |
+
+##### Code Example:
+
+```aura
+export fn demoArithmetic(): Unit => {
+    // 1. Accumulative arithmetic on mutable variables
+    let mut counter: Int = 10;
+    counter += 15; // 25
+    counter -= 5;  // 20
+    counter *= 3;  // 60
+    counter /= 2;  // 30
+    counter %= 7;  // 2
+    println(`Counter: ${counter}`);
+
+    // 2. Floating-point arithmetic
+    let mut average: Float = 10.5;
+    average += 4.5; // 15.0
+    average *= 2.0; // 30.0
+    average /= 3.0; // 10.0
+    println(`Average: ${average}`);
+
+    // 3. String concatenation
+    let mut greeting = "Hello";
+    greeting += ", Aura!";
+    println(greeting); // "Hello, Aura!"
+
+    // 4. In-place accumulator inside loops
+    let mut total = 0;
+    let numbers: []Int = [1, 2, 3, 4, 5];
+    for x in numbers {
+        total += x;
+    }
+    println(`Total sum: ${total}`); // 15
+
+    // 5. In-place modification on slice elements
+    let mut items = [100, 200, 300];
+    items[0] += 50;
+    println(`items[0]: ${items[0]}`); // 150
+}
+```
+
+---
+
+### 3. Control Flow, Expressions, and Labeled Loops
+
+In Aura, code blocks `{ ... }` and conditional constructs are **expressions** that evaluate to the value of their final statement without a semicolon:
+
+```aura
+// Block as expression
+let totalRate = {
     let base = 100.0;
-    let recargo = 0.15;
-    base * (1.0 + recargo) // Retorna 115.0
+    let surcharge = 0.15;
+    base * (1.0 + surcharge) // Evaluates to 115.0
 };
 
-// If-Else como expresión ternaria segura
-let estado = if calificacion >= 60 { "Aprobado" } else { "Reprobado" };
+// If-Else as a safe ternary expression
+let status = if grade >= 60 { "Passed" } else { "Failed" };
 
-// Bucle While tradicional
+// Traditional While loop
 let mut k = 0;
 while k < 5 {
-    k = k + 1;
+    k += 1; // Compound assignment
 };
 
-// Bucle For-In sobre slices o colecciones
+// For-In loop over slices or collections
 for item in [10, 20, 30] {
     println(`Item: ${item}`);
 }
 
-// Bucle For-In con índice posicional
-for i, nombre in ["Aura", "Go", "Rust"] {
-    println(`Índice ${i}: ${nombre}`);
+// For-In loop with index and value
+for i, name in ["Aura", "Go", "Rust"] {
+    println(`Index ${i}: ${name}`);
 }
 
-// Bucles Etiquetados (Labeled Loops) con break y continue dirigidos
-'busquedaMatriz: for f, fila in matriz {
-    for c, valor in fila {
-        if valor == objetivo {
-            println(`Encontrado en (${f}, ${c})`);
-            break 'busquedaMatriz; // Rompe el bucle exterior directamente
+// Labeled Loops with targeted break and continue
+'matrixSearch: for r, row in matrix {
+    for c, val in row {
+        if val == target {
+            println(`Found at (${r}, ${c})`);
+            break 'matrixSearch; // Breaks the outer labeled loop directly
         }
     }
 }
@@ -439,54 +702,54 @@ for i, nombre in ["Aura", "Go", "Rust"] {
 
 ---
 
-### 4. Slices y Segmentación de Colecciones (Modelo Golang)
+### 4. Slices and Collection Segmentation (Golang Model)
 
-Aura implementa el modelo de slices de Golang como abstracción de secuencias continuas de memoria:
+Aura implements Golang's slice model as an abstraction over contiguous memory segments:
 
-#### A. Sintaxis de Tipos y Declaración
+#### A. Type Syntax and Declaration
 
 ```aura
 let mut items: []Int = [10, 20, 30, 40, 50, 60];
 ```
 
-#### B. Expresiones de Slicing Semiabiertas `[low:high]`
+#### B. Half-Open Slicing Expressions `[low:high]`
 
 ```aura
 let s = [10, 20, 30, 40, 50, 60];
 
-let sub1 = s[1:4];     // [20, 30, 40] (desde índice 1 hasta 3)
-let sub2 = s[:3];      // [10, 20, 30] (desde el inicio hasta índice 2)
-let sub3 = s[3:];      // [40, 50, 60] (desde índice 3 hasta el final)
-let sub4 = s[:];       // [10, 20, 30, 40, 50, 60] (vista completa)
-let sub5 = s[1:3:5];   // [20, 30] con capacidad limitada a 5 (Go 3-index slice)
+let sub1 = s[1:4];     // [20, 30, 40] (from index 1 through 3)
+let sub2 = s[:3];      // [10, 20, 30] (from start through index 2)
+let sub3 = s[3:];      // [40, 50, 60] (from index 3 to the end)
+let sub4 = s[:];       // [10, 20, 30, 40, 50, 60] (full slice)
+let sub5 = s[1:3:5];   // [20, 30] with max capacity bound to 5 (Go 3-index slice)
 ```
 
-#### C. Funciones Nativas Go-Style (`len`, `cap`, `append`, `make`)
+#### C. Go-Style Built-in Functions (`len`, `cap`, `append`, `make`)
 
 ```aura
-println(`Longitud: ${len(items)}`);    // 6
-println(`Capacidad: ${cap(items)}`);   // 6
+println(`Length: ${len(items)}`);    // 6
+println(`Capacity: ${cap(items)}`);  // 6
 
-// Añadir elementos dinámicamente con append
+// Dynamically grow slice with append
 items = append(items, 70);
 
-// Crear buffers pre-dimensionados
-let buffer = make([]Int, 10, 20); // longitud 10, capacidad 20
+// Preallocate sized slices
+let buffer = make([]Int, 10, 20); // length 10, capacity 20
 ```
 
-#### D. Segmentación de Cadenas de Texto
+#### D. String Slicing
 
 ```aura
-let texto = "Aura Engine";
-let nombre = texto[0:4]; // "Aura"
-let motor = texto[5:];   // "Engine"
+let text = "Aura Engine";
+let name = text[0:4];   // "Aura"
+let engine = text[5:];  // "Engine"
 ```
 
 ---
 
-### 5. Tipos Suma (ADTs) y Pattern Matching Exhaustivo
+### 5. Sum Types (ADTs) and Exhaustive Pattern Matching
 
-Los tipos suma o uniones discriminadas permiten modelar de forma precisa el dominio de negocio. El compilador valida exhaustivamente que todos los casos sean cubiertos en las expresiones `match`:
+Sum types or tagged unions allow precise domain modeling. The compiler exhaustively verifies that all variants are handled in `match` expressions:
 
 ```aura
 export type OrderStatus =
@@ -498,39 +761,39 @@ export type OrderStatus =
 
 fn describeStatus(status: OrderStatus): String => {
     match status {
-        Pending => "El pedido está en espera.",
-        Processing { workerId } => `Procesando por el operador #${workerId}.`,
-        Shipped(carrier, tracking) => `En camino con ${carrier}, guía: ${tracking}.`,
-        Delivered => "Pedido entregado al cliente.",
-        Cancelled { reason, at } if at > 0 => `Cancelado: ${reason} (Timestamp: ${at}).`,
-        Cancelled { reason, .. } => `Cancelado: ${reason}.`,
+        Pending => "Order is pending.",
+        Processing { workerId } => `Processing by operator #${workerId}.`,
+        Shipped(carrier, tracking) => `In transit with ${carrier}, tracking: ${tracking}.`,
+        Delivered => "Order delivered to customer.",
+        Cancelled { reason, at } if at > 0 => `Cancelled: ${reason} (Timestamp: ${at}).`,
+        Cancelled { reason, .. } => `Cancelled: ${reason}.`,
     }
 }
 ```
 
-Si se omite alguna variante o una rama del `match`, el compilador genera un error estático impidiendo la generación de código.
+If a variant or branch is omitted, the compiler reports a static error, preventing code generation.
 
 ---
 
-### 6. Manejo de Errores con Result, Option y Operador `?`
+### 6. Error Handling with Result, Option, and `?` Operator
 
-Aura **carece totalmente de `null` y `undefined`**. Las operaciones falibles o con valores ausentes se modelan formalmente:
+Aura **completely lacks `null` and `undefined`**. Fallible operations and optional values are formally modeled:
 
 ```aura
-// Tipos estándar del preludio:
+// Standard prelude types:
 // type Option<T> = Some(T) | None;
 // type Result<T, E> = Ok(T) | Err(E);
 
 fn divide(a: Float, b: Float): Result<Float, String> => {
     if b == 0.0 {
-        return Err("División por cero no permitida.");
+        return Err("Division by zero is not permitted.");
     }
     Ok(a / b)
 }
 
-// Desempaquetado y propagación automática con el operador '?'
+// Automatic unwrapping and error propagation with '?'
 fn calculateRatio(x: Float, y: Float, z: Float): Result<Float, String> => {
-    let r1 = divide(x, y)?; // Si es Err, retorna inmediatamente
+    let r1 = divide(x, y)?; // Returns early if Err
     let r2 = divide(r1, z)?;
     Ok(r2)
 }
@@ -538,70 +801,70 @@ fn calculateRatio(x: Float, y: Float, z: Float): Result<Float, String> => {
 
 ---
 
-### 7. Pipelines (`|>`) y Optimización de Llamadas por la Cola (TCO)
+### 7. Pipelines (`|>`) and Tail-Call Optimization (TCO)
 
-El operador de tubería o pipeline (`|>`) permite encadenar transformaciones de datos legibles de izquierda a derecha. Las funciones recursivas que finalizan invocándose a sí mismas son transformadas por el compilador en bucles iterativos `while (true)` con memoria $O(1)$:
+The pipeline operator (`|>`) chains data transformations cleanly from left to right. Recursive functions in tail position are compiled into zero-overhead iterative `while (true)` loops with $O(1)$ memory consumption:
 
 ```aura
-// 1. Pipeline de datos funcional
-let totalParesTransformados = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+// 1. Functional data pipeline
+let totalEvenTransformed = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     |> filter(fn(x: Int): Bool => x % 2 == 0)
     |> map(fn(x: Int): Int => x * 3)
     |> toList();
 
-// 2. Función recursiva optimizada con TCO
+// 2. Tail-recursive function with TCO
 fn factorialTCO(n: Int, acc: Int = 1): Int => {
     if n <= 1 {
         acc
     } else {
-        factorialTCO(n - 1, acc * n) // Optimizado a bucle iterativo sin sobrecoste de pila
+        factorialTCO(n - 1, acc * n) // Optimized into an iterative loop with no stack overhead
     }
 }
 ```
 
 ---
 
-### 8. Concurrencia CSP (Modelo Estilo Go)
+### 8. CSP Concurrency (Go-Style Model)
 
-Aura implementa el modelo de concurrencia CSP (_Communicating Sequential Processes_) con fibers livianos que se ejecutan cooperativamente sobre el scheduler M:N:
+Aura implements the CSP (*Communicating Sequential Processes*) concurrency model with lightweight fibers running cooperatively on the M:N scheduler:
 
 ```aura
-// 1. Spawning de fibers concurrentes
-let ch = Channel<String>::new(5); // Canal con buffer de capacidad 5
+// 1. Spawning concurrent fibers
+let ch = Channel<String>::new(5); // Buffered channel with capacity 5
 
 spawn {
-    ch <- "Mensaje 1";
-    ch <- "Mensaje 2";
+    ch <- "Message 1";
+    ch <- "Message 2";
     Channel.close(ch);
 };
 
-// 2. Iteración sobre canales hasta su cierre
+// 2. Iterating over channels until closed
 spawn {
     for msg in ch {
-        println(`Recibido: ${msg}`);
+        println(`Received: ${msg}`);
     }
 };
 
-// 3. Multiplexación no bloqueante con select
+// 3. Non-blocking multiplexing with select
 let chA = Channel<Int>::new(1);
 let chB = Channel<String>::new(1);
 
 select {
     case val = <-chA => {
-        println(`Dato numérico recibido: ${val}`);
+        println(`Numeric data received: ${val}`);
     },
-    case chB <- "hola" => {
-        println("Mensaje enviado con éxito a chB");
+    case chB <- "hello" => {
+        println("Message successfully sent to chB");
     },
     case timeout(500) => {
-        println("Tiempo límite de espera alcanzado (500ms)");
+        println("Timeout reached (500ms)");
     },
     default => {
-        println("Ningún canal disponible para procesar");
+        println("No channel ready to process");
     }
 }
 
-// 4. Sincronización con Mutex y WaitGroup
+// 4. Synchronization with Mutex and WaitGroup
 let wg = WaitGroup.new();
 let mu = Mutex.new();
 let mut balance = 1000;
@@ -623,56 +886,56 @@ spawn {
 };
 
 wg.wait();
-println(`Balance sincronizado final: ${balance}`);
+println(`Final synchronized balance: ${balance}`);
 ```
 
 ---
 
-### 9. Seguridad en Concurrencia (`Sendable`) y Deadlock Sentinel
+### 9. Concurrency Safety (`Sendable`) and Deadlock Sentinel
 
-Para garantizar una concurrencia libre de errores de sincronización (_Fearless Concurrency_), el analizador de tipos de Aura impone reglas estrictas en tiempo de compilación:
+To ensure fearless concurrency, Aura's typechecker enforces strict compile-time checks:
 
-- **Regla `Sendable` (Error [E0401])**: Está terminantemente prohibido transmitir punteros de memoria crudos (`*T`) a través de canales. Los datos transmitidos deben ser tipos primitivos, registros inmutables, sum types o estructuras que posean propiedad exclusiva (_ownership_).
-- **Deadlock Sentinel en Runtime**: El planificador M:N en `crates/aura-runtime` monitoriza activamente el estado de los fibers estacionados y los bloqueos en canales; si todas las tareas quedan bloqueadas esperando mensajes que nunca llegarán, el runtime aborta de forma controlada indicando la causa exacta del interbloqueo.
+- **`Sendable` Rule (Error [E0401])**: Raw pointers (`*T`) cannot be sent across channels. Transmitted data must be primitive types, immutable records, sum types, or values with exclusive ownership.
+- **Runtime Deadlock Sentinel**: The M:N scheduler in `crates/aura-runtime` actively tracks parked fibers and channel locks. If all fibers are parked waiting for messages that can never arrive, the runtime terminates gracefully with detailed deadlock diagnostics.
 
 ---
 
-### 10. Limpieza Garantizada: Defer LIFO y ErrDefer Condicional (Zig)
+### 10. Guaranteed Cleanup: LIFO Defer and Conditional ErrDefer (Zig)
 
-Aura proporciona dos mecanismos deterministas de limpieza de recursos que se ejecutan en orden LIFO (_Last-In, First-Out_):
+Aura provides deterministic resource cleanup executing in LIFO (*Last-In, First-Out*) order:
 
 ```aura
-fn procesarTransaccion(cuentaId: Int, monto: Float, forzarFallo: Bool): Result<String, String> => {
-    println("1. Abriendo conexión a base de datos...");
-    // defer se ejecuta SIEMPRE al salir del ámbito de la función (éxito o error)
-    defer println("5. Conexión liberada al pool.");
+fn processTransaction(accountId: Int, amount: Float, forceFailure: Bool): Result<String, String> => {
+    println("1. Opening database connection...");
+    // defer executes ALWAYS when exiting the function scope (success or failure)
+    defer println("5. Connection returned to pool.");
 
-    let tx = iniciarTransaccion();
-    // errdefer se ejecuta ÚNICAMENTE si la función sale con Err(...) o panic
-    errdefer println("⚠️ [Rollback] Revertiendo cambios por falla en la transacción.");
+    let tx = startTransaction();
+    // errdefer executes ONLY if the function exits via Err(...) or panic
+    errdefer println("⚠️ [Rollback] Reverting changes due to transaction failure.");
 
-    println("2. Verificando saldo...");
-    if forzarFallo {
-        return Err("Saldo insuficiente para completar el débito.");
+    println("2. Verifying balance...");
+    if forceFailure {
+        return Err("Insufficient funds to complete debit.");
     }
 
-    println("3. Aplicando cargo...");
-    println("4. Transacción confirmada.");
-    Ok("Operación exitosa")
+    println("3. Applying charge...");
+    println("4. Transaction confirmed.");
+    Ok("Operation successful")
 }
 ```
 
-- **En caso de éxito (`Ok`)**: Solo se ejecuta `defer`.
-- **En caso de fallo (`Err` o `panic`)**: Se ejecuta primero `errdefer` (haciendo rollback) y luego `defer` (cerrando la conexión), garantizando consistencia absoluta en sistemas distribuidos.
+- **On Success (`Ok`)**: Only `defer` runs.
+- **On Failure (`Err` or `panic`)**: `errdefer` executes first (performing rollback), followed by `defer` (closing resources), ensuring strict consistency.
 
 ---
 
-### 11. Métodos con Receptor, Visibilidad e Interfaces Implícitas
+### 11. Receiver Methods, Visibility, and Implicit Interfaces
 
-Siguiendo el diseño idiomático de **Golang**, las estructuras de datos no anidan métodos en su definición. Los métodos se declaran externamente asociando un receptor (_receiver_):
+Following idiomatic **Golang** design, structs do not nest methods inside their declarations. Methods are declared externally by binding a receiver:
 
 ```aura
-// 1. Estructura de datos pura
+// 1. Pure data structure
 export struct BankAccount {
     accountNumber: String,
     owner: String,
@@ -680,41 +943,41 @@ export struct BankAccount {
     pinHash: String,
 };
 
-// 2. Método Público con receptor por puntero (comienza con Mayúscula -> Exportado)
+// 2. Public method with pointer receiver (Capitalized -> Exported)
 fn (b: *BankAccount) Deposit(amount: Float): Result<Float, String> => {
     if amount <= 0.0 {
-        return Err("El monto debe ser positivo.");
+        return Err("Amount must be positive.");
     }
     b.balance = b.balance + amount;
     Ok(b.balance)
 }
 
-// 3. Método Privado / Interno de paquete (comienza con minúscula -> No exportado)
+// 3. Private / Package-internal method (lowercase -> Not exported)
 fn (b: BankAccount) verifyPin(pin: String): Bool => {
     b.pinHash == pin
 }
 
-// 4. Interfaz Estructural
+// 4. Structural Interface
 export interface AccountViewer {
     GetBalance(): Float;
 }
 
 fn (b: BankAccount) GetBalance(): Float => b.balance;
 
-// Consumo polimórfico: BankAccount satisface implícitamente AccountViewer
+// Polymorphic consumption: BankAccount implicitly satisfies AccountViewer
 fn displayBalance(viewer: AccountViewer): Unit => {
-    println(`Saldo: $${viewer.GetBalance()}`);
+    println(`Balance: $${viewer.GetBalance()}`);
 }
 ```
 
 ---
 
-### 12. Punteros Explícitos, Packed Structs y C FFI (`extern "C"`)
+### 12. Explicit Pointers, Packed Structs, and C FFI (`extern "C"`)
 
-Para desarrollo de bajo nivel, emuladores y protocolos de red binarios:
+For low-level systems programming, hardware drivers, and binary protocols:
 
 ```aura
-// Estructura sin relleno (cero padding bytes) para protocolos de red
+// Packed struct with zero padding bytes for network protocols
 export packed struct ArpHeader {
     hardware_type: Uint16,
     protocol_type: Uint16,
@@ -723,7 +986,7 @@ export packed struct ArpHeader {
     opcode: Uint16,
 };
 
-// Declaración de funciones foráneas de la biblioteca estándar de C
+// Foreign C standard library function declarations
 extern "C" {
     fn getpid(): Int;
     fn abs(n: Int): Int;
@@ -736,34 +999,34 @@ export fn getSystemPid(): Int => {
 
 ---
 
-### 13. Generador Automático de Cabeceras FFI (`aurac bindgen`)
+### 13. Automatic FFI Header Generator (`aurac bindgen`)
 
-Aura incluye una herramienta nativa para generar wrappers e interfaces tipadas a partir de archivos de cabecera en C (`.h`):
+Aura includes a native tool to generate typed wrappers from C header files (`.h`):
 
 ```bash
 aurac bindgen sqlite3.h -o sqlite3.aura --name SQLite3 --strip-prefix "sqlite3_"
 ```
 
-Parsea automáticamente `#define`, constantes, `enum`, `struct` con alineación binaria y prototipos de funciones foráneas, produciendo código Aura nativo seguro con wrappers de conversión de tipos.
+It parses `#define` constants, `enum`, `struct` with binary alignment, and function prototypes, emitting type-safe Aura bindings with automatic type conversions.
 
 ---
 
-### 14. Contexto y Cancelación Propagada (`Context`)
+### 14. Context and Propagated Cancellation (`Context`)
 
-Inspirado en `context.Context` de Go, facilita la propagación de plazos máximos (_deadlines_), señales de cancelación y metadatos entre fibras concurrentes y llamadas HTTP:
+Inspired by Go's `context.Context`, it enables propagating deadlines, cancellation signals, and request-scoped values across fibers and network calls:
 
 ```aura
-// Crear contexto con límite de tiempo de 200 ms
+// Create context with a 200 ms timeout
 let (ctx, cancel) = Context.withTimeout(Context.background(), 200);
 defer cancel();
 
 spawn {
     select {
         case <-ctx.done() => {
-            println("Operación cancelada por timeout de contexto.");
+            println("Operation cancelled by context timeout.");
         },
-        case res = <-realizarPeticionRemota() => {
-            println(`Petición exitosa: ${res}`);
+        case res = <-performRemoteRequest() => {
+            println(`Request succeeded: ${res}`);
         }
     }
 };
@@ -771,9 +1034,9 @@ spawn {
 
 ---
 
-### 15. Genéricos y Polimorfismo Paramétrico
+### 15. Generics and Parametric Polymorphism
 
-Aura soporta funciones y estructuras genéricas parametrizadas sobre tipos arbitrarios:
+Aura supports generic functions and types parameterized over arbitrary types:
 
 ```aura
 export type Box<T> = BoxVal(T);
@@ -792,31 +1055,75 @@ export fn unwrapOr<T>(opt: Option<T>, fallback: T): T => {
 
 ---
 
-### 16. Struct Tags y Build Tags Condicionales
+### 16. Compilation Directives, Build Tags, and Struct Tags
+
+Aura provides compile-time directives to control compilation targets, platform-specific code inclusion, and structural data serialization.
+
+#### A. Conditional Compilation Directives (`//aura:build`)
+
+Aura evaluates build directives placed at the very top of `.aura` source files (before any code or declarations). If the directive evaluates to `false` for the active build target or tags, the compiler safely skips the file during both compilation and test discovery.
+
+- **Modern Boolean Syntax (`//aura:build`)**: Supports `&&` (AND), `||` (OR), `!` (NOT), and balanced parentheses:
+  ```aura
+  //aura:build (linux && amd64) || (darwin && arm64)
+  //aura:build !windows && !wasm
+  ```
+- **Go Toolchain Compatibility (`//go:build`)**:
+  ```aura
+  //go:build linux || darwin
+  ```
+- **Legacy Go Syntax (`// +build`)**: Spaces act as OR; commas act as AND:
+  ```aura
+  // +build darwin,arm64 linux,amd64
+  ```
+
+#### B. Active Built-in and Custom Build Tags
+
+The compiler automatically activates tags based on the compilation environment:
+- **Operating Systems**: `darwin`, `macos`, `unix`, `linux`, `windows`
+- **Architectures**: `amd64`, `x86_64`, `arm64`, `aarch64`
+- **Environments**: `aura`, `es6`, `node`
+
+You can pass custom tags using the `--tags` CLI flag:
+```bash
+# Try the included example with and without matching tags:
+# 1. Without tag: file is skipped
+aurac build examples/build_tags_demo.aura -o dist/build_demo
+# ➜ ℹ Skipping 'examples/build_tags_demo.aura': build tags do not match.
+
+# 2. With matching tag: compiles successfully
+aurac build examples/build_tags_demo.aura -o dist/build_demo --tags "pro,metrics"
+./dist/build_demo
+# ➜ Output: ¡Compilación exitosa con build tag 'pro' o 'metrics'!
+
+# Typecheck with staging build tags
+aurac check examples/build_tags_demo.aura --tags "pro"
+```
+
+#### C. Struct Tags for Serialization and ORMs
+
+Struct tags allow annotating fields with metadata for JSON serialization, validation rules, or database mappings:
 
 ```aura
-// Tags de compilación condicional para compilación específica de plataforma
-// +build darwin,arm64
-
-// Struct tags para serialización de bases de datos y JSON
 export type UserProfile = {
     id: Int,
     fullName: String,
     secretHash: String,
-} `json:"user_profile" db:"users"`;
+    createdAt: Int,
+} `json:"user_profile" db:"users" validate:"required"`;
 ```
 
 ---
 
-### 17. Ingestión de TypeScript (`.d.ts`) e Inclusión Estática (`embed`)
+### 17. TypeScript Ingestion (`.d.ts`) and Static Asset Embedding (`embed`)
 
 ```aura
-// Cargar archivos estáticos directamente en memoria en tiempo de compilación
+// Embed static files directly into executable binary memory at compile time
 let htmlContent: String = embed("templates/index.html");
 let logoBinary: []Byte = embedBytes("assets/logo.png");
 ```
 
-Para validar tipos frente a definiciones externas de NPM sin escribir envoltorios manuales:
+Type-check against external NPM declarations without writing manual wrappers:
 
 ```bash
 aurac build app.aura -o app --dts ./node_modules/@types/node/index.d.ts
@@ -824,25 +1131,158 @@ aurac build app.aura -o app --dts ./node_modules/@types/node/index.d.ts
 
 ---
 
-## 🗄️ Librería Estándar, Servidor Web y Bases de Datos
+### 18. Testing Directives, Assertions, and Benchmarking
 
-### 🌐 Servidor Web HTTP y Mux de Enrutamiento (`net/http`)
+Aura provides a built-in testing, benchmarking, and code-coverage framework inspired by the Go testing model, powered by `auratest` or directly via the compiler using `aurac --test` (or `aurac test`).
 
-El servidor HTTP de Aura ofrece rendimiento de grado de producción (**126k+ req/s**), middlewares en cadena, soporte para parámetros dinámicos de ruta, codificación JSON y documentación OpenAPI integrada:
+#### A. Test Discovery and Categorization Directives
+
+Files matching the following naming conventions are automatically discovered:
+- **Test files**: `*_test.aura`, `.test.aura`, `_spec.aura`, `test_*.aura`, or any `.aura` file located in a `tests/` directory.
+- **Automatic Categorization**:
+  - **Unit Tests (`UNIT`)**: Default for test files, or matching `*_unit_test.aura`.
+  - **Integration Tests (`INTEGRATION`)**: Files containing `_integration_test.aura` or located under an `integration/` directory.
+  - **End-to-End Tests (`E2E`)**: Files containing `_e2e_test.aura` or located under an `e2e/` directory.
+  - **Benchmarks (`BENCHMARK`)**: Functions beginning with `benchmark_`, `Benchmark`, or `bench_`.
+
+#### B. Test and Benchmark Function Signatures
+
+Test functions must be exported and can either accept a test context (`TestingT`) or run parameter-free:
+
+```aura
+// 1. Standard unit test taking TestingT
+export fn test_addition(t: TestingT) => {
+    let sum = 10 + 25;
+    t.assertEqual(sum, 35, "10 + 25 must equal 35");
+    t.assertTrue(sum > 30, "sum should be greater than 30");
+}
+
+// 2. Async test for fibers, channels, and network calls
+export async fn test_async_service(t: TestingT) => {
+    let result = await fetchUserData(101);
+    t.assertTrue(result.isOk(), "fetching user must succeed");
+}
+
+// 3. Subtests (t.run) and logical test steps (t.step)
+export fn test_order_lifecycle(t: TestingT) => {
+    t.step("Verify inventory", fn() => {
+        t.assertTrue(checkStock("SKU-100"));
+    });
+
+    t.run("VIP customer discount", fn(subT: TestingT) => {
+        let total = calculateTotal({ isVip: true }, 100.0);
+        subT.assertEqual(total, 80.0, "VIPs receive a 20% discount");
+    });
+
+    t.run("Standard customer price", fn(subT: TestingT) => {
+        let total = calculateTotal({ isVip: false }, 100.0);
+        subT.assertEqual(total, 100.0, "Regular customers pay full price");
+    });
+}
+
+// 4. Benchmark function with adaptive timing
+export fn benchmark_factorial(b: BenchmarkB) => {
+    b.resetTimer();
+    factorial(15, 1);
+}
+```
+
+#### C. Testing Context Directives (`TestingT`)
+
+The `t: TestingT` context provides standard assertion, logging, and lifecycle directives:
+
+| Method / Directive | Description |
+| :----------------- | :---------- |
+| `t.assertEqual(actual, expected, msg?)` | Asserts deep structural equality between two values. |
+| `t.assertNotEqual(actual, expected, msg?)` | Asserts that two values are not deeply equal. |
+| `t.assertTrue(condition, msg?)` | Asserts that `condition === true`. |
+| `t.assertFalse(condition, msg?)` | Asserts that `condition === false`. |
+| `t.assertDeepEqual(actual, expected, msg?)` | Alias for deep structural assertion. |
+| `t.assertThrows(fn, expectedErr?)` | Asserts that calling `fn()` throws or panics with an optional error substring. |
+| `t.step(name, fn)` | Encapsulates a distinct logical step with timing logs. |
+| `t.run(subName, fn)` | Spawns an isolated subtest with its own `TestingT` scope. |
+| `t.log(...args)` | Records formatted diagnostic messages in the test output. |
+| `t.skip(reason)` | Skips the current test at runtime with an explanation. |
+| `t.fail(reason)` | Immediately marks the test as failed. |
+
+Global assertions are also available directly without `t`: `assert(cond, msg)`, `assertTrue(cond, msg)`, `assertFalse(cond, msg)`, `assertEqual(a, b, msg)`, and `assertNotEqual(a, b, msg)`.
+
+#### D. Benchmark Context Directives (`BenchmarkB`)
+
+The `b: BenchmarkB` context manages adaptive iteration counts and throughput metrics:
+
+| Method / Directive | Description |
+| :----------------- | :---------- |
+| `b.n` | Target iteration count adaptively calibrated by the benchmark runner. |
+| `b.resetTimer()` | Resets the elapsed time and start timestamp (use after expensive setup). |
+| `b.startTimer()` | Resumes timer measurement. |
+| `b.stopTimer()` | Pauses timer measurement during non-benchmark teardown/allocations. |
+| `b.setBytes(n)` | Informs the runner of bytes processed per op to compute MB/s throughput. |
+
+#### E. Conditional Testing with Build Tags
+
+Apply conditional compilation directives to isolate slow or environment-specific test suites:
+
+```aura
+//aura:build integration && !ci_fast
+// File: tests/postgres_integration_test.aura
+
+export fn test_postgres_pool(t: TestingT) => {
+    let pool = postgres.createPool(testConfig);
+    t.assertTrue(pool.ping());
+}
+```
+
+Run test suites matching specific tags:
+```bash
+auratest --tags "integration" ./...
+# or via compiler:
+aurac --test --tags "integration" ./...
+```
+
+#### F. Statement & Line Code Coverage Analysis
+
+Aura includes a native statement- and line-level code coverage engine accessible through both the compiler (`aurac --test`) and the dedicated `auratest` runner:
+
+| Coverage Flag | Description |
+| :------------ | :---------- |
+| `-cover`, `--coverage` | Enables coverage analysis and prints statement coverage table and summary in the terminal. |
+| `-coverprofile <file>` | Writes detailed line-by-line coverage profile data to the specified file for CI/CD pipelines. |
+| `--coverage-html <file>`, `--html <file>` | Generates a standalone interactive HTML coverage report with syntax-highlighted source code. |
+
+Code coverage examples:
+```bash
+# Terminal summary for the entire project
+aurac --test --coverage
+
+# Terminal summary for a single file or directory
+aurac examples/tests/math_unit_test.aura --test --coverage
+
+# Generate coverage profile and interactive HTML report
+aurac --test -coverprofile coverage.out --coverage-html coverage.html ./...
+```
+
+---
+
+## 🗄️ Standard Library, Web Server, and Databases
+
+### 🌐 HTTP Web Server and Routing Mux (`net/http`)
+
+The native HTTP server provides production-grade performance (**126k+ req/s**), middleware chaining, parameterized routing, JSON encoding, and integrated OpenAPI documentation:
 
 ```aura
 import { http, os } from "net/http";
 
 let mux = http.newServeMux();
 
-// 1. Middleware global
+// 1. Global middleware
 mux.use(fn(req: Any, res: Any, next: Any) => {
     println(`[HTTP] ${req.method} ${req.url}`);
     res.setHeader("X-Engine", "Aura-Native");
     next();
 });
 
-// 2. Ruta con parámetro dinámico (:id) y documentación Swagger
+// 2. Route with dynamic parameter (:id) and Swagger documentation
 mux.get("/api/books/:id", fn(req: Any, res: Any) => {
     let bookId = http.pathValue(req, "id");
     http.json(res, http.StatusOK, {
@@ -852,147 +1292,332 @@ mux.get("/api/books/:id", fn(req: Any, res: Any) => {
     });
 });
 
-// 3. Ruta POST con parseo asíncrono de JSON
+// 3. POST route with asynchronous JSON parsing
 mux.post("/api/books", fn(req: Any, res: Any) => async {
     let parsed = await http.parseJson(req);
     match parsed {
         Ok(data) => http.json(res, http.StatusCreated, { created: true, book: data }),
-        Err(err) => http.error(res, `Cuerpo inválido: ${err}`, http.StatusBadRequest)
+        Err(err) => http.error(res, `Invalid payload: ${err}`, http.StatusBadRequest)
     }
 });
 
-// 4. Habilitar documentación interactiva Swagger UI y OpenAPI 3.0
+// 4. Enable interactive Swagger UI and OpenAPI 3.0 documentation
 mux.enableSwagger("/swagger");
 
-// 5. Iniciar escucha
+// 5. Start listening
 let port = os.env("PORT") != "" ? os.env("PORT") : "8080";
-println(`🚀 Servidor HTTP iniciado en :${port}`);
+println(`🚀 HTTP Server listening on :${port}`);
 mux.listenAndServe(`:${port}`);
 ```
 
-### 📊 Métricas Prometheus y Trazabilidad Distribuida
+### 📊 Prometheus Metrics and Distributed Tracing
 
-El servidor HTTP incorpora soporte nativo para monitoreo en producción:
+The HTTP server features out-of-the-box observability:
 
-- **Endpoint `/metrics`**: Exporta contadores y gauges nativos (`aura_http_requests_total`, `aura_scheduler_fibers`, `aura_csp_channel_operations`).
-- **W3C `traceparent`**: Extrae y propaga identificadores de traza distributed tracing (`traceparent` header) entre llamadas de microservicios, cumpliendo los estándares de OpenTelemetry.
+- **`/metrics` Endpoint**: Exports native metrics (`aura_http_requests_total`, `aura_scheduler_fibers`, `aura_csp_channel_operations`).
+- **W3C `traceparent`**: Extracts and propagates distributed tracing headers across microservices, adhering to OpenTelemetry standards.
 
 ---
 
-### 🐘 Controlador Nativo de PostgreSQL (`pg` / `postgres`)
+### 🗄️ Unified Native Database Subsystem & Connection Pools
+
+Aura features a high-performance, strongly-typed native database subsystem designed for standalone binary executables compiled directly via **Cranelift**. It requires **zero external runtime dependencies** (no external `.so` or `.dylib` libraries) and follows the standard Go `database/sql` connection pooling and resource management model.
+
+#### Architectural Highlights
+- **Embedded SQLite Engine**: Statically bundled SQLite 3 C-engine with in-memory (`:memory:`) and file-based database support.
+- **Pure-Rust PostgreSQL Wire Protocol (3.0)**: Native TCP client implementation supporting Cleartext and MD5 authentication, parameterized extended queries, and streaming row decoding.
+- **Pure-Rust MySQL Wire Protocol (10)**: Native TCP client implementation supporting SHA-1 authentication handshakes, prepared statement parameter bindings, and result set parsing.
+- **Thread-Safe Connection Pooling (`DB`)**: Automatic connection pooling with max connection limits (`maxConns`), health checks (`db.ping()`), and deterministic cleanup (`db.close()`).
+- **ACID Transactions (`Tx`)**: Full transaction lifecycle management (`db.begin()`, `tx.commit()`, `tx.rollback()`) with polymorphic connection borrowing.
+- **Strongly-Typed Field Extractors (`Rows`)**: Fast cursor-based iteration (`rows.next()`), typed value retrieval (`getInt`, `getString`, `getFloat`, `getBool`), and direct map/record decoding (`rows.toRecord()`, `rows.toList()`).
+
+---
+
+### 🪶 Native Embedded SQLite Driver (`sqlite`)
+
+Embedded SQLite is built directly into the Aura runtime binary:
 
 ```aura
-let db: PgPool = postgres.createPool({
-    host: "localhost",
-    port: 5432,
-    user: "postgres",
-    password: "secret_password",
-    database: "orders_db"
+import { open } from "std/database/sqlite";
+
+// Open in-memory or file database with connection pool of 5 workers
+let db: DB = sqlite.open(":memory:", 5);
+defer db.close();
+
+// DDL schema execution
+let ddl = "CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, balance INT);";
+let schemaRes: ExecResult = db.exec(ddl, []);
+println(`Schema initialized. Affected rows: ${schemaRes.rowsAffected}`);
+
+// Parameterized INSERT statements (SQL-injection safe)
+let insertRes = db.exec("INSERT INTO users (name, balance) VALUES (?, ?);", ["Alice", 2500]);
+println(`Inserted user with ID: ${insertRes.lastInsertId}`);
+
+// Parameterized Query and Cursor Iteration
+let rows: Rows = db.query("SELECT id, name, balance FROM users WHERE balance >= ?;", [1000]);
+defer rows.close();
+
+while (rows.next()) {
+    let id = rows.getInt(0);
+    let name = rows.getString(1);
+    let balance = rows.getInt(2);
+    println(`[User #${id}] ${name} -> Balance: $${balance}`);
+}
+```
+
+---
+
+### 🐘 Native PostgreSQL Driver (`postgres` / `pg`)
+
+Pure-Rust TCP client implementing the PostgreSQL 3.0 wire protocol:
+
+```aura
+import { open } from "std/database/postgres";
+
+// Connect to remote or local PostgreSQL server
+let db: DB = postgres.open("postgres://postgres:secret@localhost:5432/orders_db", 10);
+defer db.close();
+
+// Parameterized query with $1, $2 placeholders
+let rows = db.query("SELECT id, name, email FROM users WHERE active = $1;", [true]);
+defer rows.close();
+
+while (rows.next()) {
+    let id = rows.getInt(0);
+    let name = rows.getString(1);
+    let email = rows.getString(2);
+    println(`- User ${id}: ${name} <${email}>`);
+}
+
+// Convert current row or full dataset to dynamic Aura records
+let userRecord = rows.toRecord();
+println(`User Name: ${userRecord.name}`);
+```
+
+---
+
+### 🐬 Native MySQL Driver (`mysql`)
+
+Pure-Rust TCP client implementing the MySQL Protocol 10 wire protocol:
+
+```aura
+import { open } from "std/database/mysql";
+
+let db: DB = mysql.open("mysql://root:secret@127.0.0.1:3306/shop_db", 10);
+defer db.close();
+
+let res: ExecResult = db.exec("INSERT INTO products (name, price) VALUES (?, ?);", ["Mechanical Keyboard", 129]);
+println(`Inserted product ID: ${res.lastInsertId}, Affected: ${res.rowsAffected}`);
+```
+
+---
+
+### 🔄 Generic SQL Interface & ACID Transactions (`database/sql` / `sql`)
+
+Aura provides a unified generic interface modeled after Go's `database/sql` enabling polymorphic database swapping and atomic transaction guarantees:
+
+```aura
+import { open, DB, Tx, Rows, ExecResult } from "std/database/sql";
+
+// Polymorphic opening via driver string: "sqlite", "postgres", "mysql"
+let db: DB = sql.open("sqlite", ":memory:", 5);
+defer db.close();
+
+// Initialize table
+db.exec("CREATE TABLE accounts (id INT PRIMARY KEY, balance INT);", []);
+db.exec("INSERT INTO accounts (id, balance) VALUES (1, 1000), (2, 500);", []);
+
+// Begin an atomic ACID Transaction
+let tx: Tx = db.begin();
+
+// Transfer $200 from Account 1 to Account 2
+tx.exec("UPDATE accounts SET balance = balance - 200 WHERE id = 1;", []);
+tx.exec("UPDATE accounts SET balance = balance + 200 WHERE id = 2;", []);
+
+// Commit atomically (returns 0 on success, -1 on error)
+let status = tx.commit();
+if (status == 0) {
+    println("✓ Transfer successfully committed!");
+} else {
+    tx.rollback();
+    println("✕ Transfer failed, rolled back!");
+}
+```
+
+---
+
+### 📚 Native Database Driver Example Suite
+
+Aura includes a comprehensive set of real-world, standalone database examples in the [`examples/`](examples) directory illustrating every aspect of the native database subsystem:
+
+| Example File | Backend / Paradigm | Key Features Demonstrated | Command to Run |
+| :--- | :--- | :--- | :--- |
+| [`examples/db_sqlite_crud.aura`](examples/db_sqlite_crud.aura) | **SQLite** (Embedded) | DDL table creation, parameterized `INSERT`, cursor-based `SELECT` scanning, `UPDATE`, `DELETE`, and pool metrics | `aurac build examples/db_sqlite_crud.aura -o dist/sqlite_crud --standalone && ./dist/sqlite_crud` |
+| [`examples/db_transactions_bank.aura`](examples/db_transactions_bank.aura) | **ACID Transactions** (`Tx`) | Multi-statement financial transfers, atomic `commit()`, automatic `rollback()` on rule failure, and balance integrity | `aurac build examples/db_transactions_bank.aura -o dist/bank_tx --standalone && ./dist/bank_tx` |
+| [`examples/db_generic_sql_pool.aura`](examples/db_generic_sql_pool.aura) | **Generic SQL** (`sql.open`) | Database-agnostic driver dispatch, health checks via `ping()`, aggregate queries (`COUNT`, `AVG`, `GROUP BY`), and connection pool lifecycle | `aurac build examples/db_generic_sql_pool.aura -o dist/sql_pool --standalone && ./dist/sql_pool` |
+| [`examples/db_postgres_microservice.aura`](examples/db_postgres_microservice.aura) | **PostgreSQL** (Wire 3.0) | Pure-Rust TCP client, `$1, $2` parameterized extended query syntax, and order processing workflows | `aurac check examples/db_postgres_microservice.aura` |
+| [`examples/db_mysql_inventory.aura`](examples/db_mysql_inventory.aura) | **MySQL** (Protocol 10) | Pure-Rust TCP client, `?` placeholder bindings, `lastInsertId` & `rowsAffected` metrics, and batch inventory tracking | `aurac check examples/db_mysql_inventory.aura` |
+| [`examples/native_database_demo.aura`](examples/native_database_demo.aura) | **All-in-One Demo** | Complete standalone showcase: in-memory SQLite, schema setup, parameterized inserts, cursor reads, and ACID transactions | `aurac build examples/native_database_demo.aura -o dist/native_db_demo --standalone && ./dist/native_db_demo` |
+| [`examples/db_stored_procedures_functions.aura`](examples/db_stored_procedures_functions.aura) | **Functions & Stored Procedures** (`CALL` / `SELECT`) | Stored procedures (`CALL`), scalar & table-valued functions (`RETURNS TABLE`), MySQL `OUT` parameters, aggregate queries, and transactions | `aurac build examples/db_stored_procedures_functions.aura -o dist/sp_demo --standalone && ./dist/sp_demo` |
+| [`examples/native_nosql_demo.aura`](examples/native_nosql_demo.aura) | **NoSQL Suite** (Redis & Mongo) | Standalone native NoSQL engine: Redis KV, Hashes, FIFO Queues, Counters + MongoDB Document CRUD, filtering, and Aggregation pipelines | `aurac build examples/native_nosql_demo.aura -o dist/nosql_demo --standalone && ./dist/nosql_demo` |
+
+#### Compiling and Running the Native Examples
+All examples compile directly into self-contained native machine code binaries (Mach-O on macOS, ELF on Linux) with zero external dynamic dependencies:
+
+```bash
+# 1. Compile and run SQLite CRUD
+aurac build examples/db_sqlite_crud.aura -o dist/db_sqlite_crud --standalone
+./dist/db_sqlite_crud
+
+# 2. Compile and run ACID Bank Transactions
+aurac build examples/db_transactions_bank.aura -o dist/db_transactions_bank --standalone
+./dist/db_transactions_bank
+
+# 3. Compile and run Generic SQL Connection Pool
+aurac build examples/db_generic_sql_pool.aura -o dist/db_generic_sql_pool --standalone
+./dist/db_generic_sql_pool
+
+# 4. Compile and run Native NoSQL (Redis & MongoDB) Showcase
+aurac build examples/native_nosql_demo.aura -o dist/nosql_demo --standalone
+./dist/nosql_demo
+```
+
+---
+
+### ⚡ Native Redis Driver & In-Memory Cache (`redis` / `std/redis`)
+
+Aura provides a native, zero-dependency Redis client implementing the **RESP wire protocol** over TCP with automatic embedded in-memory fallback (`:memory:`) for standalone binaries:
+
+- **Key-Value Operations**: `set(key, val, ttlSec?)`, `get(key)`, `del(key)`, `exists(key)`.
+- **Atomic Counters**: `incr(key)`, `decr(key)`.
+- **Structured Hash Maps**: `hset(hash, field, val)`, `hget(hash, field)`, `hdel(hash, field)`, `hgetall(hash)`.
+- **FIFO Queues & Lists**: `lpush(list, val)`, `rpop(list)`, `lrange(list, start, stop)`.
+- **TTL & Expirations**: `expire(key, seconds)`, `ttl(key)`.
+- **Health Checks & Lifecycle**: `ping()`, `close()`.
+
+```aura
+import { open, RedisClient } from "std/database/redis";
+
+// Connect to remote Redis or use standalone embedded in-memory cache
+let r: RedisClient = redis.open(":memory:");
+defer r.close();
+
+// Ping
+let pong = r.ping(); // "PONG"
+println(`Redis Status: ${pong}`);
+
+// Key-Value with optional TTL (seconds)
+r.set("user:101:session", "token_abc123", 3600);
+let token = r.get("user:101:session");
+println(`Active Session: ${token}`);
+
+// Atomic counters
+let visitors = r.incr("page:home:hits");
+println(`Page hits: ${visitors}`);
+
+// Hash map storage
+r.hset("user:101:profile", "username", "alice");
+r.hset("user:101:profile", "role", "admin");
+let role = r.hget("user:101:profile", "role");
+println(`User role: ${role}`);
+
+// FIFO Queue / List
+r.lpush("jobs:queue", "email_welcome_user_101");
+r.lpush("jobs:queue", "generate_pdf_invoice_992");
+let nextJob = r.rpop("jobs:queue");
+println(`Processed Job: ${nextJob}`);
+```
+
+---
+
+### 🍃 Native MongoDB Driver & Document Store (`mongodb` / `mongo` / `std/mongodb`)
+
+Aura includes a pure-Rust native MongoDB document engine supporting structured JSON/BSON document collections, rich filter operators, atomic field updates, and aggregation pipelines:
+
+- **Document Insertions**: `insertOne(doc)`, `insertMany(docs)`.
+- **Queries & Comparison Operators**: `findOne(filter)`, `find(filter)`, `$gt`, `$gte`, `$lt`, `$lte`, `$ne`, `$in`.
+- **Updates & Modifiers**: `updateOne(filter, update)`, `updateMany(filter, update)`, `$set`, `$inc`, `$unset`.
+- **Deletions & Counting**: `deleteOne(filter)`, `deleteMany(filter)`, `count(filter)`.
+- **Aggregation Pipelines**: `aggregate(pipeline)` supporting `$match`, `$group`, `$sum`, and `$avg`.
+- **Connection Lifecycle**: `open(uri)`, `db(name?)`, `collection(name)`, `ping()`, `close()`.
+
+```aura
+import { open, MongoClient, MongoDatabase, MongoCollection } from "std/database/mongodb";
+
+// Connect to MongoDB or run embedded standalone store
+let client: MongoClient = mongodb.open(":memory:");
+defer client.close();
+
+let db: MongoDatabase = client.db("catalog");
+let products: MongoCollection = db.collection("products");
+
+// Insert Documents
+let insertResult = products.insertOne({
+    sku: "LAPTOP-M3",
+    name: "MacBook Pro 16",
+    category: "Computers",
+    price: 2499,
+    stock: 15,
+    status: "in_stock"
 });
+println(`Inserted ID: ${insertResult.insertedId}`);
 
-async fn getActiveUsers(): Task<(), String> {
-    let res = await db.query("SELECT id, name, email FROM users WHERE active = $1", [true]);
-    match res {
-        Ok(rows) => for u in rows { println(`- ${u.name} (${u.email})`); },
-        Err(err) => println(`Error SQL: ${err}`)
-    }
-}
+// Find Document with Filter
+let found = products.findOne({ sku: "LAPTOP-M3" });
+println(`Found product: ${found}`);
 
-// Transacciones ACID automáticas
-async fn transferBalance(txFn: PgTransaction): Task<(), String> {
-    await db.transaction(fn(tx: PgTransaction) => {
-        tx.execute("UPDATE accounts SET balance = balance - 100 WHERE id = $1", [1]);
-        tx.execute("UPDATE accounts SET balance = balance + 100 WHERE id = $2", [2]);
-    });
-}
+// Atomic Field Update ($set and $inc)
+products.updateOne(
+    { sku: "LAPTOP-M3" },
+    { $set: { status: "discounted" }, $inc: { stock: -1 } }
+);
+
+// Query with Range Filters ($gt, $lt, $in)
+let expensive = products.find({ price: { $gt: 1000 } });
+println(`Expensive products: ${expensive}`);
+
+// Document Count
+let totalCount = products.count({});
+println(`Total items in catalog: ${totalCount}`);
+
+// Aggregation Pipeline ($match + $group)
+let pipeline = [
+    { $match: { category: "Computers" } },
+    { $group: { _id: "$category", totalValue: { $sum: "$price" }, avgPrice: { $avg: "$price" } } }
+];
+let stats = products.aggregate(pipeline);
+println(`Category Stats: ${stats}`);
 ```
 
 ---
 
-### 🐬 Controlador Nativo de MySQL (`mysql`)
+### 🧩 System Modules: `os`, `time`, `crypto`, `jwt`, and `json`
 
-```aura
-let pool: MysqlPool = mysql.open("mysql://root:secret@127.0.0.1:3306/tienda_db");
-
-async fn insertarProducto(nombre: String, precio: Float): Task<Int, String> {
-    let res = await pool.execute("INSERT INTO productos (nombre, precio) VALUES (?, ?)", [nombre, precio]);
-    match res {
-        Ok(info) => {
-            println(`Insertado ID: ${info.insertId}, Afectados: ${info.affectedRows}`);
-            info.insertId
-        },
-        Err(e) => -1
-    }
-}
-```
-
----
-
-### 🍃 Controlador Nativo de MongoDB (`mongodb` / `mongo`)
-
-```aura
-let client: MongoClient = mongodb.open("mongodb://127.0.0.1:27017/catalogo");
-let articulos: MongoCollection = client.db().collection("articulos");
-
-async fn consultarCatalogo(): Task<(), String> {
-    let doc = await articulos.findOne({ sku: "AURA-CORE" });
-    match doc {
-        Ok(Some(item)) => println(`Encontrado: ${item.nombre}, Stock: ${item.stock}`),
-        Ok(None) => println("Artículo no existente."),
-        Err(err) => println(`Error Mongo: ${err}`)
-    }
-}
-```
-
----
-
-### ⚡ Cliente Nativo de Redis (`redis`)
-
-```aura
-let cache: RedisClient = redis.open("redis://127.0.0.1:6379");
-
-async fn gestionarSesion(usuarioId: String, token: String): Task<Bool, String> {
-    // Guardar token con expiración TTL de 3600 segundos
-    await cache.set(`sesion:${usuarioId}`, token, 3600);
-
-    // Almacenamiento en hashes estructurados
-    await cache.hset(`perfil:${usuarioId}`, "rol", "administrador");
-
-    let rol = await cache.hget(`perfil:${usuarioId}`, "rol");
-    println(`Rol en cache: ${rol}`);
-    true
-}
-```
-
----
-
-### 🧩 Módulos del Sistema: `os`, `time`, `crypto`, `jwt` y `json`
-
-- **`os`**: `os.args`, `os.env("CLAVE")`, `os.getEnv("CLAVE")`, `os.setEnv("K", "V")`, `os.readFile(path)`, `os.writeFile(path, data)`, `os.exit(0)`.
+- **`os`**: `os.args`, `os.env("KEY")`, `os.getEnv("KEY")`, `os.setEnv("K", "V")`, `os.readFile(path)`, `os.writeFile(path, data)`, `os.exit(0)`.
 - **`time`**: `time.now()`, `time.isoString()`, `time.sleep(ms)`.
 - **`crypto`**: `crypto.sha256(text)`, `crypto.hmacSha256(key, message)`, `crypto.base64UrlEncode(data)`, `crypto.base64UrlDecode(data)`.
 - **`jwt`**: `jwt.sign(payload, secret)`, `jwt.verify(token, secret)`.
-- **`JSON`**: `JSON.stringify(valor)`, `JSON.parse(textoJson)`.
+- **`JSON`**: `JSON.stringify(val)`, `JSON.parse(jsonText)`.
 
 ---
 
-### 📚 Microservicio REST de Producción: `bookstore_api`
+### 📚 Production REST Microservice: `bookstore_api`
 
-El repositorio incluye la implementación de un microservicio REST enterprise en [`examples/bookstore_service.aura`](examples/bookstore_service.aura) y [`AuraProjects/bookstore_api/`](/AuraProjects/bookstore_api) evaluado con tests E2E automatizados:
+The repository includes a complete enterprise REST microservice in [`examples/bookstore_service.aura`](examples/bookstore_service.aura) validated by automated E2E tests:
 
-- Modelado con Structs, Tags (`json:"..."`) y ADTs para estados de orden.
-- Catálogo completo de **Libros, Autores y Editoriales**.
-- Validación de stock y cálculo de impuestos (IVA 19%).
-- Endpoints de consulta con paginación y filtros de búsqueda.
-- Documentación OpenAPI 3.0 interactiva generada automáticamente.
+- Structured modeling with Structs, Tags (`json:"..."`), and ADTs for order states.
+- Complete catalog of **Books, Authors, and Publishers**.
+- Stock validation and tax calculations (19% VAT).
+- Query endpoints with pagination and search filters.
+- Interactive OpenAPI 3.0 / Swagger documentation.
 
 ---
 
-## 🐛 Depuración Interactiva y Source Maps V3
+## 🐛 Interactive Debugging and Source Maps V3
 
-### Depurador Paso a Paso en Terminal (`aurac step`)
+### Terminal Step-by-Step Debugger (`aurac step`)
 
-Aura incluye un depurador interactivo de consola que permite inspeccionar la ejecución línea por línea sin dependencias gráficas:
+Aura includes an interactive terminal debugger allowing developers to step through code execution line by line:
 
 ```bash
 aurac step examples/defer_demo.aura
@@ -1004,7 +1629,7 @@ Target file: defer_demo.aura
 
 📍 [defer_demo.aura:28] in main()
       27 | export fn main(): Unit => {
-  ➜   28 |     println("--- Demostración de Defer ---");
+  ➜   28 |     println("--- Defer Demonstration ---");
       29 |     let res = executeQuery();
 
 (aura-dbg) next
@@ -1015,184 +1640,231 @@ Target file: defer_demo.aura
 (aura-dbg) backtrace
 ```
 
-| Comando         | Atajos         | Acción Realizada                                                        |
+| Command         | Shortcuts      | Action                                                                  |
 | :-------------- | :------------- | :---------------------------------------------------------------------- |
-| `next`          | `n`, `<ENTER>` | **Step Over**: Avanza a la siguiente línea del código fuente.           |
-| `into`          | `s`, `step`    | **Step Into**: Entra en la función que se ejecuta.                      |
-| `out`           | `o`, `finish`  | **Step Out**: Ejecuta hasta retornar de la función actual.              |
-| `continue`      | `c`            | **Continuar**: Reanuda la ejecución hasta el próximo breakpoint.        |
-| `break <linea>` | `b <linea>`    | **Breakpoint**: Añade o retira un punto de interrupción en esa línea.   |
-| `vars`          | `locals`       | **Variables**: Muestra el valor de todas las variables locales activas. |
-| `backtrace`     | `bt`, `stack`  | **Stack**: Imprime la traza de pila mapeada a los archivos `.aura`.     |
-| `print <expr>`  | `p <expr>`     | **Evaluar**: Evalúa dinámicamente una expresión en el ámbito local.     |
-| `quit`          | `q`, `exit`    | **Salir**: Finaliza la sesión de depuración.                            |
+| `next`          | `n`, `<ENTER>` | **Step Over**: Advances to the next source line.                        |
+| `into`          | `s`, `step`    | **Step Into**: Enters into the function being called.                   |
+| `out`           | `o`, `finish`  | **Step Out**: Executes until returning from the current function.       |
+| `continue`      | `c`            | **Continue**: Resumes execution until the next breakpoint.              |
+| `break <line>`  | `b <line>`     | **Breakpoint**: Toggles a breakpoint on the specified line.             |
+| `vars`          | `locals`       | **Variables**: Displays all currently active local variables.           |
+| `backtrace`     | `bt`, `stack`  | **Stack**: Prints the call stack mapped back to `.aura` files.          |
+| `print <expr>`  | `p <expr>`     | **Evaluate**: Dynamically evaluates an expression in local scope.       |
+| `quit`          | `q`, `exit`    | **Quit**: Ends the debugging session.                                   |
 
-### Servidor de Depuración V8 / DAP (`aurac debug`)
+### V8 / DAP Debugger Server (`aurac debug`)
 
-Inicia un servidor de depuración para conectar IDEs modernos o Chrome DevTools mediante Source Maps V3:
+Starts a debug server enabling connections from modern IDEs or Chrome DevTools using Source Maps V3:
 
 ```bash
-# Iniciar y detenerse en el punto de entrada (puerto 9229)
+# Start and break at entrypoint (port 9229)
 aurac debug src/main.aura
 
-# Conectar en un puerto específico sin detenerse en la primera línea
+# Connect on custom port without breaking at start
 aurac debug src/main.aura --port 9300 --no-brk
 ```
 
-Compatible con:
+Compatible with:
 
-- **Google Antigravity IDE / VS Code**: Conexión inmediata vía `F5` (_Attach to Aura Process_).
-- **Zed / Neovim**: Vía protocolos DAP estándar en `127.0.0.1:9229`.
-- **Google Chrome**: Abriendo `chrome://inspect` en el navegador.
+- **Google Antigravity IDE / VS Code**: Immediate connection via `F5` (*Attach to Aura Process*).
+- **Zed / Neovim**: Standard DAP protocol on `127.0.0.1:9229`.
+- **Google Chrome**: Via `chrome://inspect` in the browser.
 
 ---
 
-## 🛠️ Referencia Completa de Herramientas y CLI
+## 🛠️ Full Tooling and CLI Reference
 
-### 1. Compilador Central (`aurac`)
+### 1. Unified Toolchain & Core Compiler (`aura` / `aurac`)
+
+The primary command is `aura` (with `aurac` fully supported as an identical alias):
 
 ```bash
-# 1. Compilar a binario nativo independiente con Cranelift (por defecto)
-aurac build main.aura -o dist/mi-app
+# 1. Compile to standalone native binary with Cranelift (default)
+aura build main.aura -o dist/my-app
+# or via the aurac alias:
+aurac build main.aura -o dist/my-app
 
-# 2. Compilar con optimizaciones de release (-O3, SIMD, strip de código muerto)
-aurac build main.aura -o dist/mi-app --release -O3
+# 2. Compile with release optimizations (-O3, SIMD, dead-code strip)
+aurac build main.aura -o dist/my-app --release -O3
 
-# 3. Compilación cruzada hermética (modelo Zig)
-aurac build main.aura -o dist/mi-app-linux --target linux/amd64
-aurac build main.aura -o dist/mi-app-arm64 --target linux/arm64
-aurac build main.aura -o dist/mi-app.exe   --target windows/amd64
-aurac build main.aura -o dist/mi-app-musl  --target x86_64-unknown-linux-musl
+# 3. Hermetic cross-compilation (Zig model)
+aurac build main.aura -o dist/my-app-linux --target linux/amd64
+aurac build main.aura -o dist/my-app-arm64 --target linux/arm64
+aurac build main.aura -o dist/my-app.exe   --target windows/amd64
+aurac build main.aura -o dist/my-app-musl  --target x86_64-unknown-linux-musl
 
-# 4. Compilar mediante la cadena de herramientas de Go
-aurac build main.aura -o dist/mi-app --target go
+# 4. Compile via Go toolchain
+aurac build main.aura -o dist/my-app --target go
 
-# 5. Emitir código fuente puro Go (.go)
+# 5. Emit pure Go source code (.go)
 aurac emit-go main.aura -o dist/main.go
 
-# 6. Ejecución directa e inmediata
+# 6. Direct instant execution
 aurac run main.aura
 
-# 7. Verificación estática ultra rápida de tipos (sin emitir archivos)
+# 7. Ultra-fast static type checking without code generation
 aurac check main.aura
 
-# 8. Modo Watch interactivo (recompilación y ejecución ante cambios)
+# 8. Interactive watch mode (recompiles and runs on save)
 aurac watch main.aura --run
 
-# 9. Compilación condicional mediante build tags
+# 9. Conditional compilation via build tags
 aurac build main.aura --tags "premium,darwin"
+
+# 10. Ingest external TypeScript type definitions (.d.ts)
+aurac build main.aura -o dist/my-app --dts node_modules/@types/node/index.d.ts
+
+# 11. Run tests directly from the compiler
+aurac --test
+aurac --test ./...
+aurac main_test.aura --test
 ```
 
-### 2. Runner de Pruebas, Benchmarks y Cobertura (`auratest`)
+### 2. Test, Benchmark, and Coverage Runner (`aurac --test` / `auratest`)
+
+Tests can be executed directly via the compiler (`aurac --test` / `aurac <file> --test`) or using the dedicated test runner (`auratest`):
 
 ```bash
-# Ejecutar todas las pruebas del proyecto
+# Run all tests across the project
+aurac --test
 auratest ./...
-# o alternativamente:
 aurac test ./...
 
-# Modo detallado (verbose) con tiempos individuales
-auratest -v ./...
+# Run a specific test file directly via compiler
+aurac examples/tests/math_unit_test.aura --test
+aurac --test examples/tests/math_unit_test.aura
 
-# Filtrar pruebas por expresión regular
-auratest -run TestUserAuthentication ./...
+# Verbose mode with test names, logs, and individual timings (-v / --verbose)
+aurac --test -v ./...
+aurac examples/tests/math_unit_test.aura --test -v
 
-# Ejecutar benchmarks con reporte de tiempo por operación (ns/op)
-auratest -bench . ./...
+# Filter tests by regular expression (-run <pattern>)
+aurac --test -run TestUserAuthentication ./...
+aurac examples/tests/math_unit_test.aura --test -run test_addition
 
-# Generar reporte de cobertura con perfil y exportación a HTML interactivo
-auratest --coverage --coverprofile=coverage.out --coverage-html=coverage.html ./...
+# Filter tests by category (--unit, --integration, --e2e)
+aurac --test --unit ./...
+aurac --test --integration ./...
+aurac --test --e2e ./...
 
-# Salida estructurada JSON para integración en CI/CD
-auratest -json ./...
+# Conditional testing via build tags (--tags <tags>)
+aurac --test --tags "integration,db" ./...
 
-# Modo Watch para ejecutar pruebas automáticamente al guardar
-auratest -w ./...
+# Run benchmarks with operations per second report (ns/op)
+aurac --test -bench . ./...
+
+# Statement and line code coverage report in terminal
+aurac --test --coverage
+aurac examples/tests/math_unit_test.aura --test --coverage
+
+# Generate coverage profile for CI/CD and interactive HTML report
+aurac --test --coverage -coverprofile=coverage.out --coverage-html=coverage.html ./...
+
+# Stop execution on first test failure (-failfast)
+aurac --test -failfast ./...
+
+# Run with timeout limit (-timeout <duration>) and repetitions (-count <n>)
+aurac --test -timeout 10s -count 2 ./...
+
+# Run test files in parallel (-parallel <n>)
+aurac --test -parallel 4 ./...
+
+# Machine-readable JSON output for CI/CD pipelines
+aurac --test -json ./...
+
+# List discovered tests without executing them (-l / --list)
+aurac --test -l ./...
+
+# Watch mode to automatically re-run tests on file changes (-w / --watch)
+aurac --test -w ./...
+
+# Display complete testing help and flag reference
+aurac --test --help
 ```
 
-### 3. Formateador de Código (`aurafmt`, Estilo `gofmt`)
+### 3. Opinionated Code Formatter (`aurafmt`, `gofmt` Style)
 
 ```bash
-# Formatear todos los archivos .aura recursivamente in-place
+# Format all .aura files recursively in-place
 aurafmt -w .
-# o mediante aurac:
+# or via aurac:
 aurac fmt -w .
 
-# Mostrar diferencias unificadas (diff) sin modificar archivos
+# Show unified diff without modifying files
 aurafmt -d src/main.aura
 
-# Listar archivos con formato inconsistente
+# List files with inconsistent formatting
 aurafmt -l .
 
-# Modo verificación estricta para pipelines CI (código de salida != 0 si hay desalineación)
+# Strict verification mode for CI pipelines (exit code != 0 on mismatch)
 aurafmt -c .
 ```
 
-### 4. Servidor de Lenguaje (`auralsp` / `aurac lsp`)
+### 4. Language Server (`auralsp` / `aurac lsp`)
 
 ```bash
 aurac lsp
-# o directamente:
+# or directly:
 auralsp
 ```
 
-Proporciona diagnósticos en tiempo real, hover con firmas y documentación, Go-to-Definition, renombrado de símbolos, autocompletado y formateo automático on-save.
+Provides real-time diagnostics, hover with type signatures and documentation, Go-to-Definition, symbol renaming, autocomplete, and format on save.
 
-### 5. Gestor Descentralizado de Módulos (`auramod` / `aurac mod`)
+### 5. Decentralized Module Manager (`auramod` / `aurac mod`)
 
 ```bash
-# Inicializar un nuevo módulo con archivo aura.mod
-aurac mod init github.com/miusuario/mi-app
+# Initialize a new module with an aura.mod manifest
+aurac mod init github.com/myuser/my-app
 
-# Descargar e instalar una dependencia remota
+# Download and install a remote dependency
 aurac mod get github.com/aura-lang/crypto@v1.0.0
 
-# Sincronizar dependencias automáticamente desde el código (.aura)
+# Automatically tidy and sync dependencies from source files (.aura)
 aurac mod tidy
 
-# Empaquetar dependencias localmente en ./vendor para builds 100% offline
+# Vendor all dependencies into ./vendor for 100% offline builds
 aurac mod vendor
 
-# Verificar integridad criptográfica SHA-256 contra aura.lock
+# Verify SHA-256 cryptographic integrity against aura.lock
 aurac mod verify
 
-# Visualizar el árbol de dependencias
+# Visualize the module dependency graph
 aurac mod graph
 ```
 
-### 6. Generador de Bindings FFI (`aurabindgen` / `aurac bindgen`)
+### 6. C/Rust FFI Binding Generator (`aurabindgen` / `aurac bindgen`)
 
 ```bash
-# Generar bindings tipados Aura a partir de cabeceras C
+# Generate typed Aura bindings from C header files
 aurac bindgen /usr/include/sqlite3.h -o src/sqlite3.aura --name SQLite3 --strip-prefix "sqlite3_"
 ```
 
-### 7. Playground Web Interactivo
+### 7. Interactive Web Playground
 
 ```bash
 aurac playground --port 3000
 ```
 
-Abre en tu navegador: [http://localhost:3000](http://localhost:3000).
+Open in your browser: [http://localhost:3000](http://localhost:3000).
 
 ---
 
-## 🧩 Configuración en Editores
+## 🧩 Editor Configuration
 
 ### Google Antigravity IDE
 
-Soporte de primera clase con agentes inteligentes ubicado en [`editors/antigravity/`](editors/antigravity):
+First-class support with intelligent agents located in [`editors/antigravity/`](editors/antigravity):
 
-- **LSP Integrado**: Inferencia estática bidireccional, autocompletado y formateo automático con `aurafmt`.
-- **Programación en Pareja con IA**: Autocompletado inteligente (`⌘+I`) con directrices nativas de Aura (`.agents/plugins/aura-lang/rules/AGENTS.md`).
-- **Instalación de Extensión**:
+- **Integrated LSP**: Bidirectional static inference, autocomplete, and automatic formatting with `aurafmt`.
+- **AI Pair Programming**: Intelligent completion (`⌘+I`) configured with Aura guidelines (`.agents/plugins/aura-lang/rules/AGENTS.md`).
+- **Extension Installation**:
   ```bash
   antigravity --install-extension editors/antigravity/aura-antigravity-0.1.0.vsix
   ```
 
 ### Visual Studio Code
 
-Extensión oficial ubicada en [`editors/vscode/`](editors/vscode):
+Official extension located in [`editors/vscode/`](editors/vscode):
 
 ```bash
 cd editors/vscode && npm install && npm run package
@@ -1200,7 +1872,7 @@ cd editors/vscode && npm install && npm run package
 
 ### Neovim (`nvim-lspconfig`)
 
-Agrega a tu configuración `init.lua`:
+Add to your `init.lua`:
 
 ```lua
 local lspconfig = require('lspconfig')
@@ -1219,41 +1891,116 @@ end
 lspconfig.aura.setup{}
 ```
 
-### Editor Zed
+### Zed Editor
 
-Utiliza el plugin empaquetado en [`editors/zed/`](editors/zed).
+Use the extension bundle located in [`editors/zed/`](editors/zed).
 
 ---
 
-## 🔄 Compilador Self-Hosted y Bootstrapping
+## 🔄 Self-Hosted Compiler and Bootstrapping
 
-Aura cuenta con un **compilador completamente auto-alojado** (_self-hosted_) escrito en el propio lenguaje Aura, ubicado en [`src/aura_compiler/`](/aura-lang/src/aura_compiler):
+Aura includes a **fully self-hosted compiler** written entirely in pure Aura, located in [`src/aura_compiler/`](src/aura_compiler). It embodies all 4 major compiler engineering phases:
 
-- [`ast.aura`](/aura-lang/src/aura_compiler/ast.aura) — Definición formal del AST escrita en Aura.
-- [`lexer.aura`](/aura-lang/src/aura_compiler/lexer.aura) — Analizador léxico determinista.
-- [`parser.aura`](/aura-lang/src/aura_compiler/parser.aura) — Parser Pratt descendente recursivo.
-- [`codegen.aura`](/aura-lang/src/aura_compiler/codegen.aura) — Generador de código.
-- [`main.aura`](/aura-lang/src/aura_compiler/main.aura) — Punto de entrada del compilador.
+- [`ast.aura`](src/aura_compiler/ast.aura) — Formal AST definitions, `SymbolTable` string interning, source spans, and diagnostic records.
+- [`diagnostics.aura`](src/aura_compiler/diagnostics.aura) — Terminal diagnostic formatter (Rust/Ariadne style) and Levenshtein similarity distance for auto-suggestions (*"Did you mean '...'?"*).
+- [`lexer.aura`](src/aura_compiler/lexer.aura) — Deterministic lexical analyzer and token stream generator.
+- [`parser.aura`](src/aura_compiler/parser.aura) — Recursive descent Pratt parser with operator precedence.
+- [`typechecker.aura`](src/aura_compiler/typechecker.aura) — Full static semantic analyzer and Hindley-Milner type inferer in pure Aura.
+- [`codegen.aura`](src/aura_compiler/codegen.aura) — High-performance JavaScript / Node.js ES6 code generator.
+- [`codegen_go.aura`](src/aura_compiler/codegen_go.aura) — Direct-to-Go transpiler emitting idiomatic, compilable Go 1.21+ source code.
+- [`main.aura`](src/aura_compiler/main.aura) — Compiler pipeline entrypoint with multi-target CLI options (`--target js|go`, `--check`).
 
-### 1. Compilación Etapa 1 mediante el compilador en Rust:
+---
 
-```bash
-cargo run --bin aurac -- compile src/aura_compiler/ast.aura -o dist/ast.mjs
-cargo run --bin aurac -- compile src/aura_compiler/lexer.aura -o dist/lexer.mjs
-cargo run --bin aurac -- compile src/aura_compiler/parser.aura -o dist/parser.mjs
-cargo run --bin aurac -- compile src/aura_compiler/codegen.aura -o dist/codegen.mjs
-cargo run --bin aurac -- compile src/aura_compiler/main.aura -o dist/aurac.mjs
+### 🏛️ Architectural Improvement Phases
+
+The self-hosted compiler implements four modular enhancement phases:
+
+```mermaid
+graph TD
+    A["Aura Source Code (.aura)"] --> B["Lexer (lexer.aura)"]
+    B --> C["Pratt Parser (parser.aura)"]
+    C --> D["AST + SymbolTable (ast.aura)"]
+    D --> E["Semantic Typechecker (typechecker.aura)"]
+    E -->|--check| F["Diagnostics & Fuzzy Suggestions (diagnostics.aura)"]
+    E -->|--target js| G["JavaScript CodeGen (codegen.aura)"]
+    E -->|--target go| H["Golang CodeGen (codegen_go.aura)"]
+    G --> I["dist/*.mjs (Node.js / Web)"]
+    H --> J["Standalone Native Binary (go build)"]
 ```
 
-### 2. Compilar programas Aura utilizando el compilador Self-Hosted:
+#### Phase 1: Semantic Typechecker in Pure Aura ([`typechecker.aura`](src/aura_compiler/typechecker.aura))
+- **Semantic Type Representation (`SemanticType`)**: Formal type hierarchy supporting `STyInt`, `STyFloat`, `STyString`, `STyBool`, `STyUnit`, `STyAny`, `STyOption`, `STyResult`, `STyList`, `STyRecord`, `STyTuple`, `STyFunction`, `STySum`, `STyChannel`, and `STyCustom`.
+- **Lexical Type Environment (`TypeEnv`)**: Tracks variable bindings (`bindVar`), function signatures (`bindFunction`), sum type variants (`SemanticSumType`), and type aliases (`SemanticTypeAlias`).
+- **Expression & Statement Verification**: Typechecks arithmetic/logical binary operators, branch unification in `if/else`, while-loop boolean conditions, for-in collection iteration types, and exhaustive pattern match arm consistency.
+- **Strict Mutability & Signature Enforcement**: Validates immutable vs mutable bindings (`let` vs `let mut`), reassignments (`checkAssign`), let annotations (`checkLetAnnotation`), and function return types (`checkReturnType`).
+
+#### Phase 2: Native Golang Code Generator ([`codegen_go.aura`](src/aura_compiler/codegen_go.aura))
+- **AST to Go 1.21+ Transpilation**: Converts Aura AST into clean, idiomatic Go source ready for `go build`.
+- **Type Mapping**: Direct mapping of Aura types (`Int` $\rightarrow$ `int64`, `Float` $\rightarrow$ `float64`, `String` $\rightarrow$ `string`, `Bool` $\rightarrow$ `bool`, `Option<T>` $\rightarrow$ `*T`, `List<T>` $\rightarrow$ `[]T`, `Channel<T>` $\rightarrow$ `chan T`).
+- **Visibility & Control Flow**: Automatic uppercase identifier capitalization for exported symbols, pattern matching compilation to Go `switch` statements, and module-level top statement aggregation into `func main()` or `func init()`.
+
+#### Phase 3: String Interning, Rich Diagnostics & Levenshtein Search ([`ast.aura`](src/aura_compiler/ast.aura), [`diagnostics.aura`](src/aura_compiler/diagnostics.aura))
+- **Symbol Table (`SymbolTable`)**: String interning (`internSymbol`, `lookupSymbol`) for memory-efficient identifier reuse.
+- **Rich Diagnostic Formatting**: Ariadne-style error output with severity levels (`DiagError`, `DiagWarning`, `DiagInfo`, `DiagHint`), error codes (`E0308`, `E0425`, `E0384`, `E0004`), help notes, and line context.
+- **Fuzzy Identifier Resolution**: Zero-allocation Levenshtein distance algorithm (`findClosestMatch`) that computes edit distance $\le 3$ to provide auto-corrections (*"Did you mean 'msg'?"*) on unresolved symbols.
+
+#### Phase 4: Multi-Target Pipeline & 5-Stage Bootstrap ([`main.aura`](src/aura_compiler/main.aura), [`tests/bootstrap_tests.rs`](tests/bootstrap_tests.rs))
+- **Multi-Target CLI Pipeline**: Full CLI options supporting `--target js` (default), `--target go`, fast typecheck-only mode `--check`, and custom output `-o <path>`.
+- **Triple-Stage Bootstrapping**: Validates that Rust compiles Aura compiler $\rightarrow$ Aura compiler compiles Aura programs $\rightarrow$ Aura compiler compiles itself into a **6.43 MB** standalone native binary (Mach-O / ELF).
+
+---
+
+### 🚀 Bootstrap Workflow & CLI Usage
+
+#### 1. Stage 1: Compile All 8 Self-Hosted Modules
+Compile the self-hosted compiler modules using the reference Rust compiler (`aurac`):
 
 ```bash
-node dist/aurac.mjs examples/bootstrap_demo/hello.aura -o dist/hello.js
+mkdir -p dist
+aurac compile src/aura_compiler/ast.aura -o dist/ast.mjs
+aurac compile src/aura_compiler/diagnostics.aura -o dist/diagnostics.mjs
+aurac compile src/aura_compiler/lexer.aura -o dist/lexer.mjs
+aurac compile src/aura_compiler/parser.aura -o dist/parser.mjs
+aurac compile src/aura_compiler/typechecker.aura -o dist/typechecker.mjs
+aurac compile src/aura_compiler/codegen.aura -o dist/codegen.mjs
+aurac compile src/aura_compiler/codegen_go.aura -o dist/codegen_go.mjs
+aurac compile src/aura_compiler/main.aura -o dist/aurac.mjs
+```
+
+#### 2. Stage 2: Compile Programs with the Self-Hosted JS Compiler (`dist/aurac.mjs`)
+```bash
+# Compile to JavaScript
+node dist/aurac.mjs examples/bootstrap_demo/hello.aura -o dist/hello.js --target js
 node dist/hello.js
-# Salida: Hello from Aura self-hosted compiler!
+# Output:
+# Hello Developer from Self-Hosted Aura Compiler!
+# Sum of 1..100: 5050
+
+# Fast static typecheck mode
+node dist/aurac.mjs examples/bootstrap_demo/hello.aura --check
+# Output: ✓ Checked 'examples/bootstrap_demo/hello.aura': 0 errors
+
+# Compile to Golang source
+node dist/aurac.mjs examples/bootstrap_demo/hello.aura -o dist/hello.go --target go
 ```
 
-### 3. Verificación Automatizada del Bootstrap:
+#### 3. Stage 3: Build the Self-Hosted Compiler into a Standalone Native Binary
+Compile the entire self-hosted compiler into a single native binary (zero external dependencies):
+
+```bash
+aurac build src/aura_compiler/main.aura -o dist/aura-self-hosted
+```
+
+#### 4. Stage 4: Compile Aura Programs Directly with the Native Binary
+```bash
+./dist/aura-self-hosted examples/hello.aura -o dist/hello_from_native.js
+node dist/hello_from_native.js
+# Output: Hello Developer from Self-Hosted Aura Compiler!
+```
+
+#### 5. Stage 5: Automated 5-Stage Bootstrap Verification Test Suite
+Run the automated end-to-end bootstrap integration tests:
 
 ```bash
 cargo test --test bootstrap_tests -- --test-threads=1
@@ -1261,30 +2008,31 @@ cargo test --test bootstrap_tests -- --test-threads=1
 
 ---
 
-## 🗺️ Estado Actual, Roadmap e Hitos
+## 🗺️ Current Status, Roadmap, and Milestones
 
-- [x] **Núcleo del Lenguaje**: Inferencia de tipos Hindley-Milner, tipos algebraicos (ADTs), coincidencia de patrones exhaustiva, optimización TCO e inmutabilidad por defecto.
-- [x] **Concurrencia CSP Completa**: Fibers livianos sobre scheduler M:N (`spawn`), canales tipados con buffers, canales direccionales, iteración de canales, multiplexación `select`, sincronización (`Mutex`, `RWMutex`, `WaitGroup`, `Once`, `Pool`) y `Context`.
-- [x] **Seguridad Estática de Concurrencia**: Validación `Sendable` en tiempo de compilación y runtime Deadlock Sentinel.
-- [x] **Slices Modelo Golang**: Sintaxis `[]T`, segmentación `s[low:high:max]`, built-ins `len`, `cap`, `append`, `make` y segmentación de cadenas.
-- [x] **Semántica de Limpieza**: Sentencias `defer` LIFO y `errdefer` transaccional inspirado en Zig.
-- [x] **Programación Orientada a Métodos**: Structs puros de datos, métodos con receptor (`fn (r: Recv) Method()`), visibilidad Go por mayúsculas/minúsculas y duck typing estructural sin `implements`.
-- [x] **Backend Nativo Cranelift**: Emisión directa de código máquina nativo para macOS (Mach-O) y Linux (ELF) con runtime estático (`libaura_runtime.a`).
-- [x] **Backend y Transpilación Golang**: Generación de código idiomático Go (`aurac emit-go`) y compilación cruzada `--target go`.
-- [x] **Librería Estándar y Bases de Datos**: Servidor HTTP ServeMux de ultra alto rendimiento (**126k+ req/s**), métricas Prometheus `/metrics`, OpenTelemetry `traceparent`, Swagger UI y controladores nativos para PostgreSQL, MySQL, MongoDB y Redis.
-- [x] **Gestor de Paquetes Descentralizado**: `aura.mod`, lockfile criptográfico `aura.lock`, vendoring offline y verificación de integridad (`auramod` / `aurac mod`).
-- [x] **Generador FFI C/Rust (`aurabindgen`)**: Conversión automática de cabeceras `.h` a interfaces Aura seguras.
-- [x] **Herramientas de Grado de Producción**: Servidor LSP oficial (`auralsp`), depurador interactivo de terminal (`aurac step`), servidor DAP V8 (`aurac debug`), suite de pruebas (`auratest`) y formateador opinado (`aurafmt`).
-- [x] **Suite de Calidad y Tests**: **250 pruebas automatizadas pasando con éxito** en el repositorio.
-- [ ] **Backend WebAssembly (WASM/WASI)**: Emisión de binarios WebAssembly para microservicios serverless en el edge.
-- [ ] **Optimizaciones Avanzadas LLVM**: Pipeline opcional de optimización LTO y vectorización SIMD para cargas de cómputo intensivo.
+- [x] **Language Core**: Hindley-Milner type inference, algebraic data types (ADTs), exhaustive pattern matching, TCO optimization, and default immutability.
+- [x] **Complete CSP Concurrency**: Lightweight fibers on M:N scheduler (`spawn`), typed channels with buffers, directional channels, channel iteration, `select` multiplexing, synchronization (`Mutex`, `RWMutex`, `WaitGroup`, `Once`, `Pool`), and `Context`.
+- [x] **Static Concurrency Safety**: Compile-time `Sendable` validation and runtime Deadlock Sentinel.
+- [x] **Golang Model Slices**: `[]T` syntax, `s[low:high:max]` slicing, built-in functions `len`, `cap`, `append`, `make`, and string slicing.
+- [x] **Cleanup Semantics**: LIFO `defer` and Zig-inspired transactional `errdefer`.
+- [x] **Method-Oriented Programming**: Pure data structs, receiver methods (`fn (r: Recv) Method()`), case-based Go visibility, and structural duck typing without `implements`.
+- [x] **Native Cranelift Backend**: Direct native machine code emission for macOS (Mach-O) and Linux (ELF) with static runtime (`libaura_runtime.a`).
+- [x] **Golang Backend & Transpilation**: Idiomatic Go code generation (`aurac emit-go`) and `--target go` cross-compilation.
+- [x] **Standard Library & Databases**: Ultra-high-performance HTTP ServeMux server (**126k+ req/s**), `/metrics` Prometheus endpoint, OpenTelemetry `traceparent`, Swagger UI, and native drivers for PostgreSQL, MySQL, MongoDB, and Redis.
+- [x] **Decentralized Package Manager**: `aura.mod`, cryptographic `aura.lock`, offline vendoring, and integrity checks (`auramod` / `aurac mod`).
+- [x] **C/Rust FFI Generator (`aurabindgen`)**: Automatic conversion of `.h` headers into safe Aura interfaces.
+- [x] **Production-Grade Tooling**: Official LSP server (`auralsp`), terminal step debugger (`aurac step`), V8 DAP server (`aurac debug`), test runner (`auratest`), and opinionated formatter (`aurafmt`).
+- [x] **Rust 2024 Modernization & Toolchain Optimization**: Centralized Cargo workspace dependencies and lints, deduplicated crate tree (`object 0.39`), Thin LTO release profile (`[profile.release]`), `RwLock` + `FxHashMap` concurrent runtime GC, zero-overhead static scheduler, zero-alloc HTTP metric formatting, and structured `TypeError` diagnostics.
+- [x] **Quality Suite & Tests**: **250 automated tests passing successfully** across the repository.
+- [ ] **WebAssembly Backend (WASM/WASI)**: WebAssembly binary emission for serverless edge microservices.
+- [ ] **Advanced LLVM Optimizations**: Optional LTO optimization pipeline and SIMD vectorization for compute-intensive workloads.
 
 ---
 
-## 📄 Licencia
+## 📄 License
 
-Aura Language es software libre y de código abierto distribuido bajo la [Licencia MIT](LICENSE).
+Aura Language is free and open-source software released under the [MIT License](LICENSE).
 
-### ⚖️ Marcas Registradas (Trademarks)
+### ⚖️ Trademarks
 
 > Go is a trademark of Google LLC. Rust is a trademark of the Rust Foundation. TypeScript is a trademark of Microsoft Corp. Zig is a trademark of the Zig Software Foundation. Aura Lang is an independent open-source project and is not affiliated with or endorsed by these entities.

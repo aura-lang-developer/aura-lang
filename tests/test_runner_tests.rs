@@ -1,3 +1,5 @@
+#![allow(clippy::field_reassign_with_default)]
+
 use aura_lang::testing::{TestConfig, discover_test_files, run_tests};
 use std::fs;
 use std::path::PathBuf;

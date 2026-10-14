@@ -1,8 +1,9 @@
 [package]
 name = "aura-runtime"
-version = "0.1.0"
-edition = "2024"
-license = "MIT"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
 description = "Native standalone runtime for Aura Language: M:N Fiber Scheduler, GC, and CSP Primitives"
 
 [lib]
@@ -10,9 +11,14 @@ name = "aura_runtime"
 crate-type = ["lib", "staticlib"]
 
 [dependencies]
-libc = "0.2"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+libc = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+rustc-hash = { workspace = true }
+rusqlite = { workspace = true }
+
+[lints]
+workspace = true
 
 [features]
 default = []

@@ -197,14 +197,14 @@ func benchmarkHttp(url string, totalRequests int, concurrency int) (HttpBenchRes
 
 func main() {
 	fmt.Println("================================================================================")
-	fmt.Println("🚀 SUITE DE BENCHMARKS COMPARATIVA EXHAUSTIVA: AURA LANG vs GO LANG")
+	fmt.Println("🚀 COMPREHENSIVE BENCHMARK SUITE: AURA LANG vs GOLANG")
 	fmt.Println("================================================================================")
 
 	sysInfo, _ := runCmd("uname", "-sm")
 	sysInfo = strings.TrimSpace(sysInfo)
 	goVer, _ := runCmd("go", "version")
 	goVer = strings.TrimSpace(goVer)
-	fmt.Printf("Entorno: %s | Compilador Go: %s\n\n", sysInfo, goVer)
+	fmt.Printf("Environment: %s | Go Compiler: %s\n\n", sysInfo, goVer)
 
 	scenarios := []struct {
 		Name     string
@@ -217,83 +217,83 @@ func main() {
 		Runs     int
 	}{
 		{
-			Name:     "1. Fibonacci Recursivo (Fib 38 - CPU & Call Stack)",
+			Name:     "1. Recursive Fibonacci (Fib 38 - CPU & Call Stack)",
 			Dir:      "benchmarks/fibonacci",
 			AuraSrc:  "fib.aura",
 			GoSrc:    "fib.go",
 			AuraBin:  "fib_aura",
 			GoBin:    "fib_go",
-			Category: "CPU / Recursión",
+			Category: "CPU / Recursion",
 			Runs:     5,
 		},
 		{
-			Name:     "2. Criba de Eratóstenes (2,000,000 Primos - Memoria y Bucles)",
+			Name:     "2. Sieve of Eratosthenes (2,000,000 Primes - Memory & Loops)",
 			Dir:      "benchmarks/primes",
 			AuraSrc:  "primes.aura",
 			GoSrc:    "primes.go",
 			AuraBin:  "primes_aura",
 			GoBin:    "primes_go",
-			Category: "Cálculo Numérico / Arrays",
+			Category: "Numerical Calculation / Arrays",
 			Runs:     5,
 		},
 		{
-			Name:     "3. Pipeline de Datos Funcional (1,000,000 Elementos: Filter + Map + Sum)",
+			Name:     "3. Functional Data Pipeline (1,000,000 Elements: Filter + Map + Sum)",
 			Dir:      "benchmarks/data_pipeline",
 			AuraSrc:  "pipeline.aura",
 			GoSrc:    "pipeline.go",
 			AuraBin:  "pipeline_aura",
 			GoBin:    "pipeline_go",
-			Category: "Procesamiento de Colecciones",
+			Category: "Collection Processing",
 			Runs:     5,
 		},
 		{
-			Name:     "4. Concurrencia CSP: Channel Ping-Pong (200,000 Mensajes)",
+			Name:     "4. CSP Concurrency: Channel Ping-Pong (200,000 Messages)",
 			Dir:      "benchmarks/concurrency_channels",
 			AuraSrc:  "channels.aura",
 			GoSrc:    "channels.go",
 			AuraBin:  "channels_aura",
 			GoBin:    "channels_go",
-			Category: "Concurrencia CSP / Canales",
+			Category: "CSP Concurrency / Channels",
 			Runs:     5,
 		},
 		{
-			Name:     "5. Spawn Masivo de Tareas (50,000 Fibers vs Goroutines)",
+			Name:     "5. Massive Task Spawning (50,000 Fibers vs Goroutines)",
 			Dir:      "benchmarks/concurrency_spawn",
 			AuraSrc:  "spawn.aura",
 			GoSrc:    "spawn.go",
 			AuraBin:  "spawn_aura",
 			GoBin:    "spawn_go",
-			Category: "Concurrencia / Dispatch",
+			Category: "Concurrency / Dispatch",
 			Runs:     5,
 		},
 		{
-			Name:     "6. Latencia Cold-Start (Inicio de Proceso a Salida)",
+			Name:     "6. Cold-Start Latency (Process Startup to Exit)",
 			Dir:      "benchmarks/startup",
 			AuraSrc:  "startup.aura",
 			GoSrc:    "startup.go",
 			AuraBin:  "startup_aura",
 			GoBin:    "startup_go",
-			Category: "Tiempo de Arranque (CLI)",
+			Category: "Startup Time (CLI)",
 			Runs:     10,
 		},
 		{
-			Name:     "7. Sincronización Mutex (50,000 Operaciones Atómicas)",
+			Name:     "7. Mutex Synchronization (50,000 Atomic Operations)",
 			Dir:      "benchmarks/sync_mutex",
 			AuraSrc:  "mutex.aura",
 			GoSrc:    "mutex.go",
 			AuraBin:  "mutex_aura",
 			GoBin:    "mutex_go",
-			Category: "Sincronización / Mutex",
+			Category: "Synchronization / Mutex",
 			Runs:     5,
 		},
 		{
-			Name:     "8. Almacenamiento KV Cache (50,000 Consultas Concurrentes)",
+			Name:     "8. KV Store Cache (50,000 Concurrent Queries)",
 			Dir:      "benchmarks/kv_store",
 			AuraSrc:  "kv.aura",
 			GoSrc:    "kv.go",
 			AuraBin:  "kv_aura",
 			GoBin:    "kv_go",
-			Category: "Estructuras de Datos / Cache",
+			Category: "Data Structures / Cache",
 			Runs:     5,
 		},
 	}
@@ -303,7 +303,7 @@ func main() {
 	report.GeneratedAt = time.Now().Format(time.RFC3339)
 
 	fmt.Println("--------------------------------------------------------------------------------")
-	fmt.Println("📦 FASE 1: MEDICIÓN DE PESOS DE BINARIOS Y TIEMPOS DE COMPILACIÓN")
+	fmt.Println("📦 PHASE 1: BINARY SIZE MEASUREMENT AND COMPILATION TIMES")
 	fmt.Println("--------------------------------------------------------------------------------")
 
 	for _, sc := range scenarios {
@@ -364,8 +364,8 @@ func main() {
 		report.BuildTimes = append(report.BuildTimes, bTime)
 
 		fmt.Printf("• %s:\n", sc.Name)
-		fmt.Printf("    Binarios: Go: %.2f MB (Stripped: %.2f MB) | Aura Standalone: %.2f MB (%.1fx Go)\n", goSize, goStrippedSize, auraSize, ratio)
-		fmt.Printf("    Compilación: aurac check: %.1f ms | aurac build: %.1f ms | go build: %.1f ms\n", checkMs, auraBuildMs, goBuildMs)
+		fmt.Printf("    Binaries: Go: %.2f MB (Stripped: %.2f MB) | Aura Standalone: %.2f MB (%.1fx Go)\n", goSize, goStrippedSize, auraSize, ratio)
+		fmt.Printf("    Compilation: aurac check: %.1f ms | aurac build: %.1f ms | go build: %.1f ms\n", checkMs, auraBuildMs, goBuildMs)
 	}
 
 	{
@@ -383,18 +383,18 @@ func main() {
 			ratio = auraSize / goSize
 		}
 		report.BinarySizes = append(report.BinarySizes, BinarySizeResult{
-			Name:             "9. Servidor HTTP / Microservicio REST",
+			Name:             "9. HTTP Server / REST Microservice",
 			GoSizeMB:         goSize,
 			GoStrippedSizeMB: goStripped,
 			AuraSizeMB:       auraSize,
 			RatioAuraToGo:    ratio,
 		})
-		fmt.Printf("• %s:\n", "9. Servidor HTTP / Microservicio REST")
-		fmt.Printf("    Binarios: Go: %.2f MB (Stripped: %.2f MB) | Aura Standalone: %.2f MB (%.1fx Go)\n", goSize, goStripped, auraSize, ratio)
+		fmt.Printf("• %s:\n", "9. HTTP Server / REST Microservice")
+		fmt.Printf("    Binaries: Go: %.2f MB (Stripped: %.2f MB) | Aura Standalone: %.2f MB (%.1fx Go)\n", goSize, goStripped, auraSize, ratio)
 	}
 
 	fmt.Println("\n--------------------------------------------------------------------------------")
-	fmt.Println("⚡ FASE 2: RENDIMIENTO EN EJECUCIÓN Y CONSUMO DE MEMORIA (RSS)")
+	fmt.Println("⚡ PHASE 2: EXECUTION PERFORMANCE AND MEMORY USAGE (RSS)")
 	fmt.Println("--------------------------------------------------------------------------------")
 
 	for _, sc := range scenarios {
@@ -440,19 +440,19 @@ func main() {
 		report.Benchmarks = append(report.Benchmarks, res)
 
 		fmt.Printf("• %s:\n", sc.Name)
-		fmt.Printf("    Tiempo: Go: %.2f ms | Aura Standalone: %.2f ms | Ratio (Aura/Go): %.2fx\n", goMedian, auraMedian, speedup)
-		fmt.Printf("    Memoria Peak RSS: Go: %.2f MB | Aura Standalone: %.2f MB\n", goRss, auraRss)
+		fmt.Printf("    Time: Go: %.2f ms | Aura Standalone: %.2f ms | Ratio (Aura/Go): %.2fx\n", goMedian, auraMedian, speedup)
+		fmt.Printf("    Peak RSS Memory: Go: %.2f MB | Aura Standalone: %.2f MB\n", goRss, auraRss)
 	}
 
 	fmt.Println("\n--------------------------------------------------------------------------------")
-	fmt.Println("🌐 FASE 3: SERVIDOR HTTP / MICROSERVICIOS (10,000 REQUESTS, CONCURRENCIA 50)")
+	fmt.Println("🌐 PHASE 3: HTTP SERVER / MICROSERVICES (10,000 REQUESTS, CONCURRENCY 50)")
 	fmt.Println("--------------------------------------------------------------------------------")
 
 	totalHttpReqs := 10000
 	httpConcurrency := 50
 
 	// 1. Bench Aura HTTP Server
-	fmt.Println("Arrancando Servidor HTTP de Aura en :8091...")
+	fmt.Println("Starting Aura HTTP Server on :8091...")
 	auraServerCmd := exec.Command("./benchmarks/http_server/server_aura")
 	auraServerCmd.Env = append(os.Environ(), "PORT=8091")
 	_ = auraServerCmd.Start()
@@ -460,18 +460,18 @@ func main() {
 
 	auraHttpBench, err := benchmarkHttp("http://localhost:8091/bench", totalHttpReqs, httpConcurrency)
 	if err != nil {
-		fmt.Printf("Error testeando Aura HTTP server: %v\n", err)
+		fmt.Printf("Error testing Aura HTTP server: %v\n", err)
 	} else {
 		auraHttpBench.Target = "Aura Standalone Server (:8091)"
 		report.HttpBenchmark = append(report.HttpBenchmark, auraHttpBench)
-		fmt.Printf("Aura HTTP: %.1f req/sec | Latencia Media: %.2f ms | p50: %.2f ms | p99: %.2f ms\n",
+		fmt.Printf("Aura HTTP: %.1f req/sec | Mean Latency: %.2f ms | p50: %.2f ms | p99: %.2f ms\n",
 			auraHttpBench.ReqPerSec, auraHttpBench.LatencyMeanMs, auraHttpBench.LatencyP50Ms, auraHttpBench.LatencyP99Ms)
 	}
 	_ = auraServerCmd.Process.Kill()
 	_ = auraServerCmd.Wait()
 
 	// 2. Bench Go HTTP Server
-	fmt.Println("Arrancando Servidor HTTP de Go en :8092...")
+	fmt.Println("Starting Go HTTP Server on :8092...")
 	goServerCmd := exec.Command("./benchmarks/http_server/server_go")
 	goServerCmd.Env = append(os.Environ(), "PORT=8092")
 	_ = goServerCmd.Start()
@@ -479,11 +479,11 @@ func main() {
 
 	goHttpBench, err := benchmarkHttp("http://localhost:8092/bench", totalHttpReqs, httpConcurrency)
 	if err != nil {
-		fmt.Printf("Error testeando Go HTTP server: %v\n", err)
+		fmt.Printf("Error testing Go HTTP server: %v\n", err)
 	} else {
 		goHttpBench.Target = "Go Native Server (:8092)"
 		report.HttpBenchmark = append(report.HttpBenchmark, goHttpBench)
-		fmt.Printf("Go HTTP:   %.1f req/sec | Latencia Media: %.2f ms | p50: %.2f ms | p99: %.2f ms\n",
+		fmt.Printf("Go HTTP:   %.1f req/sec | Mean Latency: %.2f ms | p50: %.2f ms | p99: %.2f ms\n",
 			goHttpBench.ReqPerSec, goHttpBench.LatencyMeanMs, goHttpBench.LatencyP50Ms, goHttpBench.LatencyP99Ms)
 	}
 	_ = goServerCmd.Process.Kill()
@@ -491,5 +491,5 @@ func main() {
 
 	data, _ := json.MarshalIndent(report, "", "  ")
 	_ = os.WriteFile("benchmarks/results.json", data, 0644)
-	fmt.Println("\n✨ Resultados guardados en 'benchmarks/results.json' exitosamente.")
+	fmt.Println("\n✨ Results saved to 'benchmarks/results.json' successfully.")
 }

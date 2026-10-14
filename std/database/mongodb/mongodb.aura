@@ -1,0 +1,17 @@
+// Aura Standard Library: database/mongodb
+// High-performance pure-native MongoDB document client with aggregation pipeline and standalone embedded document engine fallback.
+
+/// Opens a MongoDB connection or initializes embedded in-memory MongoDB document engine.
+export fn open(dsn: String = ":memory:"): MongoClient => {
+    mongodb.open(dsn)
+}
+
+/// Alias for open()
+export fn createClient(dsn: String = ":memory:"): MongoClient => {
+    mongodb.open(dsn)
+}
+
+/// Alias for open()
+export fn connect(dsn: String = ":memory:"): MongoClient => {
+    mongodb.open(dsn)
+}

@@ -406,7 +406,7 @@ impl Parser {
             ));
         };
 
-        let is_exported = is_exported || name.chars().next().map_or(false, |c| c.is_uppercase());
+        let is_exported = is_exported || name.chars().next().is_some_and(|c| c.is_uppercase());
 
         Ok(FunctionDecl {
             name,
@@ -421,9 +421,11 @@ impl Parser {
     }
 
     fn parse_interface(&mut self, is_exported: bool) -> Result<InterfaceDecl, String> {
-        if self.match_token(&TokenKind::Interface) || self.match_token(&TokenKind::Trait) {}
+        if !self.match_token(&TokenKind::Interface) {
+            self.match_token(&TokenKind::Trait);
+        }
         let name = self.expect_ident()?;
-        let is_exported = is_exported || name.chars().next().map_or(false, |c| c.is_uppercase());
+        let is_exported = is_exported || name.chars().next().is_some_and(|c| c.is_uppercase());
         let type_params = self.parse_optional_type_params()?;
         self.expect(TokenKind::LBrace)?;
         let mut methods = Vec::new();
@@ -755,6 +757,9 @@ impl Parser {
                     target: expr,
                     value,
                 }])
+            } else if let Some(op) = self.check_compound_assign_op() {
+                let value = self.parse_expr()?;
+                Expr::Block(vec![Self::make_compound_assign(expr, op, value)])
             } else {
                 expr
             };
@@ -768,6 +773,9 @@ impl Parser {
                     target: expr,
                     value,
                 }])
+            } else if let Some(op) = self.check_compound_assign_op() {
+                let value = self.parse_expr()?;
+                Expr::Block(vec![Self::make_compound_assign(expr, op, value)])
             } else {
                 expr
             };
@@ -816,10 +824,41 @@ impl Parser {
                     target: expr,
                     value,
                 })
+            } else if let Some(op) = self.check_compound_assign_op() {
+                let value = self.parse_expr()?;
+                self.match_token(&TokenKind::Semicolon);
+                Ok(Self::make_compound_assign(expr, op, value))
             } else {
                 self.match_token(&TokenKind::Semicolon);
                 Ok(Statement::Expr(expr))
             }
+        }
+    }
+
+    fn check_compound_assign_op(&mut self) -> Option<BinOp> {
+        if self.match_token(&TokenKind::PlusEqual) {
+            Some(BinOp::Add)
+        } else if self.match_token(&TokenKind::MinusEqual) {
+            Some(BinOp::Sub)
+        } else if self.match_token(&TokenKind::StarEqual) {
+            Some(BinOp::Mul)
+        } else if self.match_token(&TokenKind::SlashEqual) {
+            Some(BinOp::Div)
+        } else if self.match_token(&TokenKind::PercentEqual) {
+            Some(BinOp::Mod)
+        } else {
+            None
+        }
+    }
+
+    fn make_compound_assign(target: Expr, op: BinOp, value: Expr) -> Statement {
+        Statement::Assign {
+            target: target.clone(),
+            value: Expr::Binary {
+                op,
+                left: Box::new(target),
+                right: Box::new(value),
+            },
         }
     }
 
@@ -1503,40 +1542,40 @@ impl Parser {
     }
 
     fn is_record_key_token(kind: &TokenKind) -> bool {
-        match kind {
+        matches!(
+            kind,
             TokenKind::Ident(_)
-            | TokenKind::String(_)
-            | TokenKind::Type
-            | TokenKind::From
-            | TokenKind::When
-            | TokenKind::Match
-            | TokenKind::Module
-            | TokenKind::Default
-            | TokenKind::Spawn
-            | TokenKind::Routine
-            | TokenKind::Go
-            | TokenKind::Select
-            | TokenKind::While
-            | TokenKind::For
-            | TokenKind::In
-            | TokenKind::Break
-            | TokenKind::Continue
-            | TokenKind::Underscore
-            | TokenKind::Fn
-            | TokenKind::Let
-            | TokenKind::Mut
-            | TokenKind::Async
-            | TokenKind::Await
-            | TokenKind::Import
-            | TokenKind::Export
-            | TokenKind::Extern
-            | TokenKind::Trait
-            | TokenKind::Impl
-            | TokenKind::Return
-            | TokenKind::True
-            | TokenKind::False => true,
-            _ => false,
-        }
+                | TokenKind::String(_)
+                | TokenKind::Type
+                | TokenKind::From
+                | TokenKind::When
+                | TokenKind::Match
+                | TokenKind::Module
+                | TokenKind::Default
+                | TokenKind::Spawn
+                | TokenKind::Routine
+                | TokenKind::Go
+                | TokenKind::Select
+                | TokenKind::While
+                | TokenKind::For
+                | TokenKind::In
+                | TokenKind::Break
+                | TokenKind::Continue
+                | TokenKind::Underscore
+                | TokenKind::Fn
+                | TokenKind::Let
+                | TokenKind::Mut
+                | TokenKind::Async
+                | TokenKind::Await
+                | TokenKind::Import
+                | TokenKind::Export
+                | TokenKind::Extern
+                | TokenKind::Trait
+                | TokenKind::Impl
+                | TokenKind::Return
+                | TokenKind::True
+                | TokenKind::False
+        )
     }
 
     fn expect_record_key(&mut self) -> Result<String, String> {
@@ -2120,13 +2159,13 @@ mod tests {
         let module = parse_source(src).expect("failed to parse pipeline");
         assert_eq!(module.items.len(), 1);
 
-        if let Item::Function(f) = &module.items[0] {
-            if let Expr::Block(stmts) = &f.body {
-                if let Statement::Expr(Expr::Pipeline { .. }) = &stmts[0] {
-                    // Successfully parsed nested pipeline
-                } else {
-                    panic!("Expected Pipeline expr");
-                }
+        if let Item::Function(f) = &module.items[0]
+            && let Expr::Block(stmts) = &f.body
+        {
+            if let Statement::Expr(Expr::Pipeline { .. }) = &stmts[0] {
+                // Successfully parsed nested pipeline
+            } else {
+                panic!("Expected Pipeline expr");
             }
         }
     }
@@ -2187,5 +2226,54 @@ mod tests {
 
         let src_unmatched_brace = "fn test() { let x = 1;";
         assert!(parse_source(src_unmatched_brace).is_err());
+    }
+
+    #[test]
+    fn test_parse_compound_assignments() {
+        let src = r#"
+            fn math_ops() {
+                let mut x = 10;
+                x += 5;
+                x -= 3;
+                x *= 2;
+                x /= 4;
+                x %= 2;
+            }
+        "#;
+        let module = parse_source(src).expect("failed to parse compound assignments");
+        assert_eq!(module.items.len(), 1);
+        if let Item::Function(func) = &module.items[0] {
+            if let Expr::Block(stmts) = &func.body {
+                assert_eq!(stmts.len(), 6);
+                match &stmts[1] {
+                    Statement::Assign { target, value } => {
+                        assert_eq!(target, &Expr::Identifier("x".to_string()));
+                        match value {
+                            Expr::Binary { op, left, right } => {
+                                assert_eq!(*op, BinOp::Add);
+                                assert_eq!(**left, Expr::Identifier("x".to_string()));
+                                assert_eq!(**right, Expr::Literal(Literal::Int(5)));
+                            }
+                            _ => panic!("Expected Binary expr for value"),
+                        }
+                    }
+                    _ => panic!("Expected Statement::Assign"),
+                }
+                match &stmts[2] {
+                    Statement::Assign { target, value } => {
+                        assert_eq!(target, &Expr::Identifier("x".to_string()));
+                        match value {
+                            Expr::Binary { op, .. } => assert_eq!(*op, BinOp::Sub),
+                            _ => panic!("Expected Binary expr for value"),
+                        }
+                    }
+                    _ => panic!("Expected Statement::Assign"),
+                }
+            } else {
+                panic!("Expected Block expr");
+            }
+        } else {
+            panic!("Expected Function item");
+        }
     }
 }

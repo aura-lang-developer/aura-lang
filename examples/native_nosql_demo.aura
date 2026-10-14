@@ -1,0 +1,146 @@
+// =============================================================================
+// Aura Language: Native Standalone NoSQL Database Integration Demo (Redis & MongoDB)
+// =============================================================================
+// This example demonstrates native standalone NoSQL database operations in Aura
+// running directly on bare metal with zero external runtime dependencies.
+// Supported engines:
+//   1. Redis: In-Memory / RESP wire protocol KV, Hash, List, TTL, and atomic counters.
+//   2. MongoDB: Pure Document Collection store, BSON querying, Aggregation pipelines.
+// =============================================================================
+
+export fn main(): Unit => {
+    println("⚡ Aura Native NoSQL Subsystem Demo (Redis & MongoDB)");
+    println("======================================================");
+
+    // =========================================================================
+    // PART 1: Native Redis Driver (KV, Hashes, Queues, Counters, TTL)
+    // =========================================================================
+    println("\n--- 1. REDIS NATIVE DRIVER OPERATIONS ---");
+
+    // Open connection (Embedded in-memory mode or 'redis://127.0.0.1:6379')
+    let r = redis.open(":memory:");
+    let pong = r.ping();
+    println(`✓ Redis Connection Ping: ${pong}`);
+
+    // String Key-Value Store with TTL
+    println("\n-> Testing String Key-Value & Expiration:");
+    r.set("app:environment", "production", 0);
+    r.set("app:version", "0.2.0", 0);
+    r.set("cache:temp_token", "xyz_987", 3600);
+
+    let envName = r.get("app:environment");
+    let version = r.get("app:version");
+    println(`  app:environment = ${envName}`);
+    println(`  app:version = ${version}`);
+
+    let hasToken = r.exists("cache:temp_token");
+    println(`  cache:temp_token exists = ${hasToken}`);
+
+    // Atomic Increments & Decrements
+    println("\n-> Testing Atomic Counter Operations:");
+    r.set("stats:page_views", "1000", 0);
+    let count1 = r.incr("stats:page_views", 50);
+    println(`  page_views after +50 = ${count1}`);
+    let count2 = r.decr("stats:page_views", 10);
+    println(`  page_views after -10 = ${count2}`);
+
+    // Hash Maps (HSET, HGET, HDEL, HGETALL)
+    println("\n-> Testing Redis Hash Map Structures:");
+    r.hset("user:101:profile", "username", "alice");
+    r.hset("user:101:profile", "tier", "enterprise");
+    r.hset("user:101:profile", "credits", "5000");
+
+    let username = r.hget("user:101:profile", "username");
+    let tier = r.hget("user:101:profile", "tier");
+    println(`  User #101 username = ${username}, tier = ${tier}`);
+
+    // Queue & List Operations (LPUSH, RPOP, LRANGE)
+    println("\n-> Testing List & Job Queue FIFO Processing:");
+    r.lpush("jobs:email_queue", "send_welcome_email");
+    r.lpush("jobs:email_queue", "generate_pdf_invoice");
+    r.lpush("jobs:email_queue", "sync_analytics");
+
+    let job1 = r.rpop("jobs:email_queue");
+    println(`  Processed FIFO job 1: ${job1}`);
+    let job2 = r.rpop("jobs:email_queue");
+    println(`  Processed FIFO job 2: ${job2}`);
+
+    r.close();
+    println("✓ Redis Client shut down cleanly.");
+
+    // =========================================================================
+    // PART 2: Native MongoDB Driver (Document CRUD, Querying & Aggregations)
+    // =========================================================================
+    println("\n--- 2. MONGODB NATIVE DRIVER OPERATIONS ---");
+
+    // Open connection (Embedded in-memory mode or 'mongodb://127.0.0.1:27017')
+    let client = mongo.open(":memory:");
+    let db = client.db("production_db");
+    let products = db.collection("products");
+
+    // Insert Single Document
+    println("\n-> Inserting Single Document (insertOne):");
+    let insertOneRes = products.insertOne({
+        sku: "PROD-001",
+        name: "Mechanical Keyboard",
+        category: "electronics",
+        price: 120,
+        stock: 45
+    });
+    println(`  Inserted single document ID: ${insertOneRes.insertedId}`);
+
+    // Insert Multiple Documents
+    println("\n-> Batch Inserting Documents (insertMany):");
+    let insertManyRes = products.insertMany([
+        { sku: "PROD-002", name: "Wireless Mouse", category: "electronics", price: 50, stock: 120 },
+        { sku: "PROD-003", name: "USB-C Hub", category: "electronics", price: 35, stock: 80 },
+        { sku: "PROD-004", name: "Ergonomic Chair", category: "furniture", price: 350, stock: 15 },
+        { sku: "PROD-005", name: "Standing Desk", category: "furniture", price: 480, stock: 10 }
+    ]);
+    println(`  Batch inserted ${insertManyRes.insertedCount} products`);
+
+    // Document Counts
+    let totalProducts = products.countDocuments({});
+    println(`  Total products in collection: ${totalProducts}`);
+
+    let furnitureCount = products.count({ category: "furniture" });
+    println(`  Total furniture items: ${furnitureCount}`);
+
+    // Query Document with FindOne
+    println("\n-> Querying Single Document (findOne):");
+    let mouse = products.findOne({ sku: "PROD-002" });
+    println(`  Found item: ${mouse.name} ($${mouse.price}, stock: ${mouse.stock})`);
+
+    // Update Document ($set, $inc)
+    println("\n-> Updating Document with Operators ($set & $inc):");
+    let updateRes = products.updateOne(
+        { sku: "PROD-001" },
+        { "$set": { price: 135 }, "$inc": { stock: 10 } }
+    );
+    println(`  Updated matched: ${updateRes.matchedCount}, modified: ${updateRes.modifiedCount}`);
+
+    let updatedKeyboard = products.findOne({ sku: "PROD-001" });
+    println(`  Updated price for ${updatedKeyboard.name}: $${updatedKeyboard.price}, new stock: ${updatedKeyboard.stock}`);
+
+    // Aggregation Pipeline ($match, $group, $sum, $avg)
+    println("\n-> Running Aggregation Pipeline ($match & $group):");
+    let aggResults = products.aggregate([
+        { "$match": { category: "electronics" } },
+        { "$group": { _id: "$category", totalValue: { "$sum": "$price" } } }
+    ]);
+    let aggCount = len(aggResults);
+    println(`  Aggregation stages returned ${aggCount} summary group(s)`);
+
+    // Delete Documents
+    println("\n-> Deleting Document (deleteOne):");
+    let delRes = products.deleteOne({ sku: "PROD-003" });
+    println(`  Deleted documents count: ${delRes.deletedCount}`);
+
+    let finalCount = products.count({});
+    println(`  Final product count after deletion: ${finalCount}`);
+
+    client.close();
+    println("✓ MongoDB Client shut down cleanly.");
+
+    println("\n⚡ All native NoSQL database operations completed successfully!");
+}

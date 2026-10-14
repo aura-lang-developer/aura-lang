@@ -6,7 +6,8 @@ import {
   TBreak, TContinue, TReturn, TModule, TExport, TImport, TFrom, TSpawn, TSelect,
   TIdent, TInt, TFloat, TString, TBool, TPipe, TFatArrow, TArrow, TArrowLeft,
   TEqual, TEqualEqual, TNotEqual, TLess, TLessEqual, TGreater, TGreaterEqual,
-  TPlus, TMinus, TStar, TSlash, TPercent, TAndAnd, TOrOr, TBang, TPipeOp,
+  TPlus, TPlusEqual, TMinus, TMinusEqual, TStar, TStarEqual, TSlash, TSlashEqual, TPercent, TPercentEqual,
+  TAndAnd, TOrOr, TBang, TPipeOp,
   TQuestion, TLParen, TRParen, TLBrace, TRBrace, TLBracket, TRBracket,
   TColon, TComma, TSemicolon, TDot, TUnderscore, TEof
 } from "./ast"
@@ -205,6 +206,26 @@ export fn tokenize(source: String): Result<List<Token>, String> {
       }
       if (ch == "&" && nextCh == "&") {
         let _ = tokens.push({ kind: TAndAnd, line: line, column: col });
+        i = i + 2; col = col + 2; continue;
+      }
+      if (ch == "+" && nextCh == "=") {
+        let _ = tokens.push({ kind: TPlusEqual, line: line, column: col });
+        i = i + 2; col = col + 2; continue;
+      }
+      if (ch == "-" && nextCh == "=") {
+        let _ = tokens.push({ kind: TMinusEqual, line: line, column: col });
+        i = i + 2; col = col + 2; continue;
+      }
+      if (ch == "*" && nextCh == "=") {
+        let _ = tokens.push({ kind: TStarEqual, line: line, column: col });
+        i = i + 2; col = col + 2; continue;
+      }
+      if (ch == "/" && nextCh == "=") {
+        let _ = tokens.push({ kind: TSlashEqual, line: line, column: col });
+        i = i + 2; col = col + 2; continue;
+      }
+      if (ch == "%" && nextCh == "=") {
+        let _ = tokens.push({ kind: TPercentEqual, line: line, column: col });
         i = i + 2; col = col + 2; continue;
       }
       if (ch == "|" && nextCh == "|") {

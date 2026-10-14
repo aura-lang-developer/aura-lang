@@ -1,0 +1,89 @@
+// =============================================================================
+// Aura Language: SQLite CRUD Operations Example
+// =============================================================================
+// Demonstrates embedded SQLite database lifecycle, DDL creation, parameterized
+// inserts, updates, deletes, and cursor-based row reading.
+// =============================================================================
+
+export fn main(): Unit => {
+    println("🚀 [SQLite Demo] Starting Embedded SQLite CRUD Showcase");
+    println("-------------------------------------------------------");
+
+    // 1. Open an in-memory SQLite database pool with 4 connection workers
+    let db: DB = sqlite.open(":memory:", 4);
+
+    // 2. Health check
+    let pingStatus = db.ping();
+    if (pingStatus == 0) {
+        println("✓ Database pool ping: OK");
+    }
+
+    // 3. Create schema (DDL)
+    println("\n[1/5] Creating 'products' table...");
+    let ddl = "
+        CREATE TABLE products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sku TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL,
+            price INT NOT NULL,
+            stock INT DEFAULT 0
+        );
+    ";
+    let schemaRes = db.exec(ddl, []);
+    println(`✓ Schema created successfully (Affected rows: ${schemaRes.rowsAffected})`);
+
+    // 4. Create (INSERT with parameter bindings)
+    println("\n[2/5] Inserting product catalog items...");
+    let insertSql = "INSERT INTO products (sku, name, price, stock) VALUES (?, ?, ?, ?);";
+    
+    let item1 = db.exec(insertSql, ["LAPTOP-PRO-16", "AuraBook Pro 16", 1999, 25]);
+    println(`  -> Inserted: AuraBook Pro 16 (ID: ${item1.lastInsertId})`);
+
+    let item2 = db.exec(insertSql, ["KEYBOARD-MECH", "Vortex Mechanical Keyboard", 149, 100]);
+    println(`  -> Inserted: Vortex Mechanical Keyboard (ID: ${item2.lastInsertId})`);
+
+    let item3 = db.exec(insertSql, ["MOUSE-WIRELESS", "Precision Optical Mouse", 79, 150]);
+    println(`  -> Inserted: Precision Optical Mouse (ID: ${item3.lastInsertId})`);
+
+    let item4 = db.exec(insertSql, ["MONITOR-4K-32", "UltraWide 4K IPS Monitor", 649, 40]);
+    println(`  -> Inserted: UltraWide 4K IPS Monitor (ID: ${item4.lastInsertId})`);
+
+    // 5. Read (SELECT query with parameters and cursor iteration)
+    println("\n[3/5] Querying products with price > $100...");
+    let rows: Rows = db.query("SELECT id, sku, name, price, stock FROM products WHERE price > ? ORDER BY price DESC;", [100]);
+
+    while (rows.next()) {
+        let id = rows.getInt(0);
+        let sku = rows.getString(1);
+        let name = rows.getString(2);
+        let price = rows.getInt(3);
+        let stock = rows.getInt(4);
+        println(`  [#${id}] ${sku} | ${name} | Price: $${price} | Stock: ${stock} units`);
+    }
+    rows.close();
+
+    // 6. Update (UPDATE statement)
+    println("\n[4/5] Applying discount to 'AuraBook Pro 16' and restocking...");
+    let updateRes = db.exec("UPDATE products SET price = 1799, stock = stock + 10 WHERE sku = ?;", ["LAPTOP-PRO-16"]);
+    println(`✓ Updated records: ${updateRes.rowsAffected}`);
+
+    // Verify updated record
+    let verifyRows: Rows = db.query("SELECT name, price, stock FROM products WHERE sku = ?;", ["LAPTOP-PRO-16"]);
+    if (verifyRows.next()) {
+        let name = verifyRows.getString(0);
+        let price = verifyRows.getInt(1);
+        let stock = verifyRows.getInt(2);
+        println(`  -> Verified: ${name} is now $${price} (Stock: ${stock})`);
+    }
+    verifyRows.close();
+
+    // 7. Delete (DELETE statement)
+    println("\n[5/5] Removing discontinued product...");
+    let deleteRes = db.exec("DELETE FROM products WHERE sku = ?;", ["MOUSE-WIRELESS"]);
+    println(`✓ Deleted records: ${deleteRes.rowsAffected}`);
+
+    // 8. Graceful pool cleanup
+    db.close();
+    println("\n✓ SQLite database pool closed cleanly.");
+    println("🚀 [SQLite Demo] Finished successfully!");
+}

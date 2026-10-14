@@ -2,40 +2,765 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Aura Language Online Playground</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 20px; background: #121214; color: #e1e1e6; }
-    h1 { color: #8257e6; }
-    .container { display: flex; gap: 20px; height: 80vh; }
-    .panel { flex: 1; display: flex; flex-direction: column; }
-    textarea { flex: 1; background: #202024; color: #fff; border: 1px solid #323238; border-radius: 8px; padding: 12px; font-family: monospace; font-size: 14px; resize: none; }
-    .output-panel { flex: 1; background: #202024; border: 1px solid #323238; border-radius: 8px; padding: 12px; font-family: monospace; white-space: pre-wrap; overflow-y: auto; }
-    .buttons { margin-bottom: 10px; display: flex; gap: 10px; }
-    button { background: #8257e6; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; }
-    button:hover { background: #9466ff; }
+    :root {
+      --bg-primary: #0d1117;
+      --bg-secondary: #161b22;
+      --bg-tertiary: #21262d;
+      --border-color: #30363d;
+      --accent-purple: #a855f7;
+      --accent-cyan: #06b6d4;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --text-primary: #f0f6fc;
+      --text-secondary: #8b949e;
+      --text-muted: #6e7681;
+      --code-bg: #090d13;
+      --font-ui: 'Inter', system-ui, -apple-system, sans-serif;
+      --font-code: 'Fira Code', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-ui);
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      background: rgba(22, 27, 34, 0.8);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-color);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 800;
+      font-size: 1.25rem;
+      background: linear-gradient(135deg, #c084fc, #38bdf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.5px;
+    }
+
+    .badge {
+      font-size: 0.7rem;
+      font-weight: 600;
+      background: rgba(168, 85, 247, 0.15);
+      border: 1px solid rgba(168, 85, 247, 0.4);
+      color: #c084fc;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      -webkit-text-fill-color: initial;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .select-wrapper {
+      position: relative;
+    }
+
+    select {
+      background-color: var(--bg-tertiary);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+      padding: 6px 32px 6px 12px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-family: var(--font-ui);
+      font-weight: 500;
+      outline: none;
+      cursor: pointer;
+      appearance: none;
+      transition: border-color 0.2s;
+    }
+
+    select:hover {
+      border-color: var(--accent-purple);
+    }
+
+    .select-wrapper::after {
+      content: "▾";
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      pointer-events: none;
+      color: var(--text-secondary);
+      font-size: 0.8rem;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      font-family: var(--font-ui);
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.2s ease;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #9333ea, #0284c7);
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(147, 51, 234, 0.3);
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #a855f7, #0ea5e9);
+      box-shadow: 0 4px 12px rgba(147, 51, 234, 0.5);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background-color: var(--bg-tertiary);
+      border-color: var(--border-color);
+      color: var(--text-primary);
+    }
+
+    .btn-secondary:hover {
+      background-color: #2d333b;
+      border-color: #444c56;
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, #059669, #10b981);
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+    }
+
+    .btn-success:hover {
+      background: linear-gradient(135deg, #10b981, #34d399);
+      transform: translateY(-1px);
+    }
+
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background-color: var(--border-color);
+      overflow: hidden;
+    }
+
+    .pane {
+      background-color: var(--bg-primary);
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 61px);
+      overflow: hidden;
+    }
+
+    .pane-header {
+      background-color: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 42px;
+    }
+
+    .pane-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pane-title .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--accent-purple);
+    }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+    }
+
+    .tab {
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      background: transparent;
+      border: none;
+      transition: all 0.15s;
+    }
+
+    .tab.active {
+      color: var(--text-primary);
+      background-color: var(--bg-tertiary);
+    }
+
+    .tab:hover:not(.active) {
+      color: var(--text-primary);
+    }
+
+    .editor-container {
+      position: relative;
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      background-color: var(--code-bg);
+    }
+
+    .line-numbers {
+      padding: 16px 8px 16px 16px;
+      font-family: var(--font-code);
+      font-size: 0.875rem;
+      line-height: 1.5;
+      color: var(--text-muted);
+      text-align: right;
+      user-select: none;
+      min-width: 44px;
+      border-right: 1px solid rgba(48, 54, 61, 0.4);
+    }
+
+    textarea#code-input {
+      flex: 1;
+      padding: 16px;
+      background: transparent;
+      color: #e6edf3;
+      font-family: var(--font-code);
+      font-size: 0.875rem;
+      line-height: 1.5;
+      border: none;
+      outline: none;
+      resize: none;
+      white-space: pre;
+      overflow-y: auto;
+      tab-size: 4;
+    }
+
+    .output-viewer {
+      flex: 1;
+      padding: 16px;
+      font-family: var(--font-code);
+      font-size: 0.875rem;
+      line-height: 1.5;
+      color: #e6edf3;
+      background-color: var(--code-bg);
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .console-pane {
+      height: 35%;
+      border-top: 1px solid var(--border-color);
+      background-color: #05070a;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .console-header {
+      background-color: var(--bg-secondary);
+      padding: 6px 16px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .console-output {
+      flex: 1;
+      padding: 12px 16px;
+      font-family: var(--font-code);
+      font-size: 0.825rem;
+      line-height: 1.4;
+      overflow-y: auto;
+      color: #7ee787;
+    }
+
+    .console-log { color: #e6edf3; margin-bottom: 4px; }
+    .console-warn { color: #f2cc60; margin-bottom: 4px; }
+    .console-err { color: #ff7b72; margin-bottom: 4px; }
+    .console-info { color: #58a6ff; margin-bottom: 4px; }
+    .console-success { color: #7ee787; margin-bottom: 4px; font-weight: 600; }
+
+    .tooltip {
+      position: absolute;
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 0.8rem;
+      color: var(--text-primary);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      pointer-events: none;
+      display: none;
+      z-index: 1000;
+      max-width: 320px;
+    }
+
+    .tooltip code {
+      color: #c084fc;
+      font-family: var(--font-code);
+    }
+
+    .status-bar {
+      background-color: #0b0e14;
+      border-top: 1px solid var(--border-color);
+      padding: 4px 16px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-indicator {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: var(--accent-emerald);
+    }
   </style>
 </head>
 <body>
-  <h1>⚡ Aura Language Online Playground</h1>
-  <p>Experience Aura: Pattern Matching, CSP Concurrency, Hindley-Milner Type Inference &amp; Zero-overhead native execution.</p>
-  <div class="buttons">
-    <button id="btn-run">Run</button>
-    <button id="btn-format">Format</button>
-    <button id="btn-ast">AST</button>
-  </div>
-  <div class="container">
-    <div class="panel">
-      <h3>Source Code (Aura)</h3>
-      <textarea id="code-input">// Aura Language Online Playground Demo
-export fn main(): Unit => {
-    println("Hello from Aura!");
+  <header>
+    <div class="brand">
+      <span>⚡ Aura Lang</span>
+      <span class="badge">Playground</span>
+    </div>
+    <div class="toolbar">
+      <div class="select-wrapper">
+        <select id="example-select" onchange="loadExample(this.value)">
+          <option value="hello">1. Hello World & Interpolation</option>
+          <option value="pattern_matching">2. Pattern Matching & Sum Types</option>
+          <option value="csp_concurrency">3. CSP Concurrency (Channels & Select)</option>
+          <option value="http_server">4. Go-Style HTTP Server & Routing</option>
+          <option value="pipeline">5. Pipelines & Lambdas</option>
+          <option value="nosql_queries">6. NoSQL (MongoDB & Redis)</option>
+          <option value="sql_transactions">7. SQL (Postgres & MySQL)</option>
+          <option value="async_tasks">8. Async / Await & Tasks</option>
+        </select>
+      </div>
+      <button class="btn btn-secondary" onclick="formatCode()" title="Format Code">
+        <span>🎨 Format</span>
+      </button>
+      <button class="btn btn-primary" onclick="compileCode()" title="Compile Code">
+        <span>⚡ Compile</span>
+      </button>
+      <button class="btn btn-success" onclick="runCode()" title="Run Code">
+        <span>▶ Run</span>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Left Pane: Editor -->
+    <section class="pane">
+      <div class="pane-header">
+        <div class="pane-title">
+          <span class="dot"></span>
+          <span>main.aura</span>
+        </div>
+        <div class="status-item">
+          <span id="char-count">0 chars</span>
+        </div>
+      </div>
+      <div class="editor-container">
+        <div class="line-numbers" id="line-numbers">1</div>
+        <textarea id="code-input" spellcheck="false" placeholder="Write Aura code here..."></textarea>
+      </div>
+      <div class="status-bar">
+        <div class="status-item">
+          <span class="status-indicator"></span>
+          <span id="lsp-status">LSP Ready</span>
+        </div>
+        <div class="status-item">
+          <span>Aura Compiler v0.1.0 (ES6 + DTS + CSP)</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Pane: Output & AST & Console -->
+    <section class="pane">
+      <div class="pane-header">
+        <div class="tabs">
+          <button class="tab active" onclick="switchTab('js')">⚡ Output</button>
+          <button class="tab" onclick="switchTab('dts')">📜 Types (.d.ts)</button>
+          <button class="tab" onclick="switchTab('ast')">🌳 AST Viewer</button>
+        </div>
+      </div>
+      <div class="output-viewer" id="output-view">// Compiled output will appear here...</div>
+      
+      <!-- Interactive Console -->
+      <div class="console-pane">
+        <div class="console-header">
+          <span>Terminal / Execution Output</span>
+          <button class="btn btn-secondary" style="padding: 2px 8px; font-size: 0.7rem;" onclick="clearConsole()">Clear</button>
+        </div>
+        <div class="console-output" id="console-output">
+          <div class="console-info">ℹ Press "▶ Run" to execute code in playground engine</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="tooltip" id="hover-tooltip"></div>
+
+  <script>
+    const EXAMPLES = {
+      hello: `// 1. Hello World & Interpolation
+export fn greet(name: String): String {
+    return \`Hello, \${name}! Welcome to Aura.\`;
 }
-</textarea>
-    </div>
-    <div class="panel">
-      <h3>Output / Diagnostics</h3>
-      <div id="console-output" class="output-panel">Ready.</div>
-    </div>
-  </div>
+
+let message = greet("World");
+console.log(message);
+`,
+      pattern_matching: `// 2. Algebraic Sum Types & Pattern Matching
+type Shape = 
+    | Circle(Float)
+    | Rectangle(Float, Float)
+    | Point;
+
+fn calculate_area(s: Shape): Float {
+    return match s {
+        Circle(r) => 3.14159 * r * r,
+        Rectangle(w, h) when w > 0.0 && h > 0.0 => w * h,
+        _ => 0.0,
+    };
+}
+
+let c = Circle(5.0);
+console.log("Circle area:", calculate_area(c));
+`,
+      csp_concurrency: `// 3. CSP Concurrency (Spawn, Channels & Select)
+fn worker(id: Int, ch: Channel<String>) {
+    spawn {
+        let msg = \`Worker #\${id} reporting in\`;
+        ch <- msg;
+    };
+}
+
+let ch = Channel();
+worker(1, ch);
+worker(2, ch);
+
+select {
+    ch <- msg => console.log("Received via channel:", msg),
+    default => console.log("Channel pending..."),
+};
+`,
+      http_server: `// 4. Go-Style HTTP Server & Routing
+import { Server, Request, Response } from "net/http";
+
+type UserResponse = {
+    status: Int,
+    message: String,
+} \`json:"response"\`;
+
+export fn handleUsers(req: Request): Response => {
+    let res: UserResponse = {
+        status: 200,
+        message: "Aura Backend Microservice operational",
+    };
+    Response.json(res)
+}
+
+let server = Server.new(":8080");
+server.handle("/api/v1/users", handleUsers);
+println("HTTP Server listening on http://localhost:8080");
+`,
+      pipeline: `// 5. Pipeline Operator & Higher Order Functions
+fn double(x: Int): Int => x * 2;
+fn add_ten(x: Int): Int => x + 10;
+fn is_even(x: Int): Bool => x % 2 == 0;
+
+let numbers = [1, 2, 3, 4, 5];
+
+let result = 5 
+    |> double 
+    |> add_ten;
+
+console.log("Pipeline result:", result);
+`,
+      nosql_queries: `// 6. NoSQL Native Support (MongoDB & Redis)
+import { mongodb } from "aura/nosql";
+import { redis } from "aura/nosql";
+
+// MongoDB Query
+let users = mongodb("mongodb://localhost:27017/mydb")
+    .collection("users")
+    .find({ "status": "active" }, { "limit": 10 });
+
+// Redis Cache
+let cached = redis("redis://127.0.0.1:6379")
+    .get("user:1001");
+
+console.log("NoSQL Query pipelines configured successfully.");
+`,
+      sql_transactions: `// 7. SQL Database Transactions (PostgreSQL & MySQL)
+import { postgres } from "aura/sql";
+
+let db = postgres("postgres://user:pass@localhost:5432/appdb");
+
+let active_accounts = db.query(
+    "SELECT id, username, balance FROM accounts WHERE balance > $1", 
+    [100.0]
+);
+
+console.log("SQL Database client initialized.");
+`,
+      async_tasks: `// 8. Async / Await & Tasks
+async fn fetch_user_data(userId: Int): Task<String, String> {
+    return \`User profile #\${userId} loaded\`;
+}
+
+async fn main_flow() {
+    let profile = await fetch_user_data(42);
+    console.log("Profile resolved:", profile);
+}
+
+main_flow();
+`
+    };
+
+    let currentTab = 'js';
+    let compiledJs = '';
+    let compiledDts = '';
+    let parsedAst = '';
+
+    const codeInput = document.getElementById('code-input');
+    const lineNumbers = document.getElementById('line-numbers');
+    const outputView = document.getElementById('output-view');
+    const consoleOutput = document.getElementById('console-output');
+    const charCount = document.getElementById('char-count');
+
+    function updateLineNumbers() {
+      const lines = codeInput.value.split('\n').length;
+      lineNumbers.innerHTML = Array.from({ length: lines }, (_, i) => i + 1).join('<br>');
+      charCount.textContent = `${codeInput.value.length} chars | ${lines} lines`;
+    }
+
+    codeInput.addEventListener('input', () => {
+      updateLineNumbers();
+    });
+
+    codeInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const start = codeInput.selectionStart;
+        const end = codeInput.selectionEnd;
+        codeInput.value = codeInput.value.substring(0, start) + '    ' + codeInput.value.substring(end);
+        codeInput.selectionStart = codeInput.selectionEnd = start + 4;
+        updateLineNumbers();
+      }
+    });
+
+    function loadExample(name) {
+      if (EXAMPLES[name]) {
+        codeInput.value = EXAMPLES[name];
+        updateLineNumbers();
+        compileCode();
+      }
+    }
+
+    function switchTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      event.target.classList.add('active');
+
+      if (tab === 'js') {
+        outputView.textContent = compiledJs || '// Click Compile or Run to generate output';
+      } else if (tab === 'dts') {
+        outputView.textContent = compiledDts || '// Click Compile to generate TypeScript .d.ts declarations';
+      } else if (tab === 'ast') {
+        outputView.textContent = parsedAst || '// Click Compile to inspect the AST';
+      }
+    }
+
+    async function compileCode() {
+      const code = codeInput.value;
+      try {
+        const res = await fetch('/api/compile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code })
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) {
+            compiledJs = data.js;
+            compiledDts = data.dts;
+            fetchAst(code);
+            renderCurrentTab();
+            logConsole("✓ Compiled successfully.", "console-success");
+          } else {
+            outputView.textContent = "✕ Compilation Error:\n\n" + data.error;
+            logConsole("✕ Compilation Error:\n" + data.error, "console-err");
+          }
+        }
+      } catch (e) {
+        // Fallback simulation when running offline without backend server
+        simulateOfflineCompile(code);
+      }
+    }
+
+    async function fetchAst(code) {
+      try {
+        const res = await fetch('/api/ast', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) {
+            parsedAst = data.ast;
+            if (currentTab === 'ast') outputView.textContent = parsedAst;
+          }
+        }
+      } catch (_) {}
+    }
+
+    async function formatCode() {
+      const code = codeInput.value;
+      try {
+        const res = await fetch('/api/format', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) {
+            codeInput.value = data.formatted;
+            updateLineNumbers();
+            logConsole("✓ Code formatted with aurafmt standard rules.", "console-info");
+          }
+        }
+      } catch (_) {
+        logConsole("Formatting available via active Aura server.", "console-warn");
+      }
+    }
+
+    async function runCode() {
+      await compileCode();
+      if (!compiledJs) return;
+
+      logConsole("⚡ Executing in playground engine...", "console-info");
+      const startTime = performance.now();
+
+      // Sandbox console logger
+      const originalLog = console.log;
+      const originalWarn = console.warn;
+      const originalError = console.error;
+
+      try {
+        console.log = (...args) => {
+          logConsole(args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' '), 'console-log');
+        };
+        console.warn = (...args) => {
+          logConsole(args.join(' '), 'console-warn');
+        };
+        console.error = (...args) => {
+          logConsole(args.join(' '), 'console-err');
+        };
+
+        // Strip export statements for browser eval if needed
+        const cleanJs = compiledJs
+          .replace(/export\s+function/g, 'function')
+          .replace(/export\s+const/g, 'const')
+          .replace(/export\s+let/g, 'let')
+          .replace(/export\s+class/g, 'class');
+
+        const result = new Function(cleanJs)();
+        const duration = (performance.now() - startTime).toFixed(2);
+        
+        if (result !== undefined) {
+          logConsole("➜ Result: " + JSON.stringify(result), "console-success");
+        }
+        logConsole(`✓ Finished execution in ${duration}ms`, "console-success");
+      } catch (err) {
+        logConsole("✕ Runtime Exception: " + err.message, "console-err");
+      } finally {
+        console.log = originalLog;
+        console.warn = originalWarn;
+        console.error = originalError;
+      }
+    }
+
+    function renderCurrentTab() {
+      if (currentTab === 'js') outputView.textContent = compiledJs;
+      else if (currentTab === 'dts') outputView.textContent = compiledDts;
+      else if (currentTab === 'ast') outputView.textContent = parsedAst;
+    }
+
+    function logConsole(msg, className = 'console-log') {
+      const div = document.createElement('div');
+      div.className = className;
+      div.textContent = msg;
+      consoleOutput.appendChild(div);
+      consoleOutput.scrollTop = consoleOutput.scrollHeight;
+    }
+
+    function clearConsole() {
+      consoleOutput.innerHTML = '';
+    }
+
+    function simulateOfflineCompile(code) {
+      compiledJs = "// Preview Output (Offline Mode)\n" + code
+        .replace(/fn\s+(\w+)\s*\((.*?)\)\s*:\s*\w+\s*=>\s*(.*?);/g, 'export function $1($2) { return $3; }')
+        .replace(/fn\s+(\w+)\s*\((.*?)\)\s*:\s*\w+/g, 'export function $1($2)');
+      compiledDts = "// TypeScript Definitions (Offline Mode)\n" + code;
+      renderCurrentTab();
+      logConsole("✓ Offline preview generated.", "console-info");
+    }
+
+    // Initialize with default example
+    loadExample('hello');
+  </script>
 </body>
 </html>

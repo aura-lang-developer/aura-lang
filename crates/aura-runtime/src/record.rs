@@ -3,7 +3,7 @@
 use crate::list::{AuraList, aura_list_get, aura_list_len};
 use crate::string::{AuraString, aura_string_from_rust_str};
 use serde_json::{Map, Number, Value as JsonValue};
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::slice;
 use std::str;
 
@@ -24,14 +24,14 @@ pub const AURA_RECORD_MAGIC: u64 = 0xA052_4543_4F52_0002;
 #[derive(Debug, Clone)]
 pub struct AuraRecord {
     pub magic: u64,
-    pub fields: HashMap<String, AuraVal>,
+    pub fields: FxHashMap<String, AuraVal>,
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn aura_record_new() -> *mut AuraRecord {
     let rec = Box::new(AuraRecord {
         magic: AURA_RECORD_MAGIC,
-        fields: HashMap::new(),
+        fields: FxHashMap::default(),
     });
     let raw = Box::into_raw(rec);
     crate::gc::register_valid_ptr(raw as usize, crate::gc::TYPE_RECORD);
@@ -152,6 +152,24 @@ pub extern "C" fn aura_record_set_list(
     }
 }
 
+pub fn aura_record_set_val(
+    rec: *mut AuraRecord,
+    key_ptr: *const u8,
+    key_len: usize,
+    val: AuraVal,
+) {
+    if rec.is_null() || key_ptr.is_null() || key_len == 0 {
+        return;
+    }
+    let key = unsafe {
+        let bytes = slice::from_raw_parts(key_ptr, key_len);
+        str::from_utf8(bytes).unwrap_or("")
+    };
+    unsafe {
+        (*rec).fields.insert(key.to_string(), val);
+    }
+}
+
 /// Generic untyped setter: stores val directly as i64 / ptr
 #[unsafe(no_mangle)]
 pub extern "C" fn aura_record_set(
@@ -234,13 +252,8 @@ pub extern "C" fn aura_record_get_f64(
         match (*rec).fields.get(key) {
             Some(AuraVal::Float(f)) => *f,
             Some(AuraVal::Int(i)) => *i as f64,
-            Some(AuraVal::Bool(b)) => {
-                if *b {
-                    1.0
-                } else {
-                    0.0
-                }
-            }
+            Some(AuraVal::Bool(true)) => 1.0,
+            Some(AuraVal::Bool(false)) => 0.0,
             _ => 0.0,
         }
     }

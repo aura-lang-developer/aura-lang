@@ -36,12 +36,12 @@ fn test_goroutine_lexing_and_parsing() {
     // Verify AST contains Expr::Spawn for all 3 goroutines
     let mut go_count = 0;
     for item in &module.items {
-        if let aura_lang::ast::Item::Function(func) = item {
-            if let Expr::Block(stmts) = &func.body {
-                for stmt in stmts {
-                    if let aura_lang::ast::Statement::Expr(Expr::Spawn(_)) = stmt {
-                        go_count += 1;
-                    }
+        if let aura_lang::ast::Item::Function(func) = item
+            && let Expr::Block(stmts) = &func.body
+        {
+            for stmt in stmts {
+                if let aura_lang::ast::Statement::Expr(Expr::Spawn(_)) = stmt {
+                    go_count += 1;
                 }
             }
         }

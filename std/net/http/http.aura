@@ -1,0 +1,66 @@
+// Aura Standard Library: net/http
+// High-performance HTTP server, client, and Golang-inspired Request / Response / ResponseWriter abstractions.
+
+/// Represents an incoming or outgoing HTTP Request.
+export interface HttpRequest {
+    method: String,
+    url: String,
+    path: String,
+    host: String,
+    proto: String,
+    remoteAddr: String,
+    body: String,
+    param(name: String): String,
+    pathValue(name: String): String,
+    query(name: String): String,
+    header(name: String): String,
+    getHeader(name: String): String,
+    parseJson(): Result<Any, String>
+}
+
+/// Standard Request alias
+export type Request = HttpRequest;
+
+/// Represents an HTTP Response payload.
+export interface HttpResponse {
+    status: Int,
+    body: String
+}
+
+/// Standard Response alias
+export type Response = HttpResponse;
+
+/// Go-style HTTP ResponseWriter interface for streaming or constructing HTTP responses.
+export interface ResponseWriter {
+    setHeader(key: String, value: String): Unit,
+    writeString(content: String): Unit,
+    json(data: Any, status?: Int): Unit,
+    text(message: String, status?: Int): Unit,
+    html(htmlContent: String, status?: Int): Unit,
+    error(errorMsg: String, status?: Int): Unit,
+    redirect(url: String, status?: Int): Unit
+}
+
+/// HTTP Request Handler interface.
+export interface Handler {
+    serveHTTP(w: ResponseWriter, req: Request): Unit
+}
+
+/// Standard HTTP Status Codes
+export const StatusOK: Int = 200;
+export const StatusCreated: Int = 201;
+export const StatusAccepted: Int = 202;
+export const StatusNoContent: Int = 204;
+export const StatusMovedPermanently: Int = 301;
+export const StatusFound: Int = 302;
+export const StatusSeeOther: Int = 303;
+export const StatusBadRequest: Int = 400;
+export const StatusUnauthorized: Int = 401;
+export const StatusForbidden: Int = 403;
+export const StatusNotFound: Int = 404;
+export const StatusMethodNotAllowed: Int = 405;
+export const StatusConflict: Int = 409;
+export const StatusUnprocessableEntity: Int = 422;
+export const StatusInternalServerError: Int = 500;
+export const StatusBadGateway: Int = 502;
+export const StatusServiceUnavailable: Int = 503;

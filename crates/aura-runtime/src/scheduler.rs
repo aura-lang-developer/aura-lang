@@ -5,7 +5,7 @@ use crate::fiber::{Fiber, FiberState};
 use std::cell::Cell;
 use std::collections::{HashSet, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Condvar, Mutex};
 use std::thread;
 
 thread_local! {
@@ -14,30 +14,36 @@ thread_local! {
 }
 
 pub struct Scheduler {
-    ready_queue: Arc<Mutex<VecDeque<Box<Fiber>>>>,
-    all_fibers: Arc<Mutex<HashSet<usize>>>,
-    cond: Arc<Condvar>,
-    shutdown: Arc<AtomicBool>,
-    sleeping_workers: Arc<AtomicUsize>,
-    total_workers: Arc<AtomicUsize>,
-    deadlock_detection: Arc<AtomicBool>,
+    ready_queue: Mutex<VecDeque<Box<Fiber>>>,
+    all_fibers: Mutex<HashSet<usize>>,
+    cond: Condvar,
+    shutdown: AtomicBool,
+    sleeping_workers: AtomicUsize,
+    total_workers: AtomicUsize,
+    deadlock_detection: AtomicBool,
 }
 
 use std::sync::OnceLock;
 
 static GLOBAL_SCHEDULER: OnceLock<Scheduler> = OnceLock::new();
 
+impl Default for Scheduler {
+    fn default() -> Self {
+        Scheduler {
+            ready_queue: Mutex::new(VecDeque::new()),
+            all_fibers: Mutex::new(HashSet::new()),
+            cond: Condvar::new(),
+            shutdown: AtomicBool::new(false),
+            sleeping_workers: AtomicUsize::new(0),
+            total_workers: AtomicUsize::new(1),
+            deadlock_detection: AtomicBool::new(true),
+        }
+    }
+}
+
 impl Scheduler {
     pub fn new() -> Self {
-        Scheduler {
-            ready_queue: Arc::new(Mutex::new(VecDeque::new())),
-            all_fibers: Arc::new(Mutex::new(HashSet::new())),
-            cond: Arc::new(Condvar::new()),
-            shutdown: Arc::new(AtomicBool::new(false)),
-            sleeping_workers: Arc::new(AtomicUsize::new(0)),
-            total_workers: Arc::new(AtomicUsize::new(1)),
-            deadlock_detection: Arc::new(AtomicBool::new(true)),
-        }
+        Self::default()
     }
 
     pub fn spawn(&self, entry: extern "C" fn(*mut ()), arg: *mut ()) -> u64 {
@@ -78,7 +84,7 @@ impl Scheduler {
     pub fn parked_fibers_count(&self) -> usize {
         let active = self.active_fibers_count();
         let ready = self.ready_fibers_count();
-        if active >= ready { active - ready } else { 0 }
+        active.saturating_sub(ready)
     }
 
     pub fn set_deadlock_detection(&self, enabled: bool) {
@@ -95,27 +101,13 @@ impl Scheduler {
 
         let mut handles = Vec::new();
         for _ in 1..num_workers {
-            let ready_q = Arc::clone(&self.ready_queue);
-            let cond = Arc::clone(&self.cond);
-            let shutdown = Arc::clone(&self.shutdown);
-            let sleeping = Arc::clone(&self.sleeping_workers);
-            let total = Arc::clone(&self.total_workers);
-            let deadlock = Arc::clone(&self.deadlock_detection);
-
             handles.push(thread::spawn(move || {
-                worker_loop(ready_q, cond, shutdown, sleeping, total, deadlock);
+                worker_loop(self);
             }));
         }
 
         // Main thread acts as worker 0
-        worker_loop(
-            Arc::clone(&self.ready_queue),
-            Arc::clone(&self.cond),
-            Arc::clone(&self.shutdown),
-            Arc::clone(&self.sleeping_workers),
-            Arc::clone(&self.total_workers),
-            Arc::clone(&self.deadlock_detection),
-        );
+        worker_loop(self);
 
         for h in handles {
             let _ = h.join();
@@ -131,30 +123,23 @@ pub fn get_scheduler() -> &'static Scheduler {
     GLOBAL_SCHEDULER.get_or_init(Scheduler::new)
 }
 
-fn worker_loop(
-    ready_q: Arc<Mutex<VecDeque<Box<Fiber>>>>,
-    cond: Arc<Condvar>,
-    shutdown: Arc<AtomicBool>,
-    sleeping_workers: Arc<AtomicUsize>,
-    total_workers: Arc<AtomicUsize>,
-    deadlock_detection: Arc<AtomicBool>,
-) {
+fn worker_loop(sched: &'static Scheduler) {
     let mut worker_sp: *mut u8 = std::ptr::null_mut();
 
     loop {
         let mut fiber = {
-            let mut q = ready_q.lock().unwrap();
+            let mut q = sched.ready_queue.lock().unwrap();
             while q.is_empty() {
-                if shutdown.load(Ordering::Relaxed) {
+                if sched.shutdown.load(Ordering::Relaxed) {
                     return;
                 }
 
-                let sleeping = sleeping_workers.fetch_add(1, Ordering::SeqCst) + 1;
-                let tot = total_workers.load(Ordering::SeqCst);
+                let sleeping = sched.sleeping_workers.fetch_add(1, Ordering::SeqCst) + 1;
+                let tot = sched.total_workers.load(Ordering::SeqCst);
 
-                if deadlock_detection.load(Ordering::Relaxed) && sleeping >= tot {
+                if sched.deadlock_detection.load(Ordering::Relaxed) && sleeping >= tot {
                     let all_count = {
-                        let all = match get_scheduler().all_fibers.lock() {
+                        let all = match sched.all_fibers.lock() {
                             Ok(g) => g,
                             Err(p) => p.into_inner(),
                         };
@@ -162,7 +147,7 @@ fn worker_loop(
                     };
 
                     if all_count > 0 && q.is_empty() {
-                        sleeping_workers.fetch_sub(1, Ordering::SeqCst);
+                        sched.sleeping_workers.fetch_sub(1, Ordering::SeqCst);
                         eprintln!("\n=======================================================");
                         eprintln!("fatal error: all fibers are asleep - deadlock detected!");
                         eprintln!("  Active Fibers: {}", all_count);
@@ -178,8 +163,8 @@ fn worker_loop(
                     }
                 }
 
-                q = cond.wait(q).unwrap();
-                sleeping_workers.fetch_sub(1, Ordering::SeqCst);
+                q = sched.cond.wait(q).unwrap();
+                sched.sleeping_workers.fetch_sub(1, Ordering::SeqCst);
             }
             q.pop_front().unwrap()
         };
@@ -205,9 +190,9 @@ fn worker_loop(
 
         match fiber.state {
             FiberState::Ready => {
-                let mut q = ready_q.lock().unwrap();
+                let mut q = sched.ready_queue.lock().unwrap();
                 q.push_back(fiber);
-                cond.notify_one();
+                sched.cond.notify_one();
             }
             FiberState::Blocked => {
                 // Fiber parked on channel or I/O, keep leaked until unparked
@@ -215,19 +200,19 @@ fn worker_loop(
             }
             FiberState::Dead => {
                 // Fiber completed, clean up
-                let mut all = get_scheduler().all_fibers.lock().unwrap();
+                let mut all = sched.all_fibers.lock().unwrap();
                 all.remove(&(raw_fiber as usize));
                 drop(fiber);
             }
             FiberState::Running => unreachable!(),
         }
 
-        let q = ready_q.lock().unwrap();
+        let q = sched.ready_queue.lock().unwrap();
         if q.is_empty() {
-            let all = get_scheduler().all_fibers.lock().unwrap();
+            let all = sched.all_fibers.lock().unwrap();
             if all.is_empty() {
-                shutdown.store(true, Ordering::Relaxed);
-                cond.notify_all();
+                sched.shutdown.store(true, Ordering::Relaxed);
+                sched.cond.notify_all();
                 return;
             }
         }
