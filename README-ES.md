@@ -319,10 +319,10 @@ Aura incluye una suite de pruebas de rendimiento automatizada y reproducible ubi
 
 | Escenario                              | Binario Go (MB) | Binario Go Stripped (`-s -w`) | Binario Standalone Aura |                  Ratio Aura vs Go                  |
 | :------------------------------------- | :-------------: | :---------------------------: | :---------------------: | :------------------------------------------------: |
-| **Cálculo Numérico (Cranelift)**       |     2.32 MB     |            1.51 MB            |   **2.97 – 2.99 MB**    |                       1.28x                        |
-| **Pipeline de Datos (Cranelift)**      |     2.32 MB     |            1.51 MB            |       **2.99 MB**       |                       1.29x                        |
-| **Servidor HTTP REST / Microservicio** |     8.84 MB     |            5.96 MB            |       **1.78 MB**       | **0.20x (Aura 80% más liviano / 5x más compacto)** |
-| **Concurrencia CSP / Canales**         |     2.33 MB     |            1.53 MB            |       **5.06 MB**       |                       2.17x                        |
+| **Cálculo Numérico (Cranelift)**       |     2.32 MB     |            1.51 MB            |       **0.50 MB**       |  🏆 **0.22x (Aura 67% menor que Go stripped)**     |
+| **Pipeline de Datos (Cranelift)**      |     2.32 MB     |            1.51 MB            |       **0.50 MB**       |  🏆 **0.22x (Aura 67% menor que Go stripped)**     |
+| **Servidor HTTP REST / Microservicio** |     8.85 MB     |            5.96 MB            |       **0.57 MB**       |  🏆 **0.06x (Aura 15x más compacto / -93%)**       |
+| **Concurrencia CSP / Canales**         |     2.33 MB     |            1.53 MB            |       **3.40 MB**       |         1.46x *(optimizado desde 5.07 MB)*         |
 
 ### 3. Tiempos de Compilación y Verificación Estática
 
@@ -343,12 +343,11 @@ Evaluación de throughput y percentiles de latencia en peticiones concurrentes c
 
 | Métrica de Rendimiento             | Aura Standalone Server | Go Native Server (`net/http`) |          Ventaja de Aura Lang          |
 | :--------------------------------- | :--------------------: | :---------------------------: | :------------------------------------: |
-| **Throughput (req/s)**             |   **126,953 req/s**    |         72,122 req/s          |  🏆 **+76% mayor throughput (1.76x)**  |
-| **Latencia Media**                 |      **0.36 ms**       |            0.66 ms            |       🏆 **45% menor latencia**        |
-| **Latencia Mediana (p50)**         |      **0.32 ms**       |            0.59 ms            |   🏆 **1.8x más rápido en mediana**    |
-| **Latencia Percentil 95 (p95)**    |      **0.78 ms**       |            1.35 ms            |   🏆 **42% menor latencia en cola**    |
-| **Latencia Percentil 99 (p99)**    |      **1.03 ms**       |            1.97 ms            |     🏆 **48% menor latencia p99**      |
-| **Tamaño de Binario Distribuible** |      **1.78 MB**       |  8.84 MB (5.96 MB stripped)   | 🏆 **5x más compacto (-80% de disco)** |
+| **Throughput (req/s)**             |    **96,092 req/s**    |         88,744 req/s          |  🏆 **Aura mayor throughput (+8.3%)**  |
+| **Latencia Media**                 |      **0.48 ms**       |            0.51 ms            |       🏆 **Aura menor latencia media** |
+| **Latencia Mediana (p50)**         |      **0.38 ms**       |            0.42 ms            |   🏆 **Aura más rápido en mediana**    |
+| **Latencia Percentil 99 (p99)**    |      **1.50 ms**       |            1.72 ms            |     🏆 **Aura menor latencia p99**     |
+| **Tamaño de Binario Distribuible** |      **0.57 MB**       |  8.85 MB (5.96 MB stripped)   | 🏆 **15.5x más compacto (-93.6% disco)**|
 
 ### 5. Rendimiento de Compilación frente a TypeScript (`tsc`)
 

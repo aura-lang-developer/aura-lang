@@ -200,11 +200,12 @@ fn execute_build(
             .map(|t| format!(" (target: {})", t))
             .unwrap_or_default()
     );
-    match aura_lang::build_backend_executable_with_base_path(
+    match aura_lang::build_backend_executable_with_options(
         &source,
         Path::new(&out_path),
         base_path,
         explicit_target,
+        release,
     ) {
         Ok(build_result) => {
             let mb = (build_result.size_bytes as f64) / (1024.0 * 1024.0);

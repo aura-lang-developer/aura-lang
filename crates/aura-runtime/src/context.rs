@@ -4,12 +4,15 @@
 use std::alloc::{Layout, alloc_zeroed, dealloc};
 use std::ptr;
 
-pub const DEFAULT_STACK_SIZE: usize = 32 * 1024; // 32 KB stack per fiber (optimized for high density)
+#[cfg(target_arch = "aarch64")]
+pub const DEFAULT_STACK_SIZE: usize = 16 * 1024; // 16 KB stack per fiber (1 page on macOS arm64)
+#[cfg(not(target_arch = "aarch64"))]
+pub const DEFAULT_STACK_SIZE: usize = 8 * 1024; // 8 KB stack per fiber (2 pages on x86_64)
 
 #[cfg(unix)]
 static STACK_POOL: std::sync::Mutex<Vec<FiberStack>> = std::sync::Mutex::new(Vec::new());
 #[cfg(unix)]
-const MAX_STACK_POOL: usize = 1024;
+const MAX_STACK_POOL: usize = 8192;
 
 #[cfg(target_arch = "aarch64")]
 core::arch::global_asm!(

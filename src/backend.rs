@@ -135,6 +135,17 @@ pub fn build_backend_executable_with_base_path(
     base_path: Option<&Path>,
     target: Option<&str>,
 ) -> Result<ExecutableBuildResult, String> {
+    build_backend_executable_with_options(source_or_go_code, out_path, base_path, target, false)
+}
+
+/// Builds a standalone native binary executable with release optimization options.
+pub fn build_backend_executable_with_options(
+    source_or_go_code: &str,
+    out_path: &Path,
+    base_path: Option<&Path>,
+    target: Option<&str>,
+    release: bool,
+) -> Result<ExecutableBuildResult, String> {
     let parent_dir = out_path.parent().unwrap_or_else(|| Path::new("."));
     let stem = out_path
         .file_stem()
@@ -158,7 +169,11 @@ pub fn build_backend_executable_with_base_path(
     }
 
     let mut cmd = Command::new("go");
-    cmd.arg("build").arg("-o").arg(out_path).arg(&tmp_go_path);
+    cmd.arg("build");
+    if release {
+        cmd.arg("-ldflags=-s -w");
+    }
+    cmd.arg("-o").arg(out_path).arg(&tmp_go_path);
 
     if let Some(t) = target {
         let (goos, goarch) = match t {

@@ -53,9 +53,7 @@ pub extern "C" fn aura_list_repeat(item: i64, count: usize) -> *mut AuraList {
             }
         } else {
             unsafe {
-                for i in 0..count {
-                    *items.add(i) = item;
-                }
+                std::slice::from_raw_parts_mut(items, count).fill(item);
             }
         }
     }

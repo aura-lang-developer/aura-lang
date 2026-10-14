@@ -91,7 +91,7 @@ pub extern "C" fn aura_http_mux_handle(
 pub const MAX_HTTP_BODY_SIZE: usize = 10 * 1024 * 1024; // 10 MB limit
 pub const MAX_HTTP_HEADERS: usize = 100;
 pub const MAX_HEADER_LINE_LEN: usize = 8192;
-pub const MAX_CONCURRENT_CONNS: usize = 1024;
+pub const MAX_CONCURRENT_CONNS: usize = 8192;
 
 static ACTIVE_CONNS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 static HTTP_TOTAL_REQUESTS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -210,6 +210,39 @@ pub extern "C" fn aura_http_listen_and_serve(
 
     let mux_arc = Arc::new(unsafe { &*mux });
 
+    let num_workers = 256;
+    let (tx, rx) = std::sync::mpsc::sync_channel::<TcpStream>(8192);
+    let rx_arc = Arc::new(std::sync::Mutex::new(rx));
+
+    for _ in 0..num_workers {
+        let rx_clone = Arc::clone(&rx_arc);
+        let mux_clone = Arc::clone(&mux_arc);
+        std::thread::Builder::new()
+            .name("aura-http-worker".to_string())
+            .spawn(move || {
+                struct ConnGuard;
+                impl Drop for ConnGuard {
+                    fn drop(&mut self) {
+                        ACTIVE_CONNS.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+                    }
+                }
+                loop {
+                    let stream = {
+                        let lock = rx_clone.lock().unwrap();
+                        lock.recv()
+                    };
+                    match stream {
+                        Ok(s) => {
+                            let _guard = ConnGuard;
+                            handle_connection(s, &mux_clone);
+                        }
+                        Err(_) => break,
+                    }
+                }
+            })
+            .ok();
+    }
+
     for stream in listener.incoming() {
         match stream {
             Ok(s) => {
@@ -224,17 +257,10 @@ pub extern "C" fn aura_http_listen_and_serve(
                 }
                 ACTIVE_CONNS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
-                let mux_clone = Arc::clone(&mux_arc);
-                std::thread::spawn(move || {
-                    struct ConnGuard;
-                    impl Drop for ConnGuard {
-                        fn drop(&mut self) {
-                            ACTIVE_CONNS.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
-                        }
-                    }
-                    let _guard = ConnGuard;
-                    handle_connection(s, &mux_clone);
-                });
+                if tx.send(s).is_err() {
+                    ACTIVE_CONNS.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+                    break;
+                }
             }
             Err(e) => {
                 eprintln!("Error accepting connection: {}", e);
@@ -506,6 +532,7 @@ fn handle_connection(stream: TcpStream, mux: &AuraServeMux) {
             if !keep_alive {
                 break;
             }
+            let _ = raw_stream.set_read_timeout(Some(std::time::Duration::from_millis(50)));
         } else {
             // 404 fallback
             let not_found = if keep_alive {

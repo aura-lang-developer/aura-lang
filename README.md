@@ -307,36 +307,36 @@ Aura includes an automated, reproducible benchmark suite located in [`benchmarks
 
 | Evaluated Scenario                      | Aura Lang (`aurac`) | Golang (`go`) |     Ratio (Aura vs Go)      | Aura Memory (RSS) | Go Memory (RSS) |        Status / Aura Advantage        |
 | :-------------------------------------- | :-----------------: | :-----------: | :-------------------------: | :---------------: | :-------------: | :-----------------------------------: |
-| **Recursive Fibonacci ($N=38$)**        |      188.08 ms      |   142.74 ms   |            1.32x            |    **3.19 MB**    |     4.14 MB     |         **-23.0% less RAM**           |
-| **Sieve of Eratosthenes (2M primes)**   |      17.23 ms       |   11.21 ms    | 1.54x *(improved from 2.66x)*|     18.45 MB      |     6.30 MB     |     Optimized with `Array.repeat`     |
-| **Functional Pipeline (1M items)**      |    **12.16 ms**     |   11.86 ms    |  **1.03x (Full Parity)**    |     20.55 MB      |    20.44 MB     | 🚀 **Full performance parity with Go**|
-| **CSP Ping-Pong Channels (200k msgs)**  |    **29.71 ms**     |   29.58 ms    | **1.00x (Absolute Parity)** |      9.00 MB      |     4.36 MB     | 🚀 **Absolute parity with Go**        |
-| **Concurrent Spawn (50k tasks)**        |      17.57 ms       |   15.98 ms    |   **1.10x (Near Parity)**   |     11.38 MB      |     6.86 MB     |      Scheduler O(1) + Stack Pool      |
-| **Cold Start (CLI process)**            |     **7.10 ms**     |   11.86 ms    |  **0.60x (40% faster)**     |    **3.09 MB**    |     4.30 MB     | 🏆 **-28.1% RAM and +40% faster**     |
-| **Mutex Synchronization (50k ops)**     |      22.53 ms       |   19.80 ms    |            1.14x            |     13.80 MB      |     8.55 MB     |           Atomic fast-path            |
-| **Concurrent KV Cache (50k ops)**       |    **22.26 ms**     |   30.67 ms    |   **0.73x (27% faster)**    |     15.42 MB      |    11.17 MB     |   🏆 **Aura 1.37x faster than Go**    |
+| **Recursive Fibonacci ($N=38$)**        |    **149.18 ms**    |   116.49 ms   |    1.28x *(from 1.32x)*     |    **2.83 MB**    |     4.28 MB     |         🏆 **-34.0% less RAM**        |
+| **Sieve of Eratosthenes (2M primes)**   |      16.25 ms       |    9.25 ms    |            1.76x            |     18.14 MB      |     6.28 MB     |     Optimized with SIMD `Array.repeat`|
+| **Functional Pipeline (1M items)**      |      13.01 ms       |    8.39 ms    |            1.55x            |     20.28 MB      |    20.42 MB     |     Parity with Go RAM consumption    |
+| **CSP Ping-Pong Channels (200k msgs)**  |    **29.57 ms**     |   25.41 ms    |   **1.16x (Near Parity)**   |      9.17 MB      |     4.36 MB     |    Optimized fiber stack cache pool   |
+| **Concurrent Spawn (50k tasks)**        |      15.73 ms       |   11.76 ms    |            1.34x            |     11.11 MB      |     6.39 MB     |    Scheduler O(1) + 8192 Stack Pool   |
+| **Cold Start (CLI process)**            |     **6.11 ms**     |    5.88 ms    |   **1.04x (Full Parity)**   |    **2.80 MB**    |     4.25 MB     | 🏆 **-34.1% RAM (2.80 MB vs 4.25 MB)**|
+| **Mutex Synchronization (50k ops)**     |      19.98 ms       |   13.97 ms    |            1.43x            |     13.30 MB      |     7.72 MB     |           Atomic fast-path            |
+| **Concurrent KV Cache (50k ops)**       |    **18.39 ms**     |   18.14 ms    |  **1.01x (Absolute Parity)**|     15.42 MB      |    10.27 MB     | 🚀 **Absolute execution parity**      |
 
 ### 2. Standalone Binary Sizes (Zero Dependencies)
 
 | Scenario                                | Go Binary (MB) | Go Stripped (`-s -w`) | Aura Standalone Binary |               Ratio Aura vs Go                |
 | :-------------------------------------- | :------------: | :-------------------: | :--------------------: | :-------------------------------------------: |
-| **Numerical Calculation (Cranelift)**   |    2.32 MB     |        1.51 MB        |      **1.77 MB**       |         **0.76x (Aura smaller than Go)**      |
-| **Data Pipeline (Cranelift)**           |    2.32 MB     |        1.51 MB        |      **1.77 MB**       |         **0.76x (Aura smaller than Go)**      |
-| **HTTP REST Server / Microservice**     |    8.85 MB     |        5.96 MB        |      **1.77 MB**       | **0.20x (Aura 80% lighter / 5x more compact)**|
-| **CSP Concurrency / Channels**          |    2.33 MB     |        1.53 MB        |      **5.07 MB**       |                     2.17x                     |
+| **Numerical Calculation (Cranelift)**   |    2.32 MB     |        1.51 MB        |      **0.50 MB**       |  🏆 **0.22x (Aura 67% smaller than stripped)**|
+| **Data Pipeline (Cranelift)**           |    2.32 MB     |        1.51 MB        |      **0.50 MB**       |  🏆 **0.22x (Aura 67% smaller than stripped)**|
+| **HTTP REST Server / Microservice**     |    8.85 MB     |        5.96 MB        |      **0.57 MB**       |  🏆 **0.06x (Aura 15x more compact / -93%)**  |
+| **CSP Concurrency / Channels**          |    2.33 MB     |        1.53 MB        |      **3.40 MB**       |       1.46x *(improved from 5.07 MB)*         |
 
 ### 3. Compilation and Static Typecheck Times
 
 | Scenario                 | `aurac check` (HM Typecheck) | `aurac build` (Standalone) | `go build` |
 | :----------------------- | :--------------------------: | :------------------------: | :--------: |
-| **Recursive Fibonacci**  |         **17.2 ms**          |        **84.0 ms**         |  369.0 ms  |
-| **Sieve of Eratosthenes**|          **8.8 ms**          |        **50.7 ms**         |  366.8 ms  |
-| **Data Pipeline**        |          **8.5 ms**          |        **51.3 ms**         |  215.2 ms  |
-| **CSP Channels**         |          **7.7 ms**          |        **184.6 ms**        |  234.1 ms  |
-| **Concurrent Spawn**     |          **7.1 ms**          |        **508.5 ms**        |  469.0 ms  |
-| **Cold Start (CLI)**     |         **11.7 ms**          |        **54.3 ms**         |  252.4 ms  |
-| **Mutex Synchronization**|         **10.6 ms**          |        **511.2 ms**        |  356.9 ms  |
-| **Concurrent KV Cache**  |         **11.3 ms**          |        **532.5 ms**        |  248.0 ms  |
+| **Recursive Fibonacci**  |         **12.8 ms**          |        **52.4 ms**         |  95.6 ms   |
+| **Sieve of Eratosthenes**|          **9.2 ms**          |        **43.7 ms**         |  86.4 ms   |
+| **Data Pipeline**        |          **7.4 ms**          |        **45.3 ms**         |  87.5 ms   |
+| **CSP Channels**         |          **7.8 ms**          |        **206.7 ms**        |  86.3 ms   |
+| **Concurrent Spawn**     |          **7.5 ms**          |        **165.1 ms**        |  86.1 ms   |
+| **Cold Start (CLI)**     |          **9.7 ms**          |        **43.1 ms**         |  86.6 ms   |
+| **Mutex Synchronization**|          **7.5 ms**          |        **163.9 ms**        |  86.6 ms   |
+| **Concurrent KV Cache**  |          **8.8 ms**          |        **167.6 ms**        |  86.4 ms   |
 
 ### 4. HTTP Server / REST Microservice (10,000 requests, Concurrency = 50)
 
@@ -344,11 +344,11 @@ Throughput and latency percentile evaluation under concurrent requests against J
 
 | Performance Metric                 | Aura Standalone Server | Go Native Server (`net/http`) |           Aura Advantage               |
 | :--------------------------------- | :--------------------: | :---------------------------: | :------------------------------------: |
-| **Throughput (req/s)**             |    **33,293 req/s**    |         66,809 req/s          |        Massive load throughput         |
-| **Mean Latency**                   |      **1.44 ms**       |            0.67 ms            |    High stability under concurrency    |
-| **Median Latency (p50)**           |      **0.46 ms**       |            0.50 ms            |   🏆 **Aura faster median (0.46 ms)**  |
-| **95th Percentile Latency (p95)**  |      **1.71 ms**       |            1.61 ms            |       Predictable tail latency         |
-| **Distributable Binary Size**      |      **1.77 MB**       |  8.85 MB (5.96 MB stripped)   | 🏆 **5x more compact (-80% disk)**     |
+| **Throughput (req/s)**             |    **96,092 req/s**    |         88,744 req/s          |  🏆 **Aura higher throughput (+8.3%)** |
+| **Mean Latency**                   |      **0.48 ms**       |            0.51 ms            |  🏆 **Aura lower mean latency**        |
+| **Median Latency (p50)**           |      **0.38 ms**       |            0.42 ms            |  🏆 **Aura faster median (0.38 ms)**   |
+| **99th Percentile Latency (p99)**  |      **1.50 ms**       |            1.72 ms            |  🏆 **Aura lower tail latency**        |
+| **Distributable Binary Size**      |      **0.57 MB**       |  8.85 MB (5.96 MB stripped)   |  🏆 **15.5x more compact (-93.6% disk)**|
 
 ### 5. Compilation Throughput vs TypeScript (`tsc`)
 
@@ -516,7 +516,6 @@ Located in [`crates/aura-runtime/`](crates/aura-runtime), this is a static Rust 
 - **Concurrent Compact Garbage Collector (`gc.rs`)**: Fast Mark-and-Sweep GC with 64 pointer shards protected by `RwLock` and `rustc-hash` (`FxHashMap`) for lock-free parallel reads during root and pointer validation phases.
 - **Synchronization Primitives (`sync.rs`)**: Native Mutex, RWMutex, Once, Pool, and WaitGroup with cooperative fiber yielding and spin loops.
 - **High-Speed JSON & Record Serializers (`json.rs`, `record.rs`)**: High-speed binary and text encoding/decoding, with `FxHashMap` powering 2x-4x faster record field lookups.
->>>>>>> c339dffe124f4c996e127615cd6884b9047236c9
 
 ---
 

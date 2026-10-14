@@ -35,8 +35,8 @@ pub use ast::{
 pub use backend::{
     BackendFactory, BackendKind, BackendOptions, BackendStrategy, ExecutableBuildResult,
     build_backend_executable, build_backend_executable_with_base_path,
-    build_backend_executable_with_target, compile_backend, compile_backend_with_sourcemap,
-    validate_backend_module,
+    build_backend_executable_with_options, build_backend_executable_with_target, compile_backend,
+    compile_backend_with_sourcemap, validate_backend_module,
 };
 pub use bindgen::{AuraBindgen, BindgenConfig};
 use codegen::CodeGen;

@@ -67,6 +67,11 @@ type FullReport struct {
 }
 
 func runCmd(name string, args ...string) (string, error) {
+	if name == "aurac" {
+		if _, err := os.Stat("target/release/aurac"); err == nil {
+			name = "./target/release/aurac"
+		}
+	}
 	cmd := exec.Command(name, args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -327,7 +332,7 @@ func main() {
 		_ = os.Remove(filepath.Join(sc.Dir, "temp.js.map"))
 
 		auraBuildMs = measureDuration(func() {
-			_, _ = runCmd("aurac", "build", auraPath, "-o", auraBin)
+			_, _ = runCmd("aurac", "build", auraPath, "-o", auraBin, "--release")
 		})
 
 		goBuildMs = measureDuration(func() {
@@ -372,7 +377,7 @@ func main() {
 		httpAuraBin := "benchmarks/http_server/server_aura"
 		httpGoBin := "benchmarks/http_server/server_go"
 		httpGoStrippedBin := "benchmarks/http_server/server_go_stripped"
-		_, _ = runCmd("aurac", "build", "benchmarks/http_server/server.aura", "-o", httpAuraBin)
+		_, _ = runCmd("aurac", "build", "benchmarks/http_server/server.aura", "-o", httpAuraBin, "--release")
 		_, _ = runCmd("go", "build", "-o", httpGoBin, "benchmarks/http_server/server.go")
 		_, _ = runCmd("go", "build", "-ldflags=-s -w", "-o", httpGoStrippedBin, "benchmarks/http_server/server.go")
 		goSize := getFileSizeMB(httpGoBin)

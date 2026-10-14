@@ -391,11 +391,17 @@ impl CraneliftBackend {
         Self::with_options(target, false)
     }
 
-    pub fn with_options(target: Option<&str>, _release: bool) -> Result<Self, String> {
+    pub fn with_options(target: Option<&str>, release: bool) -> Result<Self, String> {
         let mut flag_builder = settings::builder();
         flag_builder.set("use_colocated_libcalls", "false").map_err(|e| e.to_string())?;
         flag_builder.set("is_pic", "true").map_err(|e| e.to_string())?;
         flag_builder.set("opt_level", "speed").map_err(|e| e.to_string())?;
+        let _ = flag_builder.set("enable_simd", "true");
+        let _ = flag_builder.set("enable_alias_analysis", "true");
+        if release {
+            let _ = flag_builder.set("preserve_frame_pointers", "false");
+            let _ = flag_builder.set("unwind_info", "false");
+        }
 
         let triple = if let Some(t) = target {
             match t {
@@ -3107,14 +3113,16 @@ pub fn build_native_binary_with_options(
         {
             link_cmd.env("DEVELOPER_DIR", "/Library/Developer/CommandLineTools");
         }
+        link_cmd.arg("-Wl,-dead_strip");
         if release {
-            link_cmd.arg("-Wl,-dead_strip");
+            link_cmd.arg("-Wl,-x");
         }
     }
     #[cfg(target_os = "linux")]
     {
+        link_cmd.arg("-Wl,--gc-sections");
         if release {
-            link_cmd.arg("-Wl,--gc-sections");
+            link_cmd.arg("-Wl,-s");
         }
     }
     let link_status = link_cmd
@@ -3146,14 +3154,12 @@ pub fn build_native_binary_with_options(
 }
 
 fn find_or_build_runtime_lib() -> Result<PathBuf, String> {
-    let candidates = [
+    let release_candidates = [
         PathBuf::from("target/release/libaura_runtime.a"),
-        PathBuf::from("target/debug/libaura_runtime.a"),
         PathBuf::from("../target/release/libaura_runtime.a"),
-        PathBuf::from("../target/debug/libaura_runtime.a"),
     ];
 
-    for c in &candidates {
+    for c in &release_candidates {
         if c.exists() {
             return Ok(c.canonicalize().unwrap_or(c.clone()));
         }
@@ -3170,10 +3176,20 @@ fn find_or_build_runtime_lib() -> Result<PathBuf, String> {
     if let Ok(s) = status
         && s.success()
     {
-        for c in &candidates {
+        for c in &release_candidates {
             if c.exists() {
                 return Ok(c.canonicalize().unwrap_or(c.clone()));
             }
+        }
+    }
+
+    let debug_candidates = [
+        PathBuf::from("target/debug/libaura_runtime.a"),
+        PathBuf::from("../target/debug/libaura_runtime.a"),
+    ];
+    for c in &debug_candidates {
+        if c.exists() {
+            return Ok(c.canonicalize().unwrap_or(c.clone()));
         }
     }
 
