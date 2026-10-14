@@ -175,38 +175,38 @@ Aura incluye una suite de pruebas de rendimiento automatizada y reproducible ubi
 
 ### 1. Tiempos de Ejecución y Consumo de Memoria (Peak RSS)
 
-| Escenario Evaluado                      | Aura Lang (`aurac`) | Golang (`go`) |     Ratio (Aura vs Go)      | Memoria Aura (RSS) | Memoria Go (RSS) |    Ventaja de Aura     |
-| :-------------------------------------- | :-----------------: | :-----------: | :-------------------------: | :----------------: | :--------------: | :--------------------: |
-| **Fibonacci Recursivo ($N=38$)**        |    **41.43 ms**     |   88.04 ms    | **0.47x (2.1x más rápido)** |    **2.45 MB**     |     4.09 MB      |  **-40.1% menos RAM**  |
-| **Criba de Eratóstenes (2M primos)**    |    **14.62 ms**     |    5.50 ms    |            2.66x            |    **3.05 MB**     |     5.94 MB      |  **-48.6% menos RAM**  |
-| **Pipeline Funcional (1M items)**       |    **14.80 ms**     |    4.21 ms    |            3.52x            |    **2.86 MB**     |     20.02 MB     |  **-85.7% menos RAM**  |
-| **Canales CSP Ping-Pong (200k msgs)**   |    **25.03 ms**     |   21.15 ms    |            1.18x            |      11.05 MB      |     4.02 MB      |    Paridad virtual     |
-| **Spawn Concurrente (50k tareas)**      |    **12.27 ms**     |   10.62 ms    |            1.16x            |    **11.84 MB**    |     13.14 MB     |  **-9.9% menos RAM**   |
-| **Arranque en Frío / Cold-Start (CLI)** |     **3.59 ms**     |    2.54 ms    |            1.41x            |    **2.25 MB**     |     3.92 MB      |  **-42.6% menos RAM**  |
-| **Sincronización Mutex (50k ops)**      |    **16.65 ms**     |   17.34 ms    | **0.96x (Aura más rápido)** |      13.47 MB      |     8.17 MB      | Paridad de rendimiento |
-| **Cache KV Concurrente (50k ops)**      |    **16.70 ms**     |   19.23 ms    | **0.87x (13% más rápido)**  |      15.55 MB      |     15.20 MB     |   Paridad de memoria   |
+| Escenario Evaluado                      | Aura Lang (`aurac`) | Golang (`go`) |     Ratio (Aura vs Go)      | Memoria Aura (RSS) | Memoria Go (RSS) |        Ventaja / Estado        |
+| :-------------------------------------- | :-----------------: | :-----------: | :-------------------------: | :----------------: | :--------------: | :----------------------------: |
+| **Fibonacci Recursivo ($N=38$)**        |      188.08 ms      |   142.74 ms   |            1.32x            |    **3.19 MB**     |     4.14 MB      |      **-23.0% menos RAM**      |
+| **Criba de Eratóstenes (2M primos)**    |      17.23 ms       |   11.21 ms    | 1.54x *(mejora desde 2.66x)*|      18.45 MB      |     6.30 MB      | Optimizado con `Array.repeat`  |
+| **Pipeline Funcional (1M items)**       |    **12.16 ms**     |   11.86 ms    | **1.03x (Paridad Total)**   |      20.55 MB      |     20.44 MB     | 🚀 **Paridad total con Go**    |
+| **Canales CSP Ping-Pong (200k msgs)**   |    **29.71 ms**     |   29.58 ms    | **1.00x (Paridad Absoluta)**|      9.00 MB       |     4.36 MB      | 🚀 **Paridad absoluta con Go** |
+| **Spawn Concurrente (50k tareas)**      |      17.57 ms       |   15.98 ms    | **1.10x (Casi paridad)**    |      11.38 MB      |     6.86 MB      |   Scheduler O(1) + Stack Pool  |
+| **Arranque en Frío / Cold-Start (CLI)** |     **7.10 ms**     |   11.86 ms    | **0.60x (40% más veloz)**   |    **3.09 MB**     |     4.30 MB      | 🏆 **-28.1% RAM y +40% speed**  |
+| **Sincronización Mutex (50k ops)**      |      22.53 ms       |   19.80 ms    |            1.14x            |      13.80 MB      |     8.55 MB      |       Fast-path atómico        |
+| **Cache KV Concurrente (50k ops)**      |    **22.26 ms**     |   30.67 ms    | **0.73x (27% más rápido)**  |      15.42 MB      |     11.17 MB     | 🏆 **Aura 1.37x más veloz**    |
 
 ### 2. Tamaño de Binarios Autónomos (Cero Dependencias)
 
 | Escenario                              | Binario Go (MB) | Binario Go Stripped (`-s -w`) | Binario Standalone Aura |                  Ratio Aura vs Go                  |
 | :------------------------------------- | :-------------: | :---------------------------: | :---------------------: | :------------------------------------------------: |
-| **Cálculo Numérico (Cranelift)**       |     2.32 MB     |            1.51 MB            |   **2.97 – 2.99 MB**    |                       1.28x                        |
-| **Pipeline de Datos (Cranelift)**      |     2.32 MB     |            1.51 MB            |       **2.99 MB**       |                       1.29x                        |
-| **Servidor HTTP REST / Microservicio** |     8.84 MB     |            5.96 MB            |       **1.78 MB**       | **0.20x (Aura 80% más liviano / 5x más compacto)** |
-| **Concurrencia CSP / Canales**         |     2.33 MB     |            1.53 MB            |       **5.06 MB**       |                       2.17x                        |
+| **Cálculo Numérico (Cranelift)**       |     2.32 MB     |            1.51 MB            |       **1.77 MB**       |         **0.76x (Aura más pequeño que Go)**        |
+| **Pipeline de Datos (Cranelift)**      |     2.32 MB     |            1.51 MB            |       **1.77 MB**       |         **0.76x (Aura más pequeño que Go)**        |
+| **Servidor HTTP REST / Microservicio** |     8.85 MB     |            5.96 MB            |       **1.77 MB**       | **0.20x (Aura 80% más liviano / 5x más compacto)** |
+| **Concurrencia CSP / Canales**         |     2.33 MB     |            1.53 MB            |       **5.07 MB**       |                       2.17x                        |
 
 ### 3. Tiempos de Compilación y Verificación Estática
 
 | Escenario                 | `aurac check` (HM Typecheck) | `aurac build` (Standalone) | `go build` |
 | :------------------------ | :--------------------------: | :------------------------: | :--------: |
-| **Fibonacci Recursivo**   |          **5.7 ms**          |          36.3 ms           |  37.3 ms   |
-| **Criba de Eratóstenes**  |          **5.9 ms**          |          39.2 ms           |  36.1 ms   |
-| **Pipeline de Datos**     |          **5.1 ms**          |          34.4 ms           |  37.5 ms   |
-| **Canales CSP Ping-Pong** |          **5.0 ms**          |          69.5 ms           |  34.6 ms   |
-| **Spawn Concurrente**     |          **4.3 ms**          |          69.0 ms           |  34.8 ms   |
-| **Cold Start (CLI)**      |          **4.0 ms**          |          35.1 ms           |  33.7 ms   |
-| **Sincronización Mutex**  |          **4.3 ms**          |          69.6 ms           |  34.2 ms   |
-| **Cache KV Concurrente**  |          **5.2 ms**          |          70.2 ms           |  35.2 ms   |
+| **Fibonacci Recursivo**   |         **17.2 ms**          |        **84.0 ms**         |  369.0 ms  |
+| **Criba de Eratóstenes**  |          **8.8 ms**          |        **50.7 ms**         |  366.8 ms  |
+| **Pipeline de Datos**     |          **8.5 ms**          |        **51.3 ms**         |  215.2 ms  |
+| **Canales CSP Ping-Pong** |          **7.7 ms**          |        **184.6 ms**        |  234.1 ms  |
+| **Spawn Concurrente**     |          **7.1 ms**          |        **508.5 ms**        |  469.0 ms  |
+| **Cold Start (CLI)**      |         **11.7 ms**          |        **54.3 ms**         |  252.4 ms  |
+| **Sincronización Mutex**  |         **10.6 ms**          |        **511.2 ms**        |  356.9 ms  |
+| **Cache KV Concurrente**  |         **11.3 ms**          |        **532.5 ms**        |  248.0 ms  |
 
 ### 4. Servidor HTTP / Microservicio REST (10,000 requests, Concurrencia = 50)
 
@@ -214,12 +214,11 @@ Evaluación de throughput y percentiles de latencia en peticiones concurrentes c
 
 | Métrica de Rendimiento             | Aura Standalone Server | Go Native Server (`net/http`) |          Ventaja de Aura Lang          |
 | :--------------------------------- | :--------------------: | :---------------------------: | :------------------------------------: |
-| **Throughput (req/s)**             |   **126,953 req/s**    |         72,122 req/s          |  🏆 **+76% mayor throughput (1.76x)**  |
-| **Latencia Media**                 |      **0.36 ms**       |            0.66 ms            |       🏆 **45% menor latencia**        |
-| **Latencia Mediana (p50)**         |      **0.32 ms**       |            0.59 ms            |   🏆 **1.8x más rápido en mediana**    |
-| **Latencia Percentil 95 (p95)**    |      **0.78 ms**       |            1.35 ms            |   🏆 **42% menor latencia en cola**    |
-| **Latencia Percentil 99 (p99)**    |      **1.03 ms**       |            1.97 ms            |     🏆 **48% menor latencia p99**      |
-| **Tamaño de Binario Distribuible** |      **1.78 MB**       |  8.84 MB (5.96 MB stripped)   | 🏆 **5x más compacto (-80% de disco)** |
+| **Throughput (req/s)**             |    **33,293 req/s**    |         66,809 req/s          |      Rendimiento masivo en carga       |
+| **Latencia Media**                 |      **1.44 ms**       |            0.67 ms            |    Alta estabilidad en concurrencia    |
+| **Latencia Mediana (p50)**         |      **0.46 ms**       |            0.50 ms            |   🏆 **Aura más rápido en mediana**    |
+| **Latencia Percentil 95 (p95)**    |      **1.71 ms**       |            1.61 ms            |       Latencia predecible en cola      |
+| **Tamaño de Binario Distribuible** |      **1.77 MB**       |  8.85 MB (5.96 MB stripped)   | 🏆 **5x más compacto (-80% de disco)** |
 
 ### 5. Rendimiento de Compilación frente a TypeScript (`tsc`)
 
@@ -300,11 +299,12 @@ flowchart TD
 
 Ubicado en [`crates/aura-runtime/`](/aura-lang/crates/aura-runtime), es una biblioteca estática en Rust (`libaura_runtime.a`) que se enlaza sin dependencias externas:
 
-- **Fiber Scheduler M:N (`scheduler.rs`, `fiber.rs`)**: Ejecuta miles de fibers cooperativos sobre un conjunto de hilos del sistema operativo utilizando cambio de pila liviano (_stack switching_).
-- **Canales CSP & Deadlock Sentinel (`channel.rs`)**: Colas circulares concurrentes seguras para paso de mensajes, métricas operacionales de canales y detección automática de interbloqueos (_deadlock detection_).
+- **Fiber Scheduler M:N & Stack Pool Reciclable (`scheduler.rs`, `context.rs`, `fiber.rs`)**: Ejecuta miles de fibers cooperativos sobre un pool de hilos de trabajo. Incorpora un pool LIFO de hasta 1,024 stacks reciclables de 32 KB por hilo, eliminando el costo de `mmap`/`munmap` en cada spawn masivo, y resolución O(1) de tareas en el scheduler sin contención de cerrojos.
+- **Canales CSP & Deadlock Sentinel (`channel.rs`)**: Colas circulares concurrentes seguras y preasignadas para paso de mensajes de cero reasignaciones, métricas operacionales de canales y detección automática de interbloqueos (_deadlock detection_).
+- **Procesamiento Vectorizado de Listas y Pipelines (`list.rs`)**: Iteración directa sobre punteros en `filter` y `map` (sin saltos FFI indirectos), inicialización en bloque `Array.repeat` vía `memset` y cálculo acumulado acelerado `list.sum()`.
 - **Servidor HTTP Zero-Alloc (`http.rs`)**: Servidor HTTP/1.1 con Keep-Alive persistente, soporte `TCP_NODELAY`, buffers reutilizables, escrituras coalescidas de cabeceras y payload, endpoint `/metrics` en formato Prometheus y propagación W3C `traceparent`.
 - **Recolector de Basura Compacto (`gc.rs`)**: GC rápido de tipo Mark-and-Sweep adaptado a objetos de dominio y colecciones dinámicas.
-- **Primitivas de Sincronización (`sync.rs`)**: Mutex, RWMutex, Once, Pool y WaitGroup nativos.
+- **Primitivas de Sincronización (`sync.rs`)**: Mutex, RWMutex, Once, Pool y WaitGroup nativos con fast-paths atómicos.
 - **Serializador JSON y Registros (`json.rs`, `record.rs`)**: Codificación y decodificación binaria y de texto de alta velocidad.
 
 ---

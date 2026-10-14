@@ -670,6 +670,44 @@ impl TypeEnv {
         );
 
         env.variables.insert(
+            "Array".to_string(),
+            ConcreteType::Record({
+                let mut f = HashMap::new();
+                f.insert(
+                    "repeat".to_string(),
+                    ConcreteType::Function {
+                        params: vec![
+                            ConcreteType::TypeVar("T".to_string()),
+                            ConcreteType::Int,
+                        ],
+                        return_type: Box::new(ConcreteType::List(Box::new(
+                            ConcreteType::TypeVar("T".to_string()),
+                        ))),
+                    },
+                );
+                f.insert(
+                    "with_capacity".to_string(),
+                    ConcreteType::Function {
+                        params: vec![ConcreteType::Int],
+                        return_type: Box::new(ConcreteType::List(Box::new(
+                            ConcreteType::TypeVar("T".to_string()),
+                        ))),
+                    },
+                );
+                f.insert(
+                    "new".to_string(),
+                    ConcreteType::Function {
+                        params: vec![ConcreteType::Int],
+                        return_type: Box::new(ConcreteType::List(Box::new(
+                            ConcreteType::TypeVar("T".to_string()),
+                        ))),
+                    },
+                );
+                f
+            }),
+        );
+
+        env.variables.insert(
             "WaitGroup".to_string(),
             ConcreteType::Record({
                 let mut f = HashMap::new();
@@ -4226,6 +4264,10 @@ impl TypeChecker {
                                 return_type: Box::new(ConcreteType::Int),
                             }],
                             return_type: Box::new(ConcreteType::List(elem.clone())),
+                        }),
+                        "sum" => Ok(ConcreteType::Function {
+                            params: vec![],
+                            return_type: Box::new(ConcreteType::Int),
                         }),
                         _ => Ok(ConcreteType::Any),
                     },

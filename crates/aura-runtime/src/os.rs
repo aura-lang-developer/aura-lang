@@ -85,14 +85,11 @@ pub extern "C" fn aura_os_hostname() -> *mut AuraString {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn aura_time_now() -> *mut AuraString {
+pub extern "C" fn aura_time_now() -> i64 {
     let now = std::time::SystemTime::now();
-    let duration = now
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default();
-    let secs = duration.as_secs();
-    let now_str = format!("2026-09-14T23:30:{:02}Z", secs % 60);
-    aura_string_from_rust_str(&now_str)
+    now.duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
 }
 
 #[unsafe(no_mangle)]

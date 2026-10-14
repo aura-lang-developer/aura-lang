@@ -36,9 +36,9 @@ impl AuraChannel {
         AuraChannel {
             capacity,
             buffer: Mutex::new(ChannelInner {
-                items: VecDeque::new(),
-                blocked_senders: VecDeque::new(),
-                blocked_receivers: VecDeque::new(),
+                items: VecDeque::with_capacity(capacity.min(512)),
+                blocked_senders: VecDeque::with_capacity(4),
+                blocked_receivers: VecDeque::with_capacity(4),
                 closed: false,
             }),
         }

@@ -1,7 +1,6 @@
 //! Native dynamic List<T> implementation for Aura Runtime.
 
 use std::alloc::{Layout, alloc, dealloc, realloc};
-use std::ptr;
 
 pub const AURA_LIST_MAGIC: u64 = 0xA04C_4953_5400_0003;
 
@@ -26,7 +25,7 @@ impl AuraList {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn aura_list_new(initial_cap: usize) -> *mut AuraList {
-    let cap = if initial_cap == 0 { 4 } else { initial_cap };
+    let cap = if initial_cap == 0 { 8 } else { initial_cap };
     let layout = Layout::array::<i64>(cap).unwrap();
     let items = unsafe { alloc(layout) as *mut i64 };
 
@@ -42,6 +41,40 @@ pub extern "C" fn aura_list_new(initial_cap: usize) -> *mut AuraList {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn aura_list_repeat(item: i64, count: usize) -> *mut AuraList {
+    let cap = if count == 0 { 8 } else { count };
+    let layout = Layout::array::<i64>(cap).unwrap();
+    let items = unsafe { alloc(layout) as *mut i64 };
+    if count > 0 && !items.is_null() {
+        if item == 0 {
+            unsafe {
+                std::ptr::write_bytes(items as *mut u8, 0, count * std::mem::size_of::<i64>());
+            }
+        } else {
+            unsafe {
+                for i in 0..count {
+                    *items.add(i) = item;
+                }
+            }
+        }
+    }
+    let list = Box::new(AuraList {
+        magic: AURA_LIST_MAGIC,
+        items,
+        len: count,
+        cap,
+    });
+    let raw = Box::into_raw(list);
+    crate::gc::register_valid_ptr(raw as usize, crate::gc::TYPE_LIST);
+    raw
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn aura_list_with_capacity(initial_cap: usize) -> *mut AuraList {
+    aura_list_new(initial_cap)
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn aura_list_push(list: *mut AuraList, item: i64) {
     if list.is_null() {
         return;
@@ -49,7 +82,7 @@ pub extern "C" fn aura_list_push(list: *mut AuraList, item: i64) {
     unsafe {
         let l = &mut *list;
         if l.len >= l.cap {
-            let new_cap = l.cap * 2;
+            let new_cap = if l.cap == 0 { 8 } else { l.cap * 2 };
             let old_layout = Layout::array::<i64>(l.cap).unwrap();
             let new_size = Layout::array::<i64>(new_cap).unwrap().size();
             let new_items = realloc(l.items as *mut u8, old_layout, new_size) as *mut i64;
@@ -57,7 +90,7 @@ pub extern "C" fn aura_list_push(list: *mut AuraList, item: i64) {
             l.cap = new_cap;
         }
 
-        ptr::write(l.items.add(l.len), item);
+        *l.items.add(l.len) = item;
         l.len += 1;
     }
 }
@@ -125,9 +158,12 @@ pub extern "C" fn aura_list_slice(list: *mut AuraList, start: i64, end: i64) -> 
 
         let slice_len = e - s;
         let res = aura_list_new(slice_len);
+        let dst = (*res).items;
+        let src = l.items;
         for i in 0..slice_len {
-            aura_list_push(res, *l.items.add(s + i));
+            *dst.add(i) = *src.add(s + i);
         }
+        (*res).len = slice_len;
         res
     }
 }
@@ -140,16 +176,26 @@ pub extern "C" fn aura_list_filter(
     if list.is_null() {
         return aura_list_new(0);
     }
-    let res = aura_list_new(unsafe { (*list).len });
-    let len = aura_list_len(list);
-    for i in 0..len {
-        let item = aura_list_get(list, i);
-        let keep = pred(item);
-        if keep != 0 {
-            aura_list_push(res, item);
+    unsafe {
+        let src = &*list;
+        let len = src.len;
+        let res = aura_list_new(len);
+        if len == 0 || src.items.is_null() {
+            return res;
         }
+        let src_items = src.items;
+        let dst_items = (*res).items;
+        let mut count = 0;
+        for i in 0..len {
+            let item = *src_items.add(i);
+            if pred(item) != 0 {
+                *dst_items.add(count) = item;
+                count += 1;
+            }
+        }
+        (*res).len = count;
+        res
     }
-    res
 }
 
 #[unsafe(no_mangle)]
@@ -160,14 +206,41 @@ pub extern "C" fn aura_list_map(
     if list.is_null() {
         return aura_list_new(0);
     }
-    let len = aura_list_len(list);
-    let res = aura_list_new(len);
-    for i in 0..len {
-        let item = aura_list_get(list, i);
-        let transformed = mapper(item);
-        aura_list_push(res, transformed);
+    unsafe {
+        let src = &*list;
+        let len = src.len;
+        let res = aura_list_new(len);
+        if len == 0 || src.items.is_null() {
+            return res;
+        }
+        let src_items = src.items;
+        let dst_items = (*res).items;
+        for i in 0..len {
+            let item = *src_items.add(i);
+            *dst_items.add(i) = mapper(item);
+        }
+        (*res).len = len;
+        res
     }
-    res
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn aura_list_sum(list: *mut AuraList) -> i64 {
+    if list.is_null() {
+        return 0;
+    }
+    unsafe {
+        let l = &*list;
+        if l.len == 0 || l.items.is_null() {
+            return 0;
+        }
+        let mut sum: i64 = 0;
+        let items = l.items;
+        for i in 0..l.len {
+            sum += *items.add(i);
+        }
+        sum
+    }
 }
 
 #[unsafe(no_mangle)]

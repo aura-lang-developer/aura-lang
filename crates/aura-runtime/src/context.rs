@@ -4,7 +4,12 @@
 use std::alloc::{Layout, alloc_zeroed, dealloc};
 use std::ptr;
 
-pub const DEFAULT_STACK_SIZE: usize = 64 * 1024; // 64 KB stack per fiber
+pub const DEFAULT_STACK_SIZE: usize = 32 * 1024; // 32 KB stack per fiber (optimized for high density)
+
+#[cfg(unix)]
+static STACK_POOL: std::sync::Mutex<Vec<FiberStack>> = std::sync::Mutex::new(Vec::new());
+#[cfg(unix)]
+const MAX_STACK_POOL: usize = 1024;
 
 #[cfg(target_arch = "aarch64")]
 core::arch::global_asm!(
@@ -92,6 +97,14 @@ impl FiberStack {
         let aligned_user_size = ((size + page_size - 1) / page_size) * page_size;
         let total_mmap_size = aligned_user_size + guard_size;
 
+        if size == DEFAULT_STACK_SIZE {
+            if let Ok(mut pool) = STACK_POOL.lock() {
+                if let Some(recycled) = pool.pop() {
+                    return recycled;
+                }
+            }
+        }
+
         let ptr = unsafe {
             libc::mmap(
                 ptr::null_mut(),
@@ -153,6 +166,27 @@ impl Drop for FiberStack {
         #[cfg(unix)]
         {
             if !self.mmap_ptr.is_null() {
+                let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize }.max(4096);
+                let default_aligned = ((DEFAULT_STACK_SIZE + page_size - 1) / page_size) * page_size;
+                if self.size == default_aligned {
+                    if let Ok(mut pool) = STACK_POOL.lock() {
+                        if pool.len() < MAX_STACK_POOL {
+                            let mmap_ptr = self.mmap_ptr;
+                            let total_mmap_size = self.total_mmap_size;
+                            let base = self.base;
+                            let size = self.size;
+                            self.mmap_ptr = ptr::null_mut();
+                            self.base = ptr::null_mut();
+                            pool.push(FiberStack {
+                                mmap_ptr,
+                                total_mmap_size,
+                                base,
+                                size,
+                            });
+                            return;
+                        }
+                    }
+                }
                 unsafe {
                     libc::munmap(self.mmap_ptr as *mut libc::c_void, self.total_mmap_size);
                 }

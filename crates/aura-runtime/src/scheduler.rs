@@ -3,7 +3,7 @@
 use crate::context::aura_swap_context;
 use crate::fiber::{Fiber, FiberState};
 use std::cell::Cell;
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
@@ -15,7 +15,7 @@ thread_local! {
 
 pub struct Scheduler {
     ready_queue: Arc<Mutex<VecDeque<Box<Fiber>>>>,
-    all_fibers: Arc<Mutex<Vec<usize>>>,
+    all_fibers: Arc<Mutex<HashSet<usize>>>,
     cond: Arc<Condvar>,
     shutdown: Arc<AtomicBool>,
     sleeping_workers: Arc<AtomicUsize>,
@@ -31,7 +31,7 @@ impl Scheduler {
     pub fn new() -> Self {
         Scheduler {
             ready_queue: Arc::new(Mutex::new(VecDeque::new())),
-            all_fibers: Arc::new(Mutex::new(Vec::new())),
+            all_fibers: Arc::new(Mutex::new(HashSet::new())),
             cond: Arc::new(Condvar::new()),
             shutdown: Arc::new(AtomicBool::new(false)),
             sleeping_workers: Arc::new(AtomicUsize::new(0)),
@@ -47,7 +47,7 @@ impl Scheduler {
 
         {
             let mut all = self.all_fibers.lock().unwrap();
-            all.push(raw as usize);
+            all.insert(raw as usize);
         }
 
         {
@@ -216,7 +216,7 @@ fn worker_loop(
             FiberState::Dead => {
                 // Fiber completed, clean up
                 let mut all = get_scheduler().all_fibers.lock().unwrap();
-                all.retain(|&f| f != raw_fiber as usize);
+                all.remove(&(raw_fiber as usize));
                 drop(fiber);
             }
             FiberState::Running => unreachable!(),

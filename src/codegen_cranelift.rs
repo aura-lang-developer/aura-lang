@@ -74,6 +74,8 @@ pub struct CraneliftBackend {
     list_slice_id: FuncId,
     list_filter_id: FuncId,
     list_map_id: FuncId,
+    list_sum_id: FuncId,
+    list_repeat_id: FuncId,
     list_to_json_id: FuncId,
 
     // Variants (Option / Result)
@@ -332,8 +334,8 @@ impl CraneliftBackend {
         let mut flag_builder = settings::builder();
         flag_builder.set("use_colocated_libcalls", "false").unwrap();
         flag_builder.set("is_pic", "true").unwrap();
+        flag_builder.set("opt_level", "speed").unwrap();
         if release {
-            flag_builder.set("opt_level", "speed").unwrap();
             flag_builder.set("enable_simd", "true").unwrap();
         }
 
@@ -423,6 +425,8 @@ impl CraneliftBackend {
         let list_slice_id = declare_import_fn(&mut module, "aura_list_slice", 3, true);
         let list_filter_id = declare_import_fn(&mut module, "aura_list_filter", 2, true);
         let list_map_id = declare_import_fn(&mut module, "aura_list_map", 2, true);
+        let list_sum_id = declare_import_fn(&mut module, "aura_list_sum", 1, true);
+        let list_repeat_id = declare_import_fn(&mut module, "aura_list_repeat", 2, true);
         let list_to_json_id = declare_import_fn(&mut module, "aura_list_to_json", 1, true);
 
         // Variants (Option / Result)
@@ -502,6 +506,8 @@ impl CraneliftBackend {
             list_slice_id,
             list_filter_id,
             list_map_id,
+            list_sum_id,
+            list_repeat_id,
             list_to_json_id,
             variant_tag_id,
             variant_val_id,
@@ -1033,11 +1039,33 @@ impl CraneliftBackend {
                 let obj_val = self.compile_expr(builder, object, vars, defers, loop_ctx)?;
 
                 if member == "length" || member == "len" {
-                    let local_len = self
-                        .module
-                        .declare_func_in_func(self.list_len_id, builder.func);
-                    let call = builder.ins().call(local_len, &[obj_val]);
-                    return Ok(builder.inst_results(call)[0]);
+                    let zero = builder.ins().iconst(types::I64, 0);
+                    let not_null = builder.ins().icmp(
+                        cranelift_codegen::ir::condcodes::IntCC::NotEqual,
+                        obj_val,
+                        zero,
+                    );
+                    let fast_block = builder.create_block();
+                    let slow_block = builder.create_block();
+                    let merge_block = builder.create_block();
+                    let res_var = builder.declare_var(types::I64);
+
+                    builder.ins().brif(not_null, fast_block, &[], slow_block, &[]);
+
+                    builder.switch_to_block(fast_block);
+                    builder.seal_block(fast_block);
+                    let len_direct = builder.ins().load(types::I64, MemFlagsData::trusted(), obj_val, 16);
+                    builder.def_var(res_var, len_direct);
+                    builder.ins().jump(merge_block, &[]);
+
+                    builder.switch_to_block(slow_block);
+                    builder.seal_block(slow_block);
+                    builder.def_var(res_var, zero);
+                    builder.ins().jump(merge_block, &[]);
+
+                    builder.switch_to_block(merge_block);
+                    builder.seal_block(merge_block);
+                    return Ok(builder.use_var(res_var));
                 }
 
                 if member == "capacity" || member == "cap" {
@@ -1833,6 +1861,31 @@ impl CraneliftBackend {
                         _ => {}
                     }
                 }
+                if obj_name == "Array" {
+                    match member.as_str() {
+                        "repeat" if args.len() >= 2 => {
+                            let item_val =
+                                self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                            let count_val =
+                                self.compile_expr(builder, &args[1], vars, defers, loop_ctx)?;
+                            let local_fn = self
+                                .module
+                                .declare_func_in_func(self.list_repeat_id, builder.func);
+                            let call = builder.ins().call(local_fn, &[item_val, count_val]);
+                            return Ok(builder.inst_results(call)[0]);
+                        }
+                        "new" | "with_capacity" | "withCapacity" if !args.is_empty() => {
+                            let cap_val =
+                                self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                            let local_fn = self
+                                .module
+                                .declare_func_in_func(self.list_new_id, builder.func);
+                            let call = builder.ins().call(local_fn, &[cap_val]);
+                            return Ok(builder.inst_results(call)[0]);
+                        }
+                        _ => {}
+                    }
+                }
             }
 
             // Instance method calls: target.lock(), target.push(item), etc.
@@ -2023,6 +2076,13 @@ impl CraneliftBackend {
                     let call = builder.ins().call(local_fn, &[target_val, s_val, e_val]);
                     return Ok(builder.inst_results(call)[0]);
                 }
+                "sum" => {
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.list_sum_id, builder.func);
+                    let call = builder.ins().call(local_fn, &[target_val]);
+                    return Ok(builder.inst_results(call)[0]);
+                }
                 _ => {}
             }
         }
@@ -2043,6 +2103,15 @@ impl CraneliftBackend {
                 let local_fn = self
                     .module
                     .declare_func_in_func(self.list_cap_id, builder.func);
+                let call = builder.ins().call(local_fn, &[arg_val]);
+                return Ok(builder.inst_results(call)[0]);
+            }
+
+            if name == "sum" && !args.is_empty() {
+                let arg_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                let local_fn = self
+                    .module
+                    .declare_func_in_func(self.list_sum_id, builder.func);
                 let call = builder.ins().call(local_fn, &[arg_val]);
                 return Ok(builder.inst_results(call)[0]);
             }

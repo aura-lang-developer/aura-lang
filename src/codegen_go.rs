@@ -114,6 +114,22 @@ func __auraMap[T any, U any](slice []T, f func(T) U) []U {
     return res
 }
 
+func __auraArrayRepeat[T any](item T, count int) []T {
+    res := make([]T, count)
+    for i := range res {
+        res[i] = item
+    }
+    return res
+}
+
+func __auraSum[T ~int | ~int64 | ~float64](slice []T) T {
+    var s T
+    for _, v := range slice {
+        s += v
+    }
+    return s
+}
+
 func __auraSlice(v any) []any {
     if v == nil {
         return nil
@@ -2204,12 +2220,17 @@ impl GoCodeGen {
                         return format!("var {} int64 = {}", name, val_str);
                     }
                     if ty_name == "Channel" {
+                        let inner_ty = if let Some(inner) = type_args.first() {
+                            self.map_type_to_go(inner)
+                        } else {
+                            "any".to_string()
+                        };
                         if let Expr::FunctionCall { args, .. } = value {
                             let cap_str = args
                                 .first()
                                 .map(|a| self.emit_expr(a))
                                 .unwrap_or_else(|| "0".to_string());
-                            return format!("{} := make(chan any, {})", name, cap_str);
+                            return format!("{} := make(chan {}, {})", name, inner_ty, cap_str);
                         }
                     }
                     if ty_name == "Float" {
@@ -2706,6 +2727,23 @@ impl GoCodeGen {
                             let end_str = self.emit_expr(&args[1]);
                             return format!("{}[{}:{}]", obj_str, start_str, end_str);
                         }
+                    }
+                    if let Expr::Identifier(ref mod_name) = **object {
+                        if mod_name == "Array" {
+                            if member == "repeat" && args.len() >= 2 {
+                                let item_str = self.emit_expr(&args[0]);
+                                let count_str = self.emit_expr(&args[1]);
+                                return format!("__auraArrayRepeat({}, {})", item_str, count_str);
+                            }
+                            if (member == "with_capacity" || member == "withCapacity" || member == "new") && !args.is_empty() {
+                                let cap_str = self.emit_expr(&args[0]);
+                                return format!("make([]any, 0, {})", cap_str);
+                            }
+                        }
+                    }
+                    if member == "sum" && args.is_empty() {
+                        let obj_str = self.emit_expr(object);
+                        return format!("__auraSum({})", obj_str);
                     }
                     if member == "filter" && args.len() == 1 {
                         let obj_str = self.emit_expr(object);

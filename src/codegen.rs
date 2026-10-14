@@ -4215,6 +4215,20 @@ const __aura_import = async (m) => {
                                 .join(", ");
                             return format!("new Set({})", a);
                         }
+                        if obj_name == "Array" {
+                            if member == "repeat" && args.len() >= 2 {
+                                let item_js = self.expr_to_js_with_renames(&args[0], renames);
+                                let count_js = self.expr_to_js_with_renames(&args[1], renames);
+                                return format!("Array({}).fill({})", count_js, item_js);
+                            }
+                            if (member == "with_capacity" || member == "withCapacity" || member == "new") && !args.is_empty() {
+                                return "[]".to_string();
+                            }
+                        }
+                    }
+                    if member == "sum" && args.is_empty() {
+                        let obj_js = self.expr_to_js_with_renames(object, renames);
+                        return format!("{}.reduce((acc, v) => acc + v, 0)", obj_js);
                     }
                     if member == "map" || member == "filter" || member == "sort" {
                         let obj_js = self.expr_to_js_with_renames(object, renames);
