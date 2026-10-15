@@ -1,4 +1,6 @@
 //! Native dynamic List<T> implementation for Aura Runtime.
+//! Supports both standard 64-bit element lists (Int, Float, Pointer) and
+//! compact 1-byte element lists (Bool, Byte) for maximum cache locality and minimal memory overhead.
 
 use std::alloc::{Layout, alloc, dealloc, realloc};
 use std::ptr;
@@ -9,32 +11,55 @@ pub const AURA_LIST_MAGIC: u64 = 0xA04C_4953_5400_0003;
 #[derive(Debug)]
 pub struct AuraList {
     pub magic: u64,
-    pub items: *mut i64,
+    pub items: *mut u8,
     pub len: usize,
     pub cap: usize,
+    pub elem_size: usize, // 1 for compact Byte/Bool, 8 for standard 64-bit values
 }
 
 impl AuraList {
     pub fn as_slice(&self) -> &[i64] {
-        if self.items.is_null() || self.len == 0 {
+        if self.items.is_null() || self.len == 0 || self.elem_size != 8 {
             &[]
         } else {
+            unsafe { std::slice::from_raw_parts(self.items as *const i64, self.len) }
+        }
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        if self.items.is_null() || self.len == 0 {
+            &[]
+        } else if self.elem_size == 1 {
             unsafe { std::slice::from_raw_parts(self.items, self.len) }
+        } else {
+            unsafe { std::slice::from_raw_parts(self.items, self.len * 8) }
         }
     }
 }
 
+#[inline]
+fn compute_layout(cap: usize, elem_size: usize) -> Layout {
+    let size = cap.max(1) * elem_size;
+    let align = if elem_size == 1 { 1 } else { 8 };
+    Layout::from_size_align(size, align).unwrap()
+}
+
 #[unsafe(no_mangle)]
-pub extern "C" fn aura_list_new(initial_cap: usize) -> *mut AuraList {
+pub extern "C" fn aura_list_new_with_elem_size(
+    initial_cap: usize,
+    elem_size: usize,
+) -> *mut AuraList {
+    let es = if elem_size == 1 { 1 } else { 8 };
     let cap = if initial_cap == 0 { 8 } else { initial_cap };
-    let layout = Layout::array::<i64>(cap).unwrap();
-    let items = unsafe { alloc(layout) as *mut i64 };
+    let layout = compute_layout(cap, es);
+    let items = unsafe { alloc(layout) as *mut u8 };
 
     let list = Box::new(AuraList {
         magic: AURA_LIST_MAGIC,
         items,
         len: 0,
         cap,
+        elem_size: es,
     });
     let raw = Box::into_raw(list);
     crate::gc::register_valid_ptr(raw as usize, crate::gc::TYPE_LIST);
@@ -42,18 +67,46 @@ pub extern "C" fn aura_list_new(initial_cap: usize) -> *mut AuraList {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn aura_list_repeat(item: i64, count: usize) -> *mut AuraList {
+pub extern "C" fn aura_list_new(initial_cap: usize) -> *mut AuraList {
+    aura_list_new_with_elem_size(initial_cap, 8)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn aura_list_new_byte(initial_cap: usize) -> *mut AuraList {
+    aura_list_new_with_elem_size(initial_cap, 1)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn aura_list_repeat_with_elem_size(
+    item: i64,
+    count: usize,
+    elem_size: usize,
+) -> *mut AuraList {
+    let es = if elem_size == 1 { 1 } else { 8 };
     let cap = if count == 0 { 8 } else { count };
-    let layout = Layout::array::<i64>(cap).unwrap();
-    let items = unsafe { alloc(layout) as *mut i64 };
+    let layout = compute_layout(cap, es);
+    let items = unsafe { alloc(layout) as *mut u8 };
     if count > 0 && !items.is_null() {
-        if item == 0 {
-            unsafe {
-                std::ptr::write_bytes(items as *mut u8, 0, count * std::mem::size_of::<i64>());
+        if es == 1 {
+            let b = item as u8;
+            if b == 0 {
+                unsafe {
+                    std::ptr::write_bytes(items, 0, count);
+                }
+            } else {
+                unsafe {
+                    std::slice::from_raw_parts_mut(items, count).fill(b);
+                }
             }
         } else {
-            unsafe {
-                std::slice::from_raw_parts_mut(items, count).fill(item);
+            if item == 0 {
+                unsafe {
+                    std::ptr::write_bytes(items, 0, count * 8);
+                }
+            } else {
+                unsafe {
+                    std::slice::from_raw_parts_mut(items as *mut i64, count).fill(item);
+                }
             }
         }
     }
@@ -62,6 +115,7 @@ pub extern "C" fn aura_list_repeat(item: i64, count: usize) -> *mut AuraList {
         items,
         len: count,
         cap,
+        elem_size: es,
     });
     let raw = Box::into_raw(list);
     crate::gc::register_valid_ptr(raw as usize, crate::gc::TYPE_LIST);
@@ -69,8 +123,27 @@ pub extern "C" fn aura_list_repeat(item: i64, count: usize) -> *mut AuraList {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn aura_list_repeat(item: i64, count: usize) -> *mut AuraList {
+    aura_list_repeat_with_elem_size(item, count, 8)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn aura_list_repeat_byte(item: u8, count: usize) -> *mut AuraList {
+    aura_list_repeat_with_elem_size(item as i64, count, 1)
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn aura_list_with_capacity(initial_cap: usize) -> *mut AuraList {
     aura_list_new(initial_cap)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn aura_list_elem_size(list: *mut AuraList) -> usize {
+    if list.is_null() {
+        8
+    } else {
+        unsafe { (*list).elem_size }
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -80,11 +153,12 @@ pub extern "C" fn aura_list_push(list: *mut AuraList, item: i64) {
     }
     unsafe {
         let l = &mut *list;
+        let es = if l.elem_size == 1 { 1 } else { 8 };
         if l.len >= l.cap {
             let new_cap = if l.cap == 0 { 8 } else { l.cap * 2 };
-            let old_layout = Layout::array::<i64>(l.cap).unwrap();
-            let new_layout = Layout::array::<i64>(new_cap).unwrap();
-            let new_items = realloc(l.items as *mut u8, old_layout, new_layout.size()) as *mut i64;
+            let old_layout = compute_layout(l.cap, es);
+            let new_layout = compute_layout(new_cap, es);
+            let new_items = realloc(l.items, old_layout, new_layout.size());
             if new_items.is_null() {
                 std::alloc::handle_alloc_error(new_layout);
             }
@@ -92,7 +166,11 @@ pub extern "C" fn aura_list_push(list: *mut AuraList, item: i64) {
             l.cap = new_cap;
         }
 
-        *l.items.add(l.len) = item;
+        if es == 1 {
+            *l.items.add(l.len) = item as u8;
+        } else {
+            *(l.items as *mut i64).add(l.len) = item;
+        }
         l.len += 1;
     }
 }
@@ -104,7 +182,15 @@ pub extern "C" fn aura_list_get(list: *mut AuraList, idx: usize) -> i64 {
     }
     unsafe {
         let l = &*list;
-        if idx < l.len { *l.items.add(idx) } else { 0 }
+        if idx < l.len {
+            if l.elem_size == 1 {
+                *l.items.add(idx) as i64
+            } else {
+                *(l.items as *mut i64).add(idx)
+            }
+        } else {
+            0
+        }
     }
 }
 
@@ -116,7 +202,11 @@ pub extern "C" fn aura_list_set(list: *mut AuraList, idx: usize, val: i64) {
     unsafe {
         let l = &mut *list;
         if idx < l.len {
-            *l.items.add(idx) = val;
+            if l.elem_size == 1 {
+                *l.items.add(idx) = val as u8;
+            } else {
+                *(l.items as *mut i64).add(idx) = val;
+            }
         }
     }
 }
@@ -146,6 +236,7 @@ pub extern "C" fn aura_list_slice(list: *mut AuraList, start: i64, end: i64) -> 
     }
     unsafe {
         let l = &*list;
+        let es = if l.elem_size == 1 { 1 } else { 8 };
         let s = if start < 0 {
             0
         } else {
@@ -159,11 +250,13 @@ pub extern "C" fn aura_list_slice(list: *mut AuraList, start: i64, end: i64) -> 
         let e = if e < s { s } else { e };
 
         let slice_len = e - s;
-        let res = aura_list_new(slice_len);
+        let res = aura_list_new_with_elem_size(slice_len, es);
         let dst = (*res).items;
         let src = l.items;
-        for i in 0..slice_len {
-            *dst.add(i) = *src.add(s + i);
+        if es == 1 {
+            std::ptr::copy_nonoverlapping(src.add(s), dst, slice_len);
+        } else {
+            std::ptr::copy_nonoverlapping((src as *mut i64).add(s), dst as *mut i64, slice_len);
         }
         (*res).len = slice_len;
         res
@@ -181,17 +274,16 @@ pub extern "C" fn aura_list_filter(
     unsafe {
         let src = &*list;
         let len = src.len;
-        let res = aura_list_new(len);
+        let es = if src.elem_size == 1 { 1 } else { 8 };
+        let res = aura_list_new_with_elem_size(len, es);
         if len == 0 || src.items.is_null() {
             return res;
         }
-        let src_items = src.items;
-        let dst_items = (*res).items;
         let mut count = 0;
         for i in 0..len {
-            let item = *src_items.add(i);
+            let item = aura_list_get(list, i);
             if pred(item) != 0 {
-                *dst_items.add(count) = item;
+                aura_list_set(res, count, item);
                 count += 1;
             }
         }
@@ -211,15 +303,14 @@ pub extern "C" fn aura_list_map(
     unsafe {
         let src = &*list;
         let len = src.len;
-        let res = aura_list_new(len);
+        let es = if src.elem_size == 1 { 1 } else { 8 };
+        let res = aura_list_new_with_elem_size(len, es);
         if len == 0 || src.items.is_null() {
             return res;
         }
-        let src_items = src.items;
-        let dst_items = (*res).items;
         for i in 0..len {
-            let item = *src_items.add(i);
-            *dst_items.add(i) = mapper(item);
+            let item = aura_list_get(list, i);
+            aura_list_set(res, i, mapper(item));
         }
         (*res).len = len;
         res
@@ -237,9 +328,8 @@ pub extern "C" fn aura_list_sum(list: *mut AuraList) -> i64 {
             return 0;
         }
         let mut sum: i64 = 0;
-        let items = l.items;
         for i in 0..l.len {
-            sum += *items.add(i);
+            sum += aura_list_get(list, i);
         }
         sum
     }
@@ -255,9 +345,10 @@ pub extern "C" fn aura_list_to_json(list: *mut AuraList) -> *mut crate::string::
 impl Drop for AuraList {
     fn drop(&mut self) {
         if !self.items.is_null() && self.cap > 0 {
-            let layout = Layout::array::<i64>(self.cap).unwrap();
+            let es = if self.elem_size == 1 { 1 } else { 8 };
+            let layout = compute_layout(self.cap, es);
             unsafe {
-                dealloc(self.items as *mut u8, layout);
+                dealloc(self.items, layout);
             }
             self.items = ptr::null_mut();
             self.len = 0;

@@ -306,9 +306,9 @@ Aura incluye una suite de pruebas de rendimiento automatizada y reproducible ubi
 
 | Escenario Evaluado                      | Aura Lang (`aurac`) | Golang (`go`) |     Ratio (Aura vs Go)      | Memoria Aura (RSS) | Memoria Go (RSS) |    Ventaja de Aura     |
 | :-------------------------------------- | :-----------------: | :-----------: | :-------------------------: | :----------------: | :--------------: | :--------------------: |
-| **Fibonacci Recursivo ($N=38$)**        |    **41.43 ms**     |   88.04 ms    | **0.47x (2.1x más rápido)** |    **2.45 MB**     |     4.09 MB      |  **-40.1% menos RAM**  |
-| **Criba de Eratóstenes (2M primos)**    |    **14.62 ms**     |    5.50 ms    |            2.66x            |    **3.05 MB**     |     5.94 MB      |  **-48.6% menos RAM**  |
-| **Pipeline Funcional (1M items)**       |    **14.80 ms**     |    4.21 ms    |            3.52x            |    **2.86 MB**     |     20.02 MB     |  **-85.7% menos RAM**  |
+| **Fibonacci Recursivo ($N=38$)**        |    **144.64 ms**    |   113.90 ms   |            1.27x            |    **2.89 MB**     |     4.25 MB      |  **-32.0% menos RAM**  |
+| **Criba de Eratóstenes (2M primos)**    |    **14.61 ms**     |    9.41 ms    |   **1.55x (desde 1.76x)**   |    **4.83 MB**     |     6.33 MB      | 🏆 **-23.7% menos RAM que Go** (Arrays compactos 1-byte y `ldrb`/`strb`) |
+| **Pipeline Funcional (1M items)**       |      18.30 ms       |   10.51 ms    |            1.74x            |    **20.23 MB**    |     20.42 MB     |  Paridad de memoria    |
 | **Canales CSP Ping-Pong (200k msgs)**   |    **25.03 ms**     |   21.15 ms    |            1.18x            |      11.05 MB      |     4.02 MB      |    Paridad virtual     |
 | **Spawn Concurrente (50k tareas)**      |    **12.27 ms**     |   10.62 ms    |            1.16x            |    **11.84 MB**    |     13.14 MB     |  **-9.9% menos RAM**   |
 | **Arranque en Frío / Cold-Start (CLI)** |     **3.59 ms**     |    2.54 ms    |            1.41x            |    **2.25 MB**     |     3.92 MB      |  **-42.6% menos RAM**  |

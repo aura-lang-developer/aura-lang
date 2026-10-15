@@ -10,7 +10,7 @@ use cranelift_codegen::settings::{self, Configurable};
 use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext, Variable};
 use cranelift_module::{DataId, FuncId, Linkage, Module as CraneliftModule, default_libcall_names};
 use cranelift_object::{ObjectBuilder, ObjectModule};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -20,6 +20,7 @@ pub struct CraneliftBackend {
     module: ObjectModule,
     func_ids: HashMap<String, FuncId>,
     globals: HashMap<String, DataId>,
+    byte_lists: HashSet<String>,
 
     // Runtime imported function IDs
     rt_start_id: FuncId,
@@ -66,6 +67,7 @@ pub struct CraneliftBackend {
 
     // Lists
     list_new_id: FuncId,
+    list_new_byte_id: FuncId,
     list_push_id: FuncId,
     list_get_id: FuncId,
     list_set_id: FuncId,
@@ -76,6 +78,7 @@ pub struct CraneliftBackend {
     list_map_id: FuncId,
     list_sum_id: FuncId,
     list_repeat_id: FuncId,
+    list_repeat_byte_id: FuncId,
     list_to_json_id: FuncId,
 
     // Variants (Option / Result)
@@ -393,9 +396,15 @@ impl CraneliftBackend {
 
     pub fn with_options(target: Option<&str>, release: bool) -> Result<Self, String> {
         let mut flag_builder = settings::builder();
-        flag_builder.set("use_colocated_libcalls", "false").map_err(|e| e.to_string())?;
-        flag_builder.set("is_pic", "true").map_err(|e| e.to_string())?;
-        flag_builder.set("opt_level", "speed").map_err(|e| e.to_string())?;
+        flag_builder
+            .set("use_colocated_libcalls", "false")
+            .map_err(|e| e.to_string())?;
+        flag_builder
+            .set("is_pic", "true")
+            .map_err(|e| e.to_string())?;
+        flag_builder
+            .set("opt_level", "speed")
+            .map_err(|e| e.to_string())?;
         let _ = flag_builder.set("enable_simd", "true");
         let _ = flag_builder.set("enable_alias_analysis", "true");
         if release {
@@ -481,6 +490,7 @@ impl CraneliftBackend {
 
         // Lists
         let list_new_id = declare_import_fn(&mut module, "aura_list_new", 1, true);
+        let list_new_byte_id = declare_import_fn(&mut module, "aura_list_new_byte", 1, true);
         let list_push_id = declare_import_fn(&mut module, "aura_list_push", 2, false);
         let list_get_id = declare_import_fn(&mut module, "aura_list_get", 2, true);
         let list_set_id = declare_import_fn(&mut module, "aura_list_set", 3, false);
@@ -491,6 +501,7 @@ impl CraneliftBackend {
         let list_map_id = declare_import_fn(&mut module, "aura_list_map", 2, true);
         let list_sum_id = declare_import_fn(&mut module, "aura_list_sum", 1, true);
         let list_repeat_id = declare_import_fn(&mut module, "aura_list_repeat", 2, true);
+        let list_repeat_byte_id = declare_import_fn(&mut module, "aura_list_repeat_byte", 2, true);
         let list_to_json_id = declare_import_fn(&mut module, "aura_list_to_json", 1, true);
 
         // Variants (Option / Result)
@@ -527,17 +538,21 @@ impl CraneliftBackend {
         let db_tx_rollback_id = declare_import_fn(&mut module, "aura_db_tx_rollback", 1, true);
         let db_tx_close_id = declare_import_fn(&mut module, "aura_db_tx_close", 1, false);
         let db_rows_next_id = declare_import_fn(&mut module, "aura_db_rows_next", 1, true);
-        let db_rows_col_count_id = declare_import_fn(&mut module, "aura_db_rows_col_count", 1, true);
+        let db_rows_col_count_id =
+            declare_import_fn(&mut module, "aura_db_rows_col_count", 1, true);
         let db_rows_get_val_id = declare_import_fn(&mut module, "aura_db_rows_get_val", 2, true);
         let db_rows_get_str_id = declare_import_fn(&mut module, "aura_db_rows_get_str", 2, true);
         let db_rows_get_i64_id = declare_import_fn(&mut module, "aura_db_rows_get_i64", 2, true);
         let db_rows_get_f64_id = declare_import_fn(&mut module, "aura_db_rows_get_f64", 2, true);
         let db_rows_get_bool_id = declare_import_fn(&mut module, "aura_db_rows_get_bool", 2, true);
-        let db_rows_to_record_id = declare_import_fn(&mut module, "aura_db_rows_to_record", 1, true);
+        let db_rows_to_record_id =
+            declare_import_fn(&mut module, "aura_db_rows_to_record", 1, true);
         let db_rows_to_list_id = declare_import_fn(&mut module, "aura_db_rows_to_list", 1, true);
         let db_rows_close_id = declare_import_fn(&mut module, "aura_db_rows_close", 1, false);
-        let db_exec_rows_affected_id = declare_import_fn(&mut module, "aura_db_exec_rows_affected", 1, true);
-        let db_exec_last_insert_id_id = declare_import_fn(&mut module, "aura_db_exec_last_insert_id", 1, true);
+        let db_exec_rows_affected_id =
+            declare_import_fn(&mut module, "aura_db_exec_rows_affected", 1, true);
+        let db_exec_last_insert_id_id =
+            declare_import_fn(&mut module, "aura_db_exec_last_insert_id", 1, true);
         let db_exec_free_id = declare_import_fn(&mut module, "aura_db_exec_free", 1, false);
         let db_close_any_id = declare_import_fn(&mut module, "aura_db_close_any", 1, false);
         let db_ping_id = declare_import_fn(&mut module, "aura_db_ping", 1, true);
@@ -567,13 +582,16 @@ impl CraneliftBackend {
         let mongo_db_id = declare_import_fn(&mut module, "aura_mongo_db", 3, true);
         let mongo_collection_id = declare_import_fn(&mut module, "aura_mongo_collection", 3, true);
         let mongo_insert_one_id = declare_import_fn(&mut module, "aura_mongo_insert_one", 2, true);
-        let mongo_insert_many_id = declare_import_fn(&mut module, "aura_mongo_insert_many", 2, true);
+        let mongo_insert_many_id =
+            declare_import_fn(&mut module, "aura_mongo_insert_many", 2, true);
         let mongo_find_one_id = declare_import_fn(&mut module, "aura_mongo_find_one", 2, true);
         let mongo_find_id = declare_import_fn(&mut module, "aura_mongo_find", 2, true);
         let mongo_update_one_id = declare_import_fn(&mut module, "aura_mongo_update_one", 3, true);
-        let mongo_update_many_id = declare_import_fn(&mut module, "aura_mongo_update_many", 3, true);
+        let mongo_update_many_id =
+            declare_import_fn(&mut module, "aura_mongo_update_many", 3, true);
         let mongo_delete_one_id = declare_import_fn(&mut module, "aura_mongo_delete_one", 2, true);
-        let mongo_delete_many_id = declare_import_fn(&mut module, "aura_mongo_delete_many", 2, true);
+        let mongo_delete_many_id =
+            declare_import_fn(&mut module, "aura_mongo_delete_many", 2, true);
         let mongo_count_id = declare_import_fn(&mut module, "aura_mongo_count", 2, true);
         let mongo_aggregate_id = declare_import_fn(&mut module, "aura_mongo_aggregate", 2, true);
         let mongo_ping_id = declare_import_fn(&mut module, "aura_mongo_ping", 1, true);
@@ -591,6 +609,7 @@ impl CraneliftBackend {
             module,
             func_ids: HashMap::new(),
             globals: HashMap::new(),
+            byte_lists: HashSet::new(),
             rt_start_id,
             fiber_spawn_id,
             fiber_yield_id,
@@ -623,6 +642,7 @@ impl CraneliftBackend {
             record_get_id,
             record_to_json_id,
             list_new_id,
+            list_new_byte_id,
             list_push_id,
             list_get_id,
             list_set_id,
@@ -633,6 +653,7 @@ impl CraneliftBackend {
             list_map_id,
             list_sum_id,
             list_repeat_id,
+            list_repeat_byte_id,
             list_to_json_id,
             variant_tag_id,
             variant_val_id,
@@ -737,7 +758,6 @@ impl CraneliftBackend {
                     if f.name == "main" {
                         has_main = true;
                     }
-                    collect_let_names(&f.body, &mut all_let_names);
                 }
                 Item::Extern(ext) => {
                     for f in &ext.functions {
@@ -896,12 +916,9 @@ impl CraneliftBackend {
             let val = builder.block_params(entry_block)[i];
             builder.def_var(var, val);
             vars.insert(p.name.clone(), (var, types::I64));
-            if let Some(&data_id) = self.globals.get(&p.name) {
-                let local_data = self.module.declare_data_in_func(data_id, builder.func);
-                let addr = builder.ins().symbol_value(types::I64, local_data);
-                builder.ins().store(MemFlagsData::trusted(), val, addr, 0);
-            }
         }
+
+        self.byte_lists.clear();
 
         // Compile body
         let ret_val = self.compile_expr(&mut builder, &f.body, &mut vars, &mut defers, None)?;
@@ -924,6 +941,32 @@ impl CraneliftBackend {
             .map_err(|e| format!("Error defining function '{}': {}", f.name, e))?;
 
         Ok(())
+    }
+
+    fn is_byte_list_expr(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::FunctionCall { callee, args } => {
+                if let Expr::MemberAccess { object, member } = callee.as_ref() {
+                    if let Expr::Identifier(obj_name) = object.as_ref() {
+                        if obj_name == "Array" {
+                            if member == "repeat" && !args.is_empty() {
+                                return matches!(&args[0], Expr::Literal(Literal::Bool(_)));
+                            }
+                            if member == "repeatBool"
+                                || member == "repeatByte"
+                                || member == "newByte"
+                                || member == "newBool"
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                false
+            }
+            Expr::Identifier(id) => self.byte_lists.contains(id),
+            _ => false,
+        }
     }
 
     fn get_string_ptr_and_len(
@@ -1142,9 +1185,12 @@ impl CraneliftBackend {
 
                 builder.switch_to_block(check_block);
                 builder.seal_block(check_block);
-                let len_val = builder
-                    .ins()
-                    .load(types::I64, MemFlagsData::trusted(), obj_val, 16);
+                let len_val = builder.ins().load(
+                    types::I64,
+                    MemFlagsData::trusted().with_readonly(),
+                    obj_val,
+                    16,
+                );
                 let in_bounds = builder.ins().icmp(
                     cranelift_codegen::ir::condcodes::IntCC::UnsignedLessThan,
                     idx_val,
@@ -1154,16 +1200,32 @@ impl CraneliftBackend {
                     .ins()
                     .brif(in_bounds, fast_block, &[], slow_block, &[]);
 
+                let is_byte = match object.as_ref() {
+                    Expr::Identifier(name) => self.byte_lists.contains(name),
+                    _ => false,
+                };
+
                 builder.switch_to_block(fast_block);
                 builder.seal_block(fast_block);
-                let items_ptr = builder
-                    .ins()
-                    .load(types::I64, MemFlagsData::trusted(), obj_val, 8);
-                let offset = builder.ins().ishl_imm_u(idx_val, 3);
-                let addr = builder.ins().iadd(items_ptr, offset);
-                let elem = builder
-                    .ins()
-                    .load(types::I64, MemFlagsData::trusted(), addr, 0);
+                let items_ptr = builder.ins().load(
+                    types::I64,
+                    MemFlagsData::trusted().with_readonly(),
+                    obj_val,
+                    8,
+                );
+                let elem = if is_byte {
+                    let addr = builder.ins().iadd(items_ptr, idx_val);
+                    let raw_b = builder
+                        .ins()
+                        .load(types::I8, MemFlagsData::trusted(), addr, 0);
+                    builder.ins().uextend(types::I64, raw_b)
+                } else {
+                    let offset = builder.ins().ishl_imm_u(idx_val, 3);
+                    let addr = builder.ins().iadd(items_ptr, offset);
+                    builder
+                        .ins()
+                        .load(types::I64, MemFlagsData::trusted(), addr, 0)
+                };
                 builder.def_var(res_var, elem);
                 builder.ins().jump(merge_block, &[]);
 
@@ -1230,11 +1292,16 @@ impl CraneliftBackend {
                     let merge_block = builder.create_block();
                     let res_var = builder.declare_var(types::I64);
 
-                    builder.ins().brif(not_null, fast_block, &[], slow_block, &[]);
+                    builder
+                        .ins()
+                        .brif(not_null, fast_block, &[], slow_block, &[]);
 
                     builder.switch_to_block(fast_block);
                     builder.seal_block(fast_block);
-                    let len_direct = builder.ins().load(types::I64, MemFlagsData::trusted(), obj_val, 16);
+                    let len_direct =
+                        builder
+                            .ins()
+                            .load(types::I64, MemFlagsData::trusted(), obj_val, 16);
                     builder.def_var(res_var, len_direct);
                     builder.ins().jump(merge_block, &[]);
 
@@ -1428,6 +1495,9 @@ impl CraneliftBackend {
                     }
                     match stmt {
                         Statement::Let { name, value, .. } => {
+                            if self.is_byte_list_expr(value) {
+                                self.byte_lists.insert(name.clone());
+                            }
                             let val = self.compile_expr(builder, value, vars, defers, loop_ctx)?;
                             let var = builder.declare_var(types::I64);
                             builder.def_var(var, val);
@@ -1446,8 +1516,7 @@ impl CraneliftBackend {
                                 Expr::Identifier(name) => {
                                     if let Some((var, _)) = vars.get(name) {
                                         builder.def_var(*var, val);
-                                    }
-                                    if let Some(&data_id) = self.globals.get(name) {
+                                    } else if let Some(&data_id) = self.globals.get(name) {
                                         let local_data =
                                             self.module.declare_data_in_func(data_id, builder.func);
                                         let addr =
@@ -1480,7 +1549,7 @@ impl CraneliftBackend {
                                     builder.seal_block(check_block);
                                     let len_val = builder.ins().load(
                                         types::I64,
-                                        MemFlagsData::trusted(),
+                                        MemFlagsData::trusted().with_readonly(),
                                         obj_val,
                                         16,
                                     );
@@ -1493,17 +1562,33 @@ impl CraneliftBackend {
                                         .ins()
                                         .brif(in_bounds, fast_block, &[], slow_block, &[]);
 
+                                    let is_byte = match object.as_ref() {
+                                        Expr::Identifier(name) => self.byte_lists.contains(name),
+                                        _ => false,
+                                    };
+
                                     builder.switch_to_block(fast_block);
                                     builder.seal_block(fast_block);
                                     let items_ptr = builder.ins().load(
                                         types::I64,
-                                        MemFlagsData::trusted(),
+                                        MemFlagsData::trusted().with_readonly(),
                                         obj_val,
                                         8,
                                     );
-                                    let offset = builder.ins().ishl_imm_u(idx_val, 3);
-                                    let addr = builder.ins().iadd(items_ptr, offset);
-                                    builder.ins().store(MemFlagsData::trusted(), val, addr, 0);
+                                    if is_byte {
+                                        let addr = builder.ins().iadd(items_ptr, idx_val);
+                                        let val_i8 = builder.ins().ireduce(types::I8, val);
+                                        builder.ins().store(
+                                            MemFlagsData::trusted(),
+                                            val_i8,
+                                            addr,
+                                            0,
+                                        );
+                                    } else {
+                                        let offset = builder.ins().ishl_imm_u(idx_val, 3);
+                                        let addr = builder.ins().iadd(items_ptr, offset);
+                                        builder.ins().store(MemFlagsData::trusted(), val, addr, 0);
+                                    }
                                     builder.ins().jump(merge_block, &[]);
 
                                     builder.switch_to_block(slow_block);
@@ -2059,14 +2144,39 @@ impl CraneliftBackend {
                 if obj_name == "Array" {
                     match member.as_str() {
                         "repeat" if args.len() >= 2 => {
+                            let is_byte = matches!(&args[0], Expr::Literal(Literal::Bool(_)));
+                            let item_val =
+                                self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                            let count_val =
+                                self.compile_expr(builder, &args[1], vars, defers, loop_ctx)?;
+                            let target_fid = if is_byte {
+                                self.list_repeat_byte_id
+                            } else {
+                                self.list_repeat_id
+                            };
+                            let local_fn =
+                                self.module.declare_func_in_func(target_fid, builder.func);
+                            let call = builder.ins().call(local_fn, &[item_val, count_val]);
+                            return Ok(builder.inst_results(call)[0]);
+                        }
+                        "repeatBool" | "repeatByte" if args.len() >= 2 => {
                             let item_val =
                                 self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
                             let count_val =
                                 self.compile_expr(builder, &args[1], vars, defers, loop_ctx)?;
                             let local_fn = self
                                 .module
-                                .declare_func_in_func(self.list_repeat_id, builder.func);
+                                .declare_func_in_func(self.list_repeat_byte_id, builder.func);
                             let call = builder.ins().call(local_fn, &[item_val, count_val]);
+                            return Ok(builder.inst_results(call)[0]);
+                        }
+                        "newByte" | "newBool" if !args.is_empty() => {
+                            let cap_val =
+                                self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                            let local_fn = self
+                                .module
+                                .declare_func_in_func(self.list_new_byte_id, builder.func);
+                            let call = builder.ins().call(local_fn, &[cap_val]);
                             return Ok(builder.inst_results(call)[0]);
                         }
                         "new" | "with_capacity" | "withCapacity" if !args.is_empty() => {
@@ -2083,7 +2193,8 @@ impl CraneliftBackend {
                 }
                 if obj_name == "sql" || obj_name == "db" {
                     if member == "open" && !args.is_empty() {
-                        let drv_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                        let drv_val =
+                            self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
                         let (drv_ptr, drv_len) = self.get_string_ptr_and_len(builder, drv_val);
                         let dsn_val = if args.len() >= 2 {
                             self.compile_expr(builder, &args[1], vars, defers, loop_ctx)?
@@ -2096,8 +2207,13 @@ impl CraneliftBackend {
                         } else {
                             builder.ins().iconst(types::I64, 10)
                         };
-                        let local_fn = self.module.declare_func_in_func(self.db_open_id, builder.func);
-                        let call = builder.ins().call(local_fn, &[drv_ptr, drv_len, dsn_ptr, dsn_len, max_conns_val]);
+                        let local_fn = self
+                            .module
+                            .declare_func_in_func(self.db_open_id, builder.func);
+                        let call = builder.ins().call(
+                            local_fn,
+                            &[drv_ptr, drv_len, dsn_ptr, dsn_len, max_conns_val],
+                        );
                         return Ok(builder.inst_results(call)[0]);
                     }
                 }
@@ -2116,19 +2232,31 @@ impl CraneliftBackend {
                         } else {
                             builder.ins().iconst(types::I64, 5)
                         };
-                        let local_fn = self.module.declare_func_in_func(self.db_open_id, builder.func);
-                        let call = builder.ins().call(local_fn, &[drv_ptr, drv_len, dsn_ptr, dsn_len, max_conns_val]);
+                        let local_fn = self
+                            .module
+                            .declare_func_in_func(self.db_open_id, builder.func);
+                        let call = builder.ins().call(
+                            local_fn,
+                            &[drv_ptr, drv_len, dsn_ptr, dsn_len, max_conns_val],
+                        );
                         return Ok(builder.inst_results(call)[0]);
                     }
                 }
                 if obj_name == "postgres" || obj_name == "pg" {
-                    if member == "open" || member == "connect" || member == "createPool" || member == "createClient" {
+                    if member == "open"
+                        || member == "connect"
+                        || member == "createPool"
+                        || member == "createClient"
+                    {
                         let drv_val = self.emit_string_literal(builder, "postgres")?;
                         let (drv_ptr, drv_len) = self.get_string_ptr_and_len(builder, drv_val);
                         let dsn_val = if !args.is_empty() {
                             self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?
                         } else {
-                            self.emit_string_literal(builder, "postgres://postgres@127.0.0.1:5432/postgres")?
+                            self.emit_string_literal(
+                                builder,
+                                "postgres://postgres@127.0.0.1:5432/postgres",
+                            )?
                         };
                         let (dsn_ptr, dsn_len) = self.get_string_ptr_and_len(builder, dsn_val);
                         let max_conns_val = if args.len() >= 2 {
@@ -2136,13 +2264,22 @@ impl CraneliftBackend {
                         } else {
                             builder.ins().iconst(types::I64, 10)
                         };
-                        let local_fn = self.module.declare_func_in_func(self.db_open_id, builder.func);
-                        let call = builder.ins().call(local_fn, &[drv_ptr, drv_len, dsn_ptr, dsn_len, max_conns_val]);
+                        let local_fn = self
+                            .module
+                            .declare_func_in_func(self.db_open_id, builder.func);
+                        let call = builder.ins().call(
+                            local_fn,
+                            &[drv_ptr, drv_len, dsn_ptr, dsn_len, max_conns_val],
+                        );
                         return Ok(builder.inst_results(call)[0]);
                     }
                 }
                 if obj_name == "mysql" || obj_name == "mariadb" {
-                    if member == "open" || member == "connect" || member == "createPool" || member == "createClient" {
+                    if member == "open"
+                        || member == "connect"
+                        || member == "createPool"
+                        || member == "createClient"
+                    {
                         let drv_val = self.emit_string_literal(builder, "mysql")?;
                         let (drv_ptr, drv_len) = self.get_string_ptr_and_len(builder, drv_val);
                         let dsn_val = if !args.is_empty() {
@@ -2156,8 +2293,13 @@ impl CraneliftBackend {
                         } else {
                             builder.ins().iconst(types::I64, 10)
                         };
-                        let local_fn = self.module.declare_func_in_func(self.db_open_id, builder.func);
-                        let call = builder.ins().call(local_fn, &[drv_ptr, drv_len, dsn_ptr, dsn_len, max_conns_val]);
+                        let local_fn = self
+                            .module
+                            .declare_func_in_func(self.db_open_id, builder.func);
+                        let call = builder.ins().call(
+                            local_fn,
+                            &[drv_ptr, drv_len, dsn_ptr, dsn_len, max_conns_val],
+                        );
                         return Ok(builder.inst_results(call)[0]);
                     }
                 }
@@ -2169,7 +2311,9 @@ impl CraneliftBackend {
                             self.emit_string_literal(builder, ":memory:")?
                         };
                         let (dsn_ptr, dsn_len) = self.get_string_ptr_and_len(builder, dsn_val);
-                        let local_fn = self.module.declare_func_in_func(self.redis_open_id, builder.func);
+                        let local_fn = self
+                            .module
+                            .declare_func_in_func(self.redis_open_id, builder.func);
                         let call = builder.ins().call(local_fn, &[dsn_ptr, dsn_len]);
                         return Ok(builder.inst_results(call)[0]);
                     }
@@ -2182,7 +2326,9 @@ impl CraneliftBackend {
                             self.emit_string_literal(builder, ":memory:")?
                         };
                         let (dsn_ptr, dsn_len) = self.get_string_ptr_and_len(builder, dsn_val);
-                        let local_fn = self.module.declare_func_in_func(self.mongo_open_id, builder.func);
+                        let local_fn = self
+                            .module
+                            .declare_func_in_func(self.mongo_open_id, builder.func);
                         let call = builder.ins().call(local_fn, &[dsn_ptr, dsn_len]);
                         return Ok(builder.inst_results(call)[0]);
                     }
@@ -2392,8 +2538,12 @@ impl CraneliftBackend {
                     } else {
                         builder.ins().iconst(types::I64, 0)
                     };
-                    let local_fn = self.module.declare_func_in_func(self.db_query_id, builder.func);
-                    let call = builder.ins().call(local_fn, &[target_val, sql_ptr, sql_len, params_val]);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.db_query_id, builder.func);
+                    let call = builder
+                        .ins()
+                        .call(local_fn, &[target_val, sql_ptr, sql_len, params_val]);
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "exec" | "execute" if !args.is_empty() => {
@@ -2404,27 +2554,39 @@ impl CraneliftBackend {
                     } else {
                         builder.ins().iconst(types::I64, 0)
                     };
-                    let local_fn = self.module.declare_func_in_func(self.db_exec_id, builder.func);
-                    let call = builder.ins().call(local_fn, &[target_val, sql_ptr, sql_len, params_val]);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.db_exec_id, builder.func);
+                    let call = builder
+                        .ins()
+                        .call(local_fn, &[target_val, sql_ptr, sql_len, params_val]);
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "begin" => {
-                    let local_fn = self.module.declare_func_in_func(self.db_begin_id, builder.func);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.db_begin_id, builder.func);
                     let call = builder.ins().call(local_fn, &[target_val]);
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "commit" => {
-                    let local_fn = self.module.declare_func_in_func(self.db_tx_commit_id, builder.func);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.db_tx_commit_id, builder.func);
                     let call = builder.ins().call(local_fn, &[target_val]);
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "rollback" => {
-                    let local_fn = self.module.declare_func_in_func(self.db_tx_rollback_id, builder.func);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.db_tx_rollback_id, builder.func);
                     let call = builder.ins().call(local_fn, &[target_val]);
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "next" => {
-                    let local_fn = self.module.declare_func_in_func(self.db_rows_next_id, builder.func);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.db_rows_next_id, builder.func);
                     let call = builder.ins().call(local_fn, &[target_val]);
                     return Ok(builder.inst_results(call)[0]);
                 }
@@ -2434,7 +2596,9 @@ impl CraneliftBackend {
                     } else {
                         builder.ins().iconst(types::I64, 0)
                     };
-                    let local_fn = self.module.declare_func_in_func(self.db_rows_get_i64_id, builder.func);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.db_rows_get_i64_id, builder.func);
                     let call = builder.ins().call(local_fn, &[target_val, idx_val]);
                     return Ok(builder.inst_results(call)[0]);
                 }
@@ -2444,7 +2608,9 @@ impl CraneliftBackend {
                     } else {
                         builder.ins().iconst(types::I64, 0)
                     };
-                    let local_fn = self.module.declare_func_in_func(self.db_rows_get_str_id, builder.func);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.db_rows_get_str_id, builder.func);
                     let call = builder.ins().call(local_fn, &[target_val, idx_val]);
                     return Ok(builder.inst_results(call)[0]);
                 }
@@ -2454,7 +2620,9 @@ impl CraneliftBackend {
                     } else {
                         builder.ins().iconst(types::I64, 0)
                     };
-                    let local_fn = self.module.declare_func_in_func(self.db_rows_get_f64_id, builder.func);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.db_rows_get_f64_id, builder.func);
                     let call = builder.ins().call(local_fn, &[target_val, idx_val]);
                     return Ok(builder.inst_results(call)[0]);
                 }
@@ -2464,7 +2632,9 @@ impl CraneliftBackend {
                     } else {
                         builder.ins().iconst(types::I64, 0)
                     };
-                    let local_fn = self.module.declare_func_in_func(self.db_rows_get_bool_id, builder.func);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.db_rows_get_bool_id, builder.func);
                     let call = builder.ins().call(local_fn, &[target_val, idx_val]);
                     return Ok(builder.inst_results(call)[0]);
                 }
@@ -2476,10 +2646,15 @@ impl CraneliftBackend {
                                 | Expr::Literal(Literal::TemplateString(_))
                         );
                         if is_string_arg {
-                            let key_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                            let key_val =
+                                self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
                             let (key_ptr, key_len) = self.get_string_ptr_and_len(builder, key_val);
-                            let local_fn = self.module.declare_func_in_func(self.redis_get_id, builder.func);
-                            let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len]);
+                            let local_fn = self
+                                .module
+                                .declare_func_in_func(self.redis_get_id, builder.func);
+                            let call = builder
+                                .ins()
+                                .call(local_fn, &[target_val, key_ptr, key_len]);
                             return Ok(builder.inst_results(call)[0]);
                         }
                     }
@@ -2488,7 +2663,9 @@ impl CraneliftBackend {
                     } else {
                         builder.ins().iconst(types::I64, 0)
                     };
-                    let local_fn = self.module.declare_func_in_func(self.db_rows_get_val_id, builder.func);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.db_rows_get_val_id, builder.func);
                     let call = builder.ins().call(local_fn, &[target_val, idx_val]);
                     return Ok(builder.inst_results(call)[0]);
                 }
@@ -2506,29 +2683,46 @@ impl CraneliftBackend {
                     } else {
                         builder.ins().iconst(types::I64, 0)
                     };
-                    let local_fn = self.module.declare_func_in_func(self.redis_set_id, builder.func);
-                    let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len, val_ptr, val_len, ttl_val]);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.redis_set_id, builder.func);
+                    let call = builder.ins().call(
+                        local_fn,
+                        &[target_val, key_ptr, key_len, val_ptr, val_len, ttl_val],
+                    );
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "getStr" if !args.is_empty() => {
                     let key_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
                     let (key_ptr, key_len) = self.get_string_ptr_and_len(builder, key_val);
-                    let local_fn = self.module.declare_func_in_func(self.redis_get_id, builder.func);
-                    let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len]);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.redis_get_id, builder.func);
+                    let call = builder
+                        .ins()
+                        .call(local_fn, &[target_val, key_ptr, key_len]);
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "del" | "delete" if !args.is_empty() => {
                     let key_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
                     let (key_ptr, key_len) = self.get_string_ptr_and_len(builder, key_val);
-                    let local_fn = self.module.declare_func_in_func(self.redis_del_id, builder.func);
-                    let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len]);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.redis_del_id, builder.func);
+                    let call = builder
+                        .ins()
+                        .call(local_fn, &[target_val, key_ptr, key_len]);
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "exists" if !args.is_empty() => {
                     let key_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
                     let (key_ptr, key_len) = self.get_string_ptr_and_len(builder, key_val);
-                    let local_fn = self.module.declare_func_in_func(self.redis_exists_id, builder.func);
-                    let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len]);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.redis_exists_id, builder.func);
+                    let call = builder
+                        .ins()
+                        .call(local_fn, &[target_val, key_ptr, key_len]);
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "incr" | "increment" if !args.is_empty() => {
@@ -2539,8 +2733,12 @@ impl CraneliftBackend {
                     } else {
                         builder.ins().iconst(types::I64, 1)
                     };
-                    let local_fn = self.module.declare_func_in_func(self.redis_incr_id, builder.func);
-                    let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len, delta_val]);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.redis_incr_id, builder.func);
+                    let call = builder
+                        .ins()
+                        .call(local_fn, &[target_val, key_ptr, key_len, delta_val]);
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "decr" | "decrement" if !args.is_empty() => {
@@ -2551,8 +2749,12 @@ impl CraneliftBackend {
                     } else {
                         builder.ins().iconst(types::I64, 1)
                     };
-                    let local_fn = self.module.declare_func_in_func(self.redis_decr_id, builder.func);
-                    let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len, delta_val]);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.redis_decr_id, builder.func);
+                    let call = builder
+                        .ins()
+                        .call(local_fn, &[target_val, key_ptr, key_len, delta_val]);
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "hset" if args.len() >= 3 => {
@@ -2562,8 +2764,15 @@ impl CraneliftBackend {
                     let (field_ptr, field_len) = self.get_string_ptr_and_len(builder, field_val);
                     let val_val = self.compile_expr(builder, &args[2], vars, defers, loop_ctx)?;
                     let (val_ptr, val_len) = self.get_string_ptr_and_len(builder, val_val);
-                    let local_fn = self.module.declare_func_in_func(self.redis_hset_id, builder.func);
-                    let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len, field_ptr, field_len, val_ptr, val_len]);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.redis_hset_id, builder.func);
+                    let call = builder.ins().call(
+                        local_fn,
+                        &[
+                            target_val, key_ptr, key_len, field_ptr, field_len, val_ptr, val_len,
+                        ],
+                    );
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "hget" if args.len() >= 2 => {
@@ -2571,8 +2780,13 @@ impl CraneliftBackend {
                     let (key_ptr, key_len) = self.get_string_ptr_and_len(builder, key_val);
                     let field_val = self.compile_expr(builder, &args[1], vars, defers, loop_ctx)?;
                     let (field_ptr, field_len) = self.get_string_ptr_and_len(builder, field_val);
-                    let local_fn = self.module.declare_func_in_func(self.redis_hget_id, builder.func);
-                    let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len, field_ptr, field_len]);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.redis_hget_id, builder.func);
+                    let call = builder.ins().call(
+                        local_fn,
+                        &[target_val, key_ptr, key_len, field_ptr, field_len],
+                    );
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "hdel" if args.len() >= 2 => {
@@ -2580,15 +2794,24 @@ impl CraneliftBackend {
                     let (key_ptr, key_len) = self.get_string_ptr_and_len(builder, key_val);
                     let field_val = self.compile_expr(builder, &args[1], vars, defers, loop_ctx)?;
                     let (field_ptr, field_len) = self.get_string_ptr_and_len(builder, field_val);
-                    let local_fn = self.module.declare_func_in_func(self.redis_hdel_id, builder.func);
-                    let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len, field_ptr, field_len]);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.redis_hdel_id, builder.func);
+                    let call = builder.ins().call(
+                        local_fn,
+                        &[target_val, key_ptr, key_len, field_ptr, field_len],
+                    );
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "hgetall" if !args.is_empty() => {
                     let key_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
                     let (key_ptr, key_len) = self.get_string_ptr_and_len(builder, key_val);
-                    let local_fn = self.module.declare_func_in_func(self.redis_hgetall_id, builder.func);
-                    let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len]);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.redis_hgetall_id, builder.func);
+                    let call = builder
+                        .ins()
+                        .call(local_fn, &[target_val, key_ptr, key_len]);
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "lpush" if args.len() >= 2 => {
@@ -2596,15 +2819,23 @@ impl CraneliftBackend {
                     let (key_ptr, key_len) = self.get_string_ptr_and_len(builder, key_val);
                     let val_val = self.compile_expr(builder, &args[1], vars, defers, loop_ctx)?;
                     let (val_ptr, val_len) = self.get_string_ptr_and_len(builder, val_val);
-                    let local_fn = self.module.declare_func_in_func(self.redis_lpush_id, builder.func);
-                    let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len, val_ptr, val_len]);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.redis_lpush_id, builder.func);
+                    let call = builder
+                        .ins()
+                        .call(local_fn, &[target_val, key_ptr, key_len, val_ptr, val_len]);
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "rpop" if !args.is_empty() => {
                     let key_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
                     let (key_ptr, key_len) = self.get_string_ptr_and_len(builder, key_val);
-                    let local_fn = self.module.declare_func_in_func(self.redis_rpop_id, builder.func);
-                    let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len]);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.redis_rpop_id, builder.func);
+                    let call = builder
+                        .ins()
+                        .call(local_fn, &[target_val, key_ptr, key_len]);
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "lrange" if args.len() >= 3 => {
@@ -2612,23 +2843,36 @@ impl CraneliftBackend {
                     let (key_ptr, key_len) = self.get_string_ptr_and_len(builder, key_val);
                     let start_val = self.compile_expr(builder, &args[1], vars, defers, loop_ctx)?;
                     let stop_val = self.compile_expr(builder, &args[2], vars, defers, loop_ctx)?;
-                    let local_fn = self.module.declare_func_in_func(self.redis_lrange_id, builder.func);
-                    let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len, start_val, stop_val]);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.redis_lrange_id, builder.func);
+                    let call = builder.ins().call(
+                        local_fn,
+                        &[target_val, key_ptr, key_len, start_val, stop_val],
+                    );
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "ttl" if !args.is_empty() => {
                     let key_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
                     let (key_ptr, key_len) = self.get_string_ptr_and_len(builder, key_val);
-                    let local_fn = self.module.declare_func_in_func(self.redis_ttl_id, builder.func);
-                    let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len]);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.redis_ttl_id, builder.func);
+                    let call = builder
+                        .ins()
+                        .call(local_fn, &[target_val, key_ptr, key_len]);
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "expire" if args.len() >= 2 => {
                     let key_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
                     let (key_ptr, key_len) = self.get_string_ptr_and_len(builder, key_val);
                     let secs_val = self.compile_expr(builder, &args[1], vars, defers, loop_ctx)?;
-                    let local_fn = self.module.declare_func_in_func(self.redis_expire_id, builder.func);
-                    let call = builder.ins().call(local_fn, &[target_val, key_ptr, key_len, secs_val]);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.redis_expire_id, builder.func);
+                    let call = builder
+                        .ins()
+                        .call(local_fn, &[target_val, key_ptr, key_len, secs_val]);
                     return Ok(builder.inst_results(call)[0]);
                 }
 
@@ -2636,32 +2880,47 @@ impl CraneliftBackend {
                 "db" | "database" if !args.is_empty() => {
                     let name_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
                     let (name_ptr, name_len) = self.get_string_ptr_and_len(builder, name_val);
-                    let local_fn = self.module.declare_func_in_func(self.mongo_db_id, builder.func);
-                    let call = builder.ins().call(local_fn, &[target_val, name_ptr, name_len]);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.mongo_db_id, builder.func);
+                    let call = builder
+                        .ins()
+                        .call(local_fn, &[target_val, name_ptr, name_len]);
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "collection" | "col" if !args.is_empty() => {
                     let name_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
                     let (name_ptr, name_len) = self.get_string_ptr_and_len(builder, name_val);
-                    let local_fn = self.module.declare_func_in_func(self.mongo_collection_id, builder.func);
-                    let call = builder.ins().call(local_fn, &[target_val, name_ptr, name_len]);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.mongo_collection_id, builder.func);
+                    let call = builder
+                        .ins()
+                        .call(local_fn, &[target_val, name_ptr, name_len]);
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "insertOne" | "insert" if !args.is_empty() => {
                     let doc_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
-                    let local_fn = self.module.declare_func_in_func(self.mongo_insert_one_id, builder.func);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.mongo_insert_one_id, builder.func);
                     let call = builder.ins().call(local_fn, &[target_val, doc_val]);
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "insertMany" if !args.is_empty() => {
                     let docs_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
-                    let local_fn = self.module.declare_func_in_func(self.mongo_insert_many_id, builder.func);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.mongo_insert_many_id, builder.func);
                     let call = builder.ins().call(local_fn, &[target_val, docs_val]);
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "findOne" if !args.is_empty() => {
-                    let filter_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
-                    let local_fn = self.module.declare_func_in_func(self.mongo_find_one_id, builder.func);
+                    let filter_val =
+                        self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.mongo_find_one_id, builder.func);
                     let call = builder.ins().call(local_fn, &[target_val, filter_val]);
                     return Ok(builder.inst_results(call)[0]);
                 }
@@ -2671,33 +2930,53 @@ impl CraneliftBackend {
                     } else {
                         builder.ins().iconst(types::I64, 0)
                     };
-                    let local_fn = self.module.declare_func_in_func(self.mongo_find_id, builder.func);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.mongo_find_id, builder.func);
                     let call = builder.ins().call(local_fn, &[target_val, filter_val]);
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "updateOne" if args.len() >= 2 => {
-                    let filter_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
-                    let update_val = self.compile_expr(builder, &args[1], vars, defers, loop_ctx)?;
-                    let local_fn = self.module.declare_func_in_func(self.mongo_update_one_id, builder.func);
-                    let call = builder.ins().call(local_fn, &[target_val, filter_val, update_val]);
+                    let filter_val =
+                        self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let update_val =
+                        self.compile_expr(builder, &args[1], vars, defers, loop_ctx)?;
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.mongo_update_one_id, builder.func);
+                    let call = builder
+                        .ins()
+                        .call(local_fn, &[target_val, filter_val, update_val]);
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "updateMany" if args.len() >= 2 => {
-                    let filter_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
-                    let update_val = self.compile_expr(builder, &args[1], vars, defers, loop_ctx)?;
-                    let local_fn = self.module.declare_func_in_func(self.mongo_update_many_id, builder.func);
-                    let call = builder.ins().call(local_fn, &[target_val, filter_val, update_val]);
+                    let filter_val =
+                        self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let update_val =
+                        self.compile_expr(builder, &args[1], vars, defers, loop_ctx)?;
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.mongo_update_many_id, builder.func);
+                    let call = builder
+                        .ins()
+                        .call(local_fn, &[target_val, filter_val, update_val]);
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "deleteOne" | "remove" if !args.is_empty() => {
-                    let filter_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
-                    let local_fn = self.module.declare_func_in_func(self.mongo_delete_one_id, builder.func);
+                    let filter_val =
+                        self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.mongo_delete_one_id, builder.func);
                     let call = builder.ins().call(local_fn, &[target_val, filter_val]);
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "deleteMany" | "removeMany" if !args.is_empty() => {
-                    let filter_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
-                    let local_fn = self.module.declare_func_in_func(self.mongo_delete_many_id, builder.func);
+                    let filter_val =
+                        self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.mongo_delete_many_id, builder.func);
                     let call = builder.ins().call(local_fn, &[target_val, filter_val]);
                     return Ok(builder.inst_results(call)[0]);
                 }
@@ -2707,33 +2986,45 @@ impl CraneliftBackend {
                     } else {
                         builder.ins().iconst(types::I64, 0)
                     };
-                    let local_fn = self.module.declare_func_in_func(self.mongo_count_id, builder.func);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.mongo_count_id, builder.func);
                     let call = builder.ins().call(local_fn, &[target_val, filter_val]);
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "aggregate" if !args.is_empty() => {
                     let pipe_val = self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?;
-                    let local_fn = self.module.declare_func_in_func(self.mongo_aggregate_id, builder.func);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.mongo_aggregate_id, builder.func);
                     let call = builder.ins().call(local_fn, &[target_val, pipe_val]);
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "toRecord" => {
-                    let local_fn = self.module.declare_func_in_func(self.db_rows_to_record_id, builder.func);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.db_rows_to_record_id, builder.func);
                     let call = builder.ins().call(local_fn, &[target_val]);
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "toList" => {
-                    let local_fn = self.module.declare_func_in_func(self.db_rows_to_list_id, builder.func);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.db_rows_to_list_id, builder.func);
                     let call = builder.ins().call(local_fn, &[target_val]);
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "ping" => {
-                    let local_fn = self.module.declare_func_in_func(self.db_ping_id, builder.func);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.db_ping_id, builder.func);
                     let call = builder.ins().call(local_fn, &[target_val]);
                     return Ok(builder.inst_results(call)[0]);
                 }
                 "close" | "end" => {
-                    let local_fn = self.module.declare_func_in_func(self.db_close_any_id, builder.func);
+                    let local_fn = self
+                        .module
+                        .declare_func_in_func(self.db_close_any_id, builder.func);
                     builder.ins().call(local_fn, &[target_val]);
                     return Ok(builder.ins().iconst(types::I64, 0));
                 }
@@ -2934,11 +3225,6 @@ impl CraneliftBackend {
             let val = builder.block_params(entry_block)[i];
             builder.def_var(var, val);
             vars.insert(p.name.clone(), (var, types::I64));
-            if let Some(&data_id) = self.globals.get(&p.name) {
-                let local_data = self.module.declare_data_in_func(data_id, builder.func);
-                let addr = builder.ins().symbol_value(types::I64, local_data);
-                builder.ins().store(MemFlagsData::trusted(), val, addr, 0);
-            }
         }
 
         let ret_val = self.compile_expr(&mut builder, body, &mut vars, &mut defers, None)?;

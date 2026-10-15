@@ -47,7 +47,7 @@ The suite evaluates critical aspects of backend development, concurrency, and sy
 | Scenario | Aura Lang (ms) | Golang (ms) | Ratio (Aura/Go) | Aura RSS (MB) | Go RSS (MB) | Status / Aura Advantage |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
 | **1. Fibonacci (Fib 38)** | **149.18 ms** | 116.49 ms | 1.28x *(improved from 1.32x)* | **2.83 MB** | 4.28 MB | 🏆 **-34.0% less RAM** |
-| **2. Prime Sieve (2M)** | 16.25 ms | 9.25 ms | 1.76x | 18.14 MB | 6.28 MB | Optimized with SIMD `Array.repeat` |
+| **2. Prime Sieve (2M)** | **14.61 ms** | 9.41 ms | **1.55x (from 1.76x)** | **4.83 MB** | 6.33 MB | 🏆 **-23.7% less RAM than Go** (Compact 1-Byte Bool array & `strb`/`ldrb`) |
 | **3. Data Pipeline (1M)** | 13.01 ms | 8.39 ms | 1.55x | 20.28 MB | 20.42 MB | Parity with Go RAM consumption |
 | **4. CSP Channels (200k)** | **29.57 ms** | 25.41 ms | **1.16x (Near Parity)** | 9.17 MB | 4.36 MB | Optimized fiber stack cache pool |
 | **5. Spawn 50k Tasks** | 15.73 ms | 11.76 ms | 1.34x | 11.11 MB | 6.39 MB | Scheduler O(1) + 8192 Stack Pool |
@@ -113,6 +113,8 @@ The suite evaluates critical aspects of backend development, concurrency, and sy
    - The concurrent KV Cache benchmark achieves **18.39 ms vs 18.14 ms** (1.01x parity).
 5. **Fast Compilation**:
    - `aurac check` validates types in **7.4 – 12.8 ms**, and standalone binary builds take only **43 – 52 ms** for numerical and pipeline tasks (nearly 2x faster than `go build`).
+6. **Compact 1-Byte Boolean & Byte Arrays (`List<Bool>` / `List<Byte>`)**:
+   - Arrays of booleans and bytes allocate contiguous 1-byte elements instead of 8-byte slots. In the Sieve of Eratosthenes benchmark (2,000,000 primes), memory consumption drops from **18.14 MB to 4.83 MB** (a **73.4% reduction**, using **23.7% less RAM than Go's 6.33 MB**), while Cranelift emits zero-overhead 1-byte machine instructions (`ldrb` / `strb`) in the inner loop with execution time dropping to **14.61 ms**.
 
 ---
 

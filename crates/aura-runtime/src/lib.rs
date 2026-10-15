@@ -35,24 +35,24 @@ pub use db::{
     aura_db_rows_to_list, aura_db_rows_to_record, aura_db_tx_close, aura_db_tx_commit,
     aura_db_tx_rollback,
 };
+pub use gc::{collect_garbage, gc_alloc, gc_safepoint};
+pub use http::{AuraHttpRequest, AuraHttpResponse, AuraServeMux};
+pub use json::AuraJsonDoc;
+pub use list::AuraList;
 pub use mongo_client::{
-    AuraMongoClient, AuraMongoCollection, AuraMongoDatabase, aura_mongo_aggregate, aura_mongo_close,
-    aura_mongo_collection, aura_mongo_count, aura_mongo_db, aura_mongo_delete_many,
-    aura_mongo_delete_one, aura_mongo_find, aura_mongo_find_one, aura_mongo_insert_many,
-    aura_mongo_insert_one, aura_mongo_open, aura_mongo_ping, aura_mongo_update_many,
-    aura_mongo_update_one,
+    AuraMongoClient, AuraMongoCollection, AuraMongoDatabase, aura_mongo_aggregate,
+    aura_mongo_close, aura_mongo_collection, aura_mongo_count, aura_mongo_db,
+    aura_mongo_delete_many, aura_mongo_delete_one, aura_mongo_find, aura_mongo_find_one,
+    aura_mongo_insert_many, aura_mongo_insert_one, aura_mongo_open, aura_mongo_ping,
+    aura_mongo_update_many, aura_mongo_update_one,
 };
+pub use record::{AuraRecord, AuraVal};
 pub use redis_client::{
     AuraRedisClient, aura_redis_close, aura_redis_decr, aura_redis_del, aura_redis_exists,
     aura_redis_expire, aura_redis_get, aura_redis_hdel, aura_redis_hget, aura_redis_hgetall,
     aura_redis_hset, aura_redis_incr, aura_redis_lpush, aura_redis_lrange, aura_redis_open,
     aura_redis_ping, aura_redis_rpop, aura_redis_set, aura_redis_ttl,
 };
-pub use gc::{collect_garbage, gc_alloc, gc_safepoint};
-pub use http::{AuraHttpRequest, AuraHttpResponse, AuraServeMux};
-pub use json::AuraJsonDoc;
-pub use list::AuraList;
-pub use record::{AuraRecord, AuraVal};
 pub use scheduler::{get_scheduler, init_scheduler, yield_now};
 pub use string::AuraString;
 pub use sync::AuraMutex;
@@ -66,12 +66,13 @@ pub extern "C" fn aura_universal_get(target: *mut (), arg: i64) -> i64 {
     let target_type = crate::gc::lookup_valid_ptr(target as usize);
     match target_type {
         Some(crate::gc::TYPE_REDIS_CLIENT) => {
-            let key_opt = if let Some(crate::gc::TYPE_STRING) = crate::gc::lookup_valid_ptr(arg as usize) {
-                let astr = arg as *mut crate::string::AuraString;
-                unsafe { Some((*astr).as_str().to_string()) }
-            } else {
-                None
-            };
+            let key_opt =
+                if let Some(crate::gc::TYPE_STRING) = crate::gc::lookup_valid_ptr(arg as usize) {
+                    let astr = arg as *mut crate::string::AuraString;
+                    unsafe { Some((*astr).as_str().to_string()) }
+                } else {
+                    None
+                };
             if let Some(key_str) = key_opt {
                 let client = target as *mut crate::redis_client::AuraRedisClient;
                 unsafe {
@@ -91,7 +92,11 @@ pub extern "C" fn aura_universal_get(target: *mut (), arg: i64) -> i64 {
             if let Some(crate::gc::TYPE_STRING) = crate::gc::lookup_valid_ptr(arg as usize) {
                 let astr = arg as *mut crate::string::AuraString;
                 unsafe {
-                    crate::record::aura_record_get(target as *mut crate::record::AuraRecord, (*astr).ptr, (*astr).len)
+                    crate::record::aura_record_get(
+                        target as *mut crate::record::AuraRecord,
+                        (*astr).ptr,
+                        (*astr).len,
+                    )
                 }
             } else {
                 0
@@ -209,6 +214,37 @@ mod tests {
         assert_eq!(list::aura_list_get(list, 1), 999);
 
         list::aura_list_free(list);
+    }
+
+    #[test]
+    fn test_compact_byte_list_operations() {
+        let byte_list = list::aura_list_new_byte(4);
+        assert_eq!(list::aura_list_len(byte_list), 0);
+        assert_eq!(list::aura_list_elem_size(byte_list), 1);
+
+        list::aura_list_push(byte_list, 42);
+        list::aura_list_push(byte_list, 255);
+        list::aura_list_push(byte_list, 1);
+
+        assert_eq!(list::aura_list_len(byte_list), 3);
+        assert_eq!(list::aura_list_get(byte_list, 0), 42);
+        assert_eq!(list::aura_list_get(byte_list, 1), 255);
+        assert_eq!(list::aura_list_get(byte_list, 2), 1);
+
+        list::aura_list_set(byte_list, 1, 0);
+        assert_eq!(list::aura_list_get(byte_list, 1), 0);
+
+        let repeat_byte = list::aura_list_repeat_byte(1, 100);
+        assert_eq!(list::aura_list_len(repeat_byte), 100);
+        assert_eq!(list::aura_list_elem_size(repeat_byte), 1);
+        for i in 0..100 {
+            assert_eq!(list::aura_list_get(repeat_byte, i), 1);
+        }
+        list::aura_list_set(repeat_byte, 50, 0);
+        assert_eq!(list::aura_list_get(repeat_byte, 50), 0);
+
+        list::aura_list_free(byte_list);
+        list::aura_list_free(repeat_byte);
     }
 
     #[test]
@@ -356,7 +392,12 @@ mod tests {
 
         // CREATE TABLE
         let ddl = "CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, balance REAL NOT NULL, active INTEGER DEFAULT 1);";
-        let exec_res = aura_db_exec(pool as *mut (), ddl.as_ptr(), ddl.len(), std::ptr::null_mut());
+        let exec_res = aura_db_exec(
+            pool as *mut (),
+            ddl.as_ptr(),
+            ddl.len(),
+            std::ptr::null_mut(),
+        );
         assert!(!exec_res.is_null());
         assert_eq!(aura_db_exec_rows_affected(exec_res), 0);
         aura_db_exec_free(exec_res);
@@ -367,9 +408,14 @@ mod tests {
         let alice_str = string::aura_string_from_rust_str("Alice");
         list::aura_list_push(params, alice_str as i64);
         list::aura_list_push(params, 1500 as i64); // balance
-        list::aura_list_push(params, 1 as i64);    // active = true
+        list::aura_list_push(params, 1 as i64); // active = true
 
-        let insert_res = aura_db_exec(pool as *mut (), insert_sql.as_ptr(), insert_sql.len(), params);
+        let insert_res = aura_db_exec(
+            pool as *mut (),
+            insert_sql.as_ptr(),
+            insert_sql.len(),
+            params,
+        );
         assert!(!insert_res.is_null());
         assert_eq!(aura_db_exec_rows_affected(insert_res), 1);
         assert_eq!(aura_db_exec_last_insert_id(insert_res), 1);
@@ -382,14 +428,24 @@ mod tests {
         list::aura_list_push(params_bob, 2500 as i64);
         list::aura_list_push(params_bob, 1 as i64);
 
-        let insert_bob_res = aura_db_exec(pool as *mut (), insert_sql.as_ptr(), insert_sql.len(), params_bob);
+        let insert_bob_res = aura_db_exec(
+            pool as *mut (),
+            insert_sql.as_ptr(),
+            insert_sql.len(),
+            params_bob,
+        );
         assert_eq!(aura_db_exec_rows_affected(insert_bob_res), 1);
         assert_eq!(aura_db_exec_last_insert_id(insert_bob_res), 2);
         aura_db_exec_free(insert_bob_res);
 
         // SELECT Query
         let select_sql = "SELECT id, name, balance, active FROM users ORDER BY id ASC;";
-        let rows = aura_db_query(pool as *mut (), select_sql.as_ptr(), select_sql.len(), std::ptr::null_mut());
+        let rows = aura_db_query(
+            pool as *mut (),
+            select_sql.as_ptr(),
+            select_sql.len(),
+            std::ptr::null_mut(),
+        );
         assert!(!rows.is_null());
         assert_eq!(aura_db_rows_col_count(rows), 4);
 
@@ -404,7 +460,10 @@ mod tests {
         let rec1 = aura_db_rows_to_record(rows);
         assert!(!rec1.is_null());
         let rec_name = record::aura_record_get(rec1, "name".as_ptr(), 4);
-        assert_eq!(unsafe { (*(rec_name as *mut string::AuraString)).as_str() }, "Alice");
+        assert_eq!(
+            unsafe { (*(rec_name as *mut string::AuraString)).as_str() },
+            "Alice"
+        );
 
         // Row 2 (Bob)
         assert_eq!(aura_db_rows_next(rows), 1);
@@ -422,7 +481,12 @@ mod tests {
         assert!(!tx.is_null());
 
         let insert_temp = "INSERT INTO users (name, balance) VALUES ('TempUser', 100);";
-        let tx_exec = aura_db_exec(tx as *mut (), insert_temp.as_ptr(), insert_temp.len(), std::ptr::null_mut());
+        let tx_exec = aura_db_exec(
+            tx as *mut (),
+            insert_temp.as_ptr(),
+            insert_temp.len(),
+            std::ptr::null_mut(),
+        );
         aura_db_exec_free(tx_exec);
 
         assert_eq!(aura_db_tx_rollback(tx), 0);
@@ -438,7 +502,10 @@ mod tests {
         // SET & GET
         let k = "session:user:1";
         let v = "token_abc_123";
-        assert_eq!(aura_redis_set(client, k.as_ptr(), k.len(), v.as_ptr(), v.len(), 3600), 1);
+        assert_eq!(
+            aura_redis_set(client, k.as_ptr(), k.len(), v.as_ptr(), v.len(), 3600),
+            1
+        );
         assert_eq!(aura_redis_exists(client, k.as_ptr(), k.len()), 1);
 
         let get_val = aura_redis_get(client, k.as_ptr(), k.len());
@@ -455,7 +522,18 @@ mod tests {
         let h_k = "user:profile:1";
         let f1 = "theme";
         let v1 = "dark";
-        assert_eq!(aura_redis_hset(client, h_k.as_ptr(), h_k.len(), f1.as_ptr(), f1.len(), v1.as_ptr(), v1.len()), 1);
+        assert_eq!(
+            aura_redis_hset(
+                client,
+                h_k.as_ptr(),
+                h_k.len(),
+                f1.as_ptr(),
+                f1.len(),
+                v1.as_ptr(),
+                v1.len()
+            ),
+            1
+        );
 
         let h_got = aura_redis_hget(client, h_k.as_ptr(), h_k.len(), f1.as_ptr(), f1.len());
         assert!(!h_got.is_null());
@@ -464,14 +542,29 @@ mod tests {
         let h_all = aura_redis_hgetall(client, h_k.as_ptr(), h_k.len());
         assert!(!h_all.is_null());
         let theme_str = record::aura_record_get(h_all, f1.as_ptr(), f1.len());
-        assert_eq!(unsafe { (*(theme_str as *mut string::AuraString)).as_str() }, "dark");
+        assert_eq!(
+            unsafe { (*(theme_str as *mut string::AuraString)).as_str() },
+            "dark"
+        );
 
         // LIST: LPUSH, RPOP, LRANGE
         let list_k = "tasks_queue";
         let item1 = "task_alpha";
         let item2 = "task_beta";
-        aura_redis_lpush(client, list_k.as_ptr(), list_k.len(), item1.as_ptr(), item1.len());
-        aura_redis_lpush(client, list_k.as_ptr(), list_k.len(), item2.as_ptr(), item2.len());
+        aura_redis_lpush(
+            client,
+            list_k.as_ptr(),
+            list_k.len(),
+            item1.as_ptr(),
+            item1.len(),
+        );
+        aura_redis_lpush(
+            client,
+            list_k.as_ptr(),
+            list_k.len(),
+            item2.as_ptr(),
+            item2.len(),
+        );
 
         let l_range = aura_redis_lrange(client, list_k.as_ptr(), list_k.len(), 0, -1);
         assert_eq!(list::aura_list_len(l_range), 2);
@@ -534,7 +627,10 @@ mod tests {
         let found_alice = aura_mongo_find_one(col, filter_alice as i64);
         assert!(!found_alice.is_null());
         let got_role = record::aura_record_get(found_alice, "role".as_ptr(), 4);
-        assert_eq!(unsafe { (*(got_role as *mut string::AuraString)).as_str() }, "admin");
+        assert_eq!(
+            unsafe { (*(got_role as *mut string::AuraString)).as_str() },
+            "admin"
+        );
 
         // UpdateOne
         let update_doc = record::aura_record_new();

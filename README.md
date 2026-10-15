@@ -308,7 +308,7 @@ Aura includes an automated, reproducible benchmark suite located in [`benchmarks
 | Evaluated Scenario                      | Aura Lang (`aurac`) | Golang (`go`) |     Ratio (Aura vs Go)      | Aura Memory (RSS) | Go Memory (RSS) |        Status / Aura Advantage        |
 | :-------------------------------------- | :-----------------: | :-----------: | :-------------------------: | :---------------: | :-------------: | :-----------------------------------: |
 | **Recursive Fibonacci ($N=38$)**        |    **149.18 ms**    |   116.49 ms   |    1.28x *(from 1.32x)*     |    **2.83 MB**    |     4.28 MB     |         🏆 **-34.0% less RAM**        |
-| **Sieve of Eratosthenes (2M primes)**   |      16.25 ms       |    9.25 ms    |            1.76x            |     18.14 MB      |     6.28 MB     |     Optimized with SIMD `Array.repeat`|
+| **Sieve of Eratosthenes (2M primes)**   |    **14.61 ms**     |    9.41 ms    |   **1.55x (from 1.76x)**    |    **4.83 MB**    |     6.33 MB     | 🏆 **-23.7% less RAM than Go** (1-byte compact array & `strb`/`ldrb`)|
 | **Functional Pipeline (1M items)**      |      13.01 ms       |    8.39 ms    |            1.55x            |     20.28 MB      |    20.42 MB     |     Parity with Go RAM consumption    |
 | **CSP Ping-Pong Channels (200k msgs)**  |    **29.57 ms**     |   25.41 ms    |   **1.16x (Near Parity)**   |      9.17 MB      |     4.36 MB     |    Optimized fiber stack cache pool   |
 | **Concurrent Spawn (50k tasks)**        |      15.73 ms       |   11.76 ms    |            1.34x            |     11.11 MB      |     6.39 MB     |    Scheduler O(1) + 8192 Stack Pool   |
