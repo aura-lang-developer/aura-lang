@@ -1938,7 +1938,8 @@ impl GoCodeGen {
                             }
                             VariantFields::Record(fields) => {
                                 self.record_variants.insert(variant.name.clone());
-                                self.struct_defs.insert(variant.name.clone(), fields.clone());
+                                self.struct_defs
+                                    .insert(variant.name.clone(), fields.clone());
                             }
                         }
                     }
@@ -2960,7 +2961,10 @@ impl GoCodeGen {
             Expr::IndexAccess { object, index } if self.is_dynamic_expr(object) => {
                 let obj_str = self.emit_expr(object);
                 let idx_str = self.emit_expr(index);
-                format!("__auraSet({}, fmt.Sprint({}), {})", obj_str, idx_str, val_str)
+                format!(
+                    "__auraSet({}, fmt.Sprint({}), {})",
+                    obj_str, idx_str, val_str
+                )
             }
             Expr::MemberAccess { object, member } if self.is_dynamic_expr(object) => {
                 let obj_str = self.emit_expr(object);
@@ -2981,9 +2985,7 @@ impl GoCodeGen {
                 type_annotation,
                 ..
             } => self.emit_let_statement(name, value, type_annotation.as_ref()),
-            Statement::Assign { target, value } => {
-                self.emit_assign_statement(target, value)
-            }
+            Statement::Assign { target, value } => self.emit_assign_statement(target, value),
             Statement::Defer(e) => format!("defer {}", self.emit_expr(e)),
             Statement::ErrDefer(e) => {
                 format!(
@@ -3062,10 +3064,13 @@ impl GoCodeGen {
                                             .iter()
                                             .map(|it| {
                                                 if let Expr::RecordLiteral {
-                                                    fields: it_fields, ..
+                                                    fields: it_fields,
+                                                    ..
                                                 } = it
                                                 {
-                                                    self.emit_typed_record_literal(elem_name, it_fields)
+                                                    self.emit_typed_record_literal(
+                                                        elem_name, it_fields,
+                                                    )
                                                 } else {
                                                     self.emit_expr(it)
                                                 }
@@ -3173,9 +3178,7 @@ impl GoCodeGen {
                 let val_str = self.emit_expr(value);
                 return format!("var {} int64 = {}", name, val_str);
             }
-            if let Type::Named {
-                name: ty_name, ..
-            } = ty {
+            if let Type::Named { name: ty_name, .. } = ty {
                 if self.sum_type_defs.contains_key(ty_name)
                     || self.interface_defs.contains_key(ty_name)
                 {
@@ -3670,7 +3673,9 @@ impl GoCodeGen {
                         self.indent_level -= 1;
                     }
                 }
-                Pattern::Record { type_name, fields, .. } => {
+                Pattern::Record {
+                    type_name, fields, ..
+                } => {
                     let rec_name = type_name.clone().unwrap_or_else(|| {
                         let fnames: std::collections::HashSet<String> =
                             fields.iter().map(|(n, _)| n.clone()).collect();
@@ -3706,7 +3711,10 @@ impl GoCodeGen {
                         self.write_line(&format!("if any({}) == any({}) {{", subj, lit_str));
                         first_emitted = true;
                     } else {
-                        self.write_line(&format!("}} else if any({}) == any({}) {{", subj, lit_str));
+                        self.write_line(&format!(
+                            "}} else if any({}) == any({}) {{",
+                            subj, lit_str
+                        ));
                     }
                     self.indent_level += 1;
                     self.emit_statement_or_expr(&arm.body);
@@ -3783,11 +3791,7 @@ impl GoCodeGen {
                         type_annotation,
                         ..
                     } => {
-                        lines.push(self.emit_let_statement(
-                            name,
-                            value,
-                            type_annotation.as_ref(),
-                        ));
+                        lines.push(self.emit_let_statement(name, value, type_annotation.as_ref()));
                         if is_last {
                             lines.push(format_ret("unit".to_string()));
                         }
@@ -4068,7 +4072,11 @@ impl GoCodeGen {
                                 let count_str = self.emit_expr(&args[1]);
                                 return format!("__auraArrayRepeat({}, {})", item_str, count_str);
                             }
-                            if (member == "with_capacity" || member == "withCapacity" || member == "new") && !args.is_empty() {
+                            if (member == "with_capacity"
+                                || member == "withCapacity"
+                                || member == "new")
+                                && !args.is_empty()
+                            {
                                 let cap_str = self.emit_expr(&args[0]);
                                 return format!("make([]any, 0, {})", cap_str);
                             }
@@ -4620,11 +4628,16 @@ impl GoCodeGen {
                                 }
                                 arm_strs.push(format!(
                                     "if __v, __ok := any({}).({}Kind); __ok {{ {} {} }}",
-                                    subj, name, binds.join(" "), arm_body
+                                    subj,
+                                    name,
+                                    binds.join(" "),
+                                    arm_body
                                 ));
                             }
                         }
-                        Pattern::Record { type_name, fields, .. } => {
+                        Pattern::Record {
+                            type_name, fields, ..
+                        } => {
                             let rec_name = type_name.clone().unwrap_or_else(|| {
                                 let fnames: std::collections::HashSet<String> =
                                     fields.iter().map(|(n, _)| n.clone()).collect();
@@ -4639,19 +4652,28 @@ impl GoCodeGen {
                             for (fname, fpat) in fields {
                                 if let Pattern::Variable(vname) = fpat {
                                     let cap_field = capitalize(fname);
-                                    binds.push(format!("{} := __rec.{}; _ = {};", vname, cap_field, vname));
+                                    binds.push(format!(
+                                        "{} := __rec.{}; _ = {};",
+                                        vname, cap_field, vname
+                                    ));
                                 }
                             }
                             let arm_body = self.emit_arm_return_expr(&arm.body);
                             arm_strs.push(format!(
                                 "if __rec, __ok := any({}).({}); __ok {{ _ = __rec; {} {} }}",
-                                subj, rec_name, binds.join(" "), arm_body
+                                subj,
+                                rec_name,
+                                binds.join(" "),
+                                arm_body
                             ));
                         }
                         Pattern::Literal(lit) => {
                             let lit_str = self.emit_expr(&Expr::Literal(lit.clone()));
                             let arm_body = self.emit_arm_return_expr(&arm.body);
-                            arm_strs.push(format!("if any({}) == any({}) {{ {} }}", subj, lit_str, arm_body));
+                            arm_strs.push(format!(
+                                "if any({}) == any({}) {{ {} }}",
+                                subj, lit_str, arm_body
+                            ));
                         }
                         Pattern::Wildcard => {
                             let arm_body = self.emit_arm_return_expr(&arm.body);
@@ -4671,13 +4693,29 @@ impl GoCodeGen {
                     && arms.iter().any(|a| self.expr_returns_result(&a.body));
                 let ret_ty = if returns_res {
                     "auraResult"
-                } else if !arms.is_empty() && arms.iter().all(|a| self.infer_expr_go_type(&a.body) == Some("string")) {
+                } else if !arms.is_empty()
+                    && arms
+                        .iter()
+                        .all(|a| self.infer_expr_go_type(&a.body) == Some("string"))
+                {
                     "string"
-                } else if !arms.is_empty() && arms.iter().all(|a| self.infer_expr_go_type(&a.body) == Some("bool")) {
+                } else if !arms.is_empty()
+                    && arms
+                        .iter()
+                        .all(|a| self.infer_expr_go_type(&a.body) == Some("bool"))
+                {
                     "bool"
-                } else if !arms.is_empty() && arms.iter().all(|a| self.infer_expr_go_type(&a.body) == Some("int64")) {
+                } else if !arms.is_empty()
+                    && arms
+                        .iter()
+                        .all(|a| self.infer_expr_go_type(&a.body) == Some("int64"))
+                {
                     "int64"
-                } else if !arms.is_empty() && arms.iter().all(|a| self.infer_expr_go_type(&a.body) == Some("float64")) {
+                } else if !arms.is_empty()
+                    && arms
+                        .iter()
+                        .all(|a| self.infer_expr_go_type(&a.body) == Some("float64"))
+                {
                     "float64"
                 } else {
                     "any"
@@ -4691,7 +4729,9 @@ impl GoCodeGen {
                     "auraUnit" | "()" => "return",
                     _ => "return nil",
                 };
-                let has_catch_all = arms.iter().any(|a| matches!(a.pattern, Pattern::Wildcard | Pattern::Variable(_)));
+                let has_catch_all = arms
+                    .iter()
+                    .any(|a| matches!(a.pattern, Pattern::Wildcard | Pattern::Variable(_)));
                 let body = if has_catch_all {
                     arm_strs.join(" else ")
                 } else if arm_strs.is_empty() {
@@ -4699,11 +4739,7 @@ impl GoCodeGen {
                 } else {
                     format!("{} else {{ {} }}", arm_strs.join(" else "), zero_val)
                 };
-                format!(
-                    "func() {} {{ {} }}()",
-                    ret_ty,
-                    body
-                )
+                format!("func() {} {{ {} }}()", ret_ty, body)
             }
             Expr::Await(inner) | Expr::Async(inner) => self.emit_expr(inner),
             Expr::Spawn(inner) => {

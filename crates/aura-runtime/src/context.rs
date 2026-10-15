@@ -170,7 +170,8 @@ impl Drop for FiberStack {
         {
             if !self.mmap_ptr.is_null() {
                 let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize }.max(4096);
-                let default_aligned = ((DEFAULT_STACK_SIZE + page_size - 1) / page_size) * page_size;
+                let default_aligned =
+                    ((DEFAULT_STACK_SIZE + page_size - 1) / page_size) * page_size;
                 if self.size == default_aligned {
                     if let Ok(mut pool) = STACK_POOL.lock() {
                         if pool.len() < MAX_STACK_POOL {

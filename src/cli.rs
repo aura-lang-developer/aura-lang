@@ -344,7 +344,6 @@ impl CliCommand for TestCommand {
     }
 }
 
-
 const DEBUGGER_RUNNER_SCRIPT: &str = include_str!("debugger.js");
 
 pub fn run_cli(args: &[String]) {
@@ -362,7 +361,9 @@ pub fn run_cli(args: &[String]) {
         let test_args: Vec<String> = args
             .iter()
             .skip(1)
-            .filter(|a| *a != "test" && *a != "--test" && *a != "-test" && *a != "run" && *a != "build")
+            .filter(|a| {
+                *a != "test" && *a != "--test" && *a != "-test" && *a != "run" && *a != "build"
+            })
             .cloned()
             .collect();
         let cmd = TestCommand { args: test_args };

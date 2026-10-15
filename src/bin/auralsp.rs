@@ -4,7 +4,10 @@ use aura_lang::lsp::LspServer;
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    if args.iter().any(|a| a == "--version" || a == "-V" || a == "version") {
+    if args
+        .iter()
+        .any(|a| a == "--version" || a == "-V" || a == "version")
+    {
         println!("auralsp {}", env!("CARGO_PKG_VERSION"));
         return;
     }

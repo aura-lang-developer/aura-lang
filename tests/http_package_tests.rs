@@ -38,10 +38,22 @@ fn test_native_http_package_typecheck_and_imports() {
     assert!(res.js_code.contains("__AuraHttpRequest"));
     assert!(res.js_code.contains("__AuraHttpResponse"));
     assert!(res.js_code.contains("__AuraResponseWriter"));
-    assert!(res.js_code.contains("export const Request = __AuraHttpRequest;"));
-    assert!(res.js_code.contains("export const Response = __AuraHttpResponse;"));
-    assert!(res.js_code.contains("export const ResponseWriter = __AuraResponseWriter;"));
-    assert!(res.js_code.contains("export const Server = __AuraServeMux;"));
+    assert!(
+        res.js_code
+            .contains("export const Request = __AuraHttpRequest;")
+    );
+    assert!(
+        res.js_code
+            .contains("export const Response = __AuraHttpResponse;")
+    );
+    assert!(
+        res.js_code
+            .contains("export const ResponseWriter = __AuraResponseWriter;")
+    );
+    assert!(
+        res.js_code
+            .contains("export const Server = __AuraServeMux;")
+    );
     assert!(res.dts_code.contains("export interface HttpRequest"));
     assert!(res.dts_code.contains("export interface ResponseWriter"));
     assert!(res.dts_code.contains("export declare const Response:"));
@@ -68,7 +80,8 @@ fn test_native_http_struct_receiver_handler() {
         });
     "#;
 
-    let res = compile(source, &[]).expect("Compilation of struct receiver HTTP handler should succeed");
+    let res =
+        compile(source, &[]).expect("Compilation of struct receiver HTTP handler should succeed");
     assert!(res.js_code.contains("api.Handle(req, res)"));
 }
 
@@ -93,7 +106,8 @@ fn test_native_http_golang_codegen() {
         });
     "#;
 
-    let go_code = compile_to_go(source).expect("Golang transpilation should succeed for native HTTP package");
+    let go_code =
+        compile_to_go(source).expect("Golang transpilation should succeed for native HTTP package");
 
     assert!(go_code.contains("type ResponseWriter = auraResponse"));
     assert!(go_code.contains("var Response = auraResponseStatic{}"));

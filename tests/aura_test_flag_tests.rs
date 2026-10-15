@@ -40,11 +40,7 @@ fn test_aura_file_then_test_flag() {
 #[test]
 fn test_aura_test_flag_coverage() {
     let output = Command::new(env!("CARGO_BIN_EXE_aura"))
-        .args([
-            "--test",
-            "--coverage",
-            "examples/tests/math_unit_test.aura",
-        ])
+        .args(["--test", "--coverage", "examples/tests/math_unit_test.aura"])
         .output()
         .expect("Failed to execute aura --test --coverage");
 

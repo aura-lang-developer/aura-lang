@@ -718,31 +718,28 @@ impl TypeEnv {
                 f.insert(
                     "repeat".to_string(),
                     ConcreteType::Function {
-                        params: vec![
-                            ConcreteType::TypeVar("T".to_string()),
-                            ConcreteType::Int,
-                        ],
-                        return_type: Box::new(ConcreteType::List(Box::new(
-                            ConcreteType::TypeVar("T".to_string()),
-                        ))),
+                        params: vec![ConcreteType::TypeVar("T".to_string()), ConcreteType::Int],
+                        return_type: Box::new(ConcreteType::List(Box::new(ConcreteType::TypeVar(
+                            "T".to_string(),
+                        )))),
                     },
                 );
                 f.insert(
                     "with_capacity".to_string(),
                     ConcreteType::Function {
                         params: vec![ConcreteType::Int],
-                        return_type: Box::new(ConcreteType::List(Box::new(
-                            ConcreteType::TypeVar("T".to_string()),
-                        ))),
+                        return_type: Box::new(ConcreteType::List(Box::new(ConcreteType::TypeVar(
+                            "T".to_string(),
+                        )))),
                     },
                 );
                 f.insert(
                     "new".to_string(),
                     ConcreteType::Function {
                         params: vec![ConcreteType::Int],
-                        return_type: Box::new(ConcreteType::List(Box::new(
-                            ConcreteType::TypeVar("T".to_string()),
-                        ))),
+                        return_type: Box::new(ConcreteType::List(Box::new(ConcreteType::TypeVar(
+                            "T".to_string(),
+                        )))),
                     },
                 );
                 f
@@ -1792,8 +1789,10 @@ impl TypeEnv {
         let response_writer_type = ConcreteType::Record(rw_methods.clone());
         env.types
             .insert("ResponseWriter".to_string(), response_writer_type.clone());
-        env.types
-            .insert("http.ResponseWriter".to_string(), response_writer_type.clone());
+        env.types.insert(
+            "http.ResponseWriter".to_string(),
+            response_writer_type.clone(),
+        );
         env.variables
             .insert("ResponseWriter".to_string(), response_writer_type.clone());
 
@@ -1810,9 +1809,9 @@ impl TypeEnv {
             name: "Handler".to_string(),
             methods: handler_methods,
         };
-        env.types.insert("Handler".to_string(), handler_type.clone());
         env.types
-            .insert("http.Handler".to_string(), handler_type);
+            .insert("Handler".to_string(), handler_type.clone());
+        env.types.insert("http.Handler".to_string(), handler_type);
 
         // --- 5. ServeMux & Server ---
         let mut serve_mux_methods = HashMap::new();
@@ -2169,11 +2168,23 @@ impl TypeEnv {
         http_methods.insert("ResponseWriter".to_string(), response_writer_type);
 
         let http_status_names = [
-            "StatusOK", "StatusCreated", "StatusAccepted", "StatusNoContent",
-            "StatusMovedPermanently", "StatusFound", "StatusSeeOther", "StatusBadRequest",
-            "StatusUnauthorized", "StatusForbidden", "StatusNotFound", "StatusMethodNotAllowed",
-            "StatusConflict", "StatusUnprocessableEntity", "StatusInternalServerError",
-            "StatusBadGateway", "StatusServiceUnavailable",
+            "StatusOK",
+            "StatusCreated",
+            "StatusAccepted",
+            "StatusNoContent",
+            "StatusMovedPermanently",
+            "StatusFound",
+            "StatusSeeOther",
+            "StatusBadRequest",
+            "StatusUnauthorized",
+            "StatusForbidden",
+            "StatusNotFound",
+            "StatusMethodNotAllowed",
+            "StatusConflict",
+            "StatusUnprocessableEntity",
+            "StatusInternalServerError",
+            "StatusBadGateway",
+            "StatusServiceUnavailable",
         ];
         for s in http_status_names {
             env.variables.insert(s.to_string(), ConcreteType::Int);
@@ -2800,8 +2811,7 @@ impl TypeEnv {
         let sql_rows_type = ConcreteType::Record(sql_rows_methods);
         env.types
             .insert("SqlRows".to_string(), sql_rows_type.clone());
-        env.types
-            .insert("Rows".to_string(), sql_rows_type.clone());
+        env.types.insert("Rows".to_string(), sql_rows_type.clone());
 
         let mut sql_exec_result_fields = HashMap::new();
         sql_exec_result_fields.insert("rowsAffected".to_string(), ConcreteType::Int);
@@ -2857,10 +2867,8 @@ impl TypeEnv {
             },
         );
         let sql_tx_type = ConcreteType::Record(sql_tx_methods);
-        env.types
-            .insert("SqlTx".to_string(), sql_tx_type.clone());
-        env.types
-            .insert("Tx".to_string(), sql_tx_type.clone());
+        env.types.insert("SqlTx".to_string(), sql_tx_type.clone());
+        env.types.insert("Tx".to_string(), sql_tx_type.clone());
 
         let mut sql_db_methods = HashMap::new();
         sql_db_methods.insert(
@@ -2906,12 +2914,9 @@ impl TypeEnv {
             },
         );
         let sql_db_type = ConcreteType::Record(sql_db_methods);
-        env.types
-            .insert("SqlDB".to_string(), sql_db_type.clone());
-        env.types
-            .insert("DB".to_string(), sql_db_type.clone());
-        env.types
-            .insert("SqlPool".to_string(), sql_db_type.clone());
+        env.types.insert("SqlDB".to_string(), sql_db_type.clone());
+        env.types.insert("DB".to_string(), sql_db_type.clone());
+        env.types.insert("SqlPool".to_string(), sql_db_type.clone());
 
         let mut sqlite_module_methods = HashMap::new();
         sqlite_module_methods.insert(
@@ -2949,8 +2954,7 @@ impl TypeEnv {
             .insert("SqlModule".to_string(), sql_module_type.clone());
         env.variables
             .insert("sql".to_string(), sql_module_type.clone());
-        env.variables
-            .insert("db".to_string(), sql_module_type);
+        env.variables.insert("db".to_string(), sql_module_type);
 
         // MongoDB Database Standard Library Integration
         let mut mongo_insert_result_fields = HashMap::new();
@@ -3534,11 +3538,7 @@ impl TypeEnv {
         redis_client_methods.insert(
             "lrange".to_string(),
             ConcreteType::Function {
-                params: vec![
-                    ConcreteType::String,
-                    ConcreteType::Int,
-                    ConcreteType::Int,
-                ],
+                params: vec![ConcreteType::String, ConcreteType::Int, ConcreteType::Int],
                 return_type: Box::new(ConcreteType::Task(
                     Box::new(ConcreteType::Result(
                         Box::new(ConcreteType::List(Box::new(ConcreteType::String))),
@@ -3999,7 +3999,9 @@ impl TypeChecker {
                                 self.env.insert_var(target_name.clone(), var_ty);
                             } else if item.name.starts_with("Status") {
                                 self.env.insert_var(target_name.clone(), ConcreteType::Int);
-                            } else if let Some(ConcreteType::Record(fields)) = self.env.lookup_var("http") {
+                            } else if let Some(ConcreteType::Record(fields)) =
+                                self.env.lookup_var("http")
+                            {
                                 if let Some(field_ty) = fields.get(&item.name) {
                                     self.env.insert_var(target_name.clone(), field_ty.clone());
                                 }
@@ -4291,16 +4293,13 @@ impl TypeChecker {
                     let resolved_args: Result<Vec<ConcreteType>, String> =
                         type_args.iter().map(|t| self.resolve_ast_type(t)).collect();
                     let resolved_args = resolved_args?;
-                    let lookup = self
-                        .env
-                        .lookup_type(custom)
-                        .or_else(|| {
-                            if custom.starts_with("http.") {
-                                self.env.lookup_type(&custom["http.".len()..])
-                            } else {
-                                None
-                            }
-                        });
+                    let lookup = self.env.lookup_type(custom).or_else(|| {
+                        if custom.starts_with("http.") {
+                            self.env.lookup_type(&custom["http.".len()..])
+                        } else {
+                            None
+                        }
+                    });
                     if let Some(ty) = lookup {
                         if let ConcreteType::Generic(params, inner) = ty {
                             if params.len() == resolved_args.len() {

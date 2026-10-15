@@ -890,7 +890,9 @@ mod tests {
     fn test_compound_assignment_operators() {
         let input = "+= -= *= /= %=";
         let mut lexer = Lexer::new(input);
-        let tokens = lexer.tokenize().expect("failed to tokenize compound assignment");
+        let tokens = lexer
+            .tokenize()
+            .expect("failed to tokenize compound assignment");
         let kinds: Vec<TokenKind> = tokens.into_iter().map(|t| t.kind).collect();
         assert_eq!(
             kinds,

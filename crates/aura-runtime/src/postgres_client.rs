@@ -300,9 +300,8 @@ impl PgConnection {
                         columns.clear();
                         for _ in 0..num_fields {
                             if let Some(pos) = body[offset..].iter().position(|&b| b == 0) {
-                                let col_name =
-                                    String::from_utf8_lossy(&body[offset..offset + pos])
-                                        .to_string();
+                                let col_name = String::from_utf8_lossy(&body[offset..offset + pos])
+                                    .to_string();
                                 columns.push(col_name);
                                 offset += pos + 1 + 18; // name + null + table_oid(4) + col_attr(2) + type_oid(4) + type_len(2) + type_mod(4) + format(2)
                             }
@@ -330,8 +329,7 @@ impl PgConnection {
                                 } else {
                                     let len = col_len as usize;
                                     let val_bytes = &body[offset..offset + len];
-                                    let val_str =
-                                        String::from_utf8_lossy(val_bytes).to_string();
+                                    let val_str = String::from_utf8_lossy(val_bytes).to_string();
                                     offset += len;
                                     row_vals.push(Some(val_str));
                                 }
@@ -471,9 +469,9 @@ fn md5_hash(input: &[u8]) -> [u8; 16] {
     ];
 
     let r: [u32; 64] = [
-        7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 5, 9, 14, 20, 5, 9, 14, 20,
-        5, 9, 14, 20, 5, 9, 14, 20, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
-        6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21,
+        7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 5, 9, 14, 20, 5, 9, 14, 20, 5,
+        9, 14, 20, 5, 9, 14, 20, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 6, 10,
+        15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21,
     ];
 
     let bit_len = (input.len() as u64) * 8;

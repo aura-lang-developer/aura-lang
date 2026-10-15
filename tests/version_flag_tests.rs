@@ -9,7 +9,10 @@ fn test_aurac_version_flag() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert_eq!(stdout.trim(), format!("aurac {}", env!("CARGO_PKG_VERSION")));
+    assert_eq!(
+        stdout.trim(),
+        format!("aurac {}", env!("CARGO_PKG_VERSION"))
+    );
 }
 
 #[test]
@@ -21,7 +24,10 @@ fn test_aurac_short_v_flag() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert_eq!(stdout.trim(), format!("aurac {}", env!("CARGO_PKG_VERSION")));
+    assert_eq!(
+        stdout.trim(),
+        format!("aurac {}", env!("CARGO_PKG_VERSION"))
+    );
 }
 
 #[test]
@@ -33,7 +39,10 @@ fn test_aurac_capital_v_flag() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert_eq!(stdout.trim(), format!("aurac {}", env!("CARGO_PKG_VERSION")));
+    assert_eq!(
+        stdout.trim(),
+        format!("aurac {}", env!("CARGO_PKG_VERSION"))
+    );
 }
 
 #[test]
@@ -45,7 +54,10 @@ fn test_aurac_version_subcommand() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert_eq!(stdout.trim(), format!("aurac {}", env!("CARGO_PKG_VERSION")));
+    assert_eq!(
+        stdout.trim(),
+        format!("aurac {}", env!("CARGO_PKG_VERSION"))
+    );
 }
 
 #[test]
@@ -147,4 +159,3 @@ fn test_aura_subcommands_version_flag() {
         );
     }
 }
-

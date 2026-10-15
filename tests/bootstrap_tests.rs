@@ -193,10 +193,7 @@ fn test_bootstrap_stage5_go_target_codegen() {
         .status()
         .expect("Failed to execute node dist/aurac.mjs --target go");
 
-    assert!(
-        compile_status.success(),
-        "Self-hosted Go codegen failed"
-    );
+    assert!(compile_status.success(), "Self-hosted Go codegen failed");
     assert!(
         fs::metadata(go_out).is_ok(),
         "Generated Go file does not exist"
@@ -214,5 +211,3 @@ fn test_bootstrap_stage5_go_target_codegen() {
 
     let _ = fs::remove_file(go_out);
 }
-
-

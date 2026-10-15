@@ -93,11 +93,7 @@ fn test_aurac_test_flag_filter() {
 #[test]
 fn test_aurac_test_flag_verbose() {
     let output = Command::new(env!("CARGO_BIN_EXE_aurac"))
-        .args([
-            "examples/tests/math_unit_test.aura",
-            "--test",
-            "-v",
-        ])
+        .args(["examples/tests/math_unit_test.aura", "--test", "-v"])
         .output()
         .expect("Failed to execute aurac <file> --test -v");
 
@@ -113,11 +109,7 @@ fn test_aurac_test_flag_verbose() {
 #[test]
 fn test_aurac_test_flag_coverage() {
     let output = Command::new(env!("CARGO_BIN_EXE_aurac"))
-        .args([
-            "--test",
-            "--coverage",
-            "examples/tests/math_unit_test.aura",
-        ])
+        .args(["--test", "--coverage", "examples/tests/math_unit_test.aura"])
         .output()
         .expect("Failed to execute aurac --test --coverage");
 
@@ -133,4 +125,3 @@ fn test_aurac_test_flag_coverage() {
         "Output should include overall coverage percentage"
     );
 }
-

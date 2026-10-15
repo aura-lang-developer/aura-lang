@@ -675,7 +675,10 @@ impl AuraBindgen {
 
 /// CLI runner for `aurac bindgen` or standalone `aurabindgen`.
 pub fn run_cli(args: &[String]) {
-    if args.iter().any(|a| a == "--version" || a == "-V" || a == "version") {
+    if args
+        .iter()
+        .any(|a| a == "--version" || a == "-V" || a == "version")
+    {
         println!("aurabindgen {}", env!("CARGO_PKG_VERSION"));
         return;
     }

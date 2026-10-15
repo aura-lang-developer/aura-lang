@@ -76,7 +76,11 @@ fn test_native_cranelift_release_mode() {
 
     let out_bin = Path::new("test_cranelift_release_bin");
     let res = aura_lang::build_native_binary_with_options(source, out_bin, None, None, true);
-    assert!(res.is_ok(), "Native release compilation failed: {:?}", res.err());
+    assert!(
+        res.is_ok(),
+        "Native release compilation failed: {:?}",
+        res.err()
+    );
     assert!(out_bin.exists());
 
     let output = Command::new("./test_cranelift_release_bin")
@@ -89,4 +93,3 @@ fn test_native_cranelift_release_mode() {
     assert!(stdout.contains("Hello from Cranelift Release Binary!"));
     assert!(stdout.contains("350"));
 }
-

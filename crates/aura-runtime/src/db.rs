@@ -4,7 +4,9 @@
 use crate::list::{AuraList, aura_list_get, aura_list_len, aura_list_new, aura_list_push};
 use crate::mysql_client::{MySqlConfig, MySqlConnection};
 use crate::postgres_client::{PgConfig, PgConnection};
-use crate::record::{AuraRecord, AuraVal, aura_record_new, aura_record_set_val, infer_val_from_i64};
+use crate::record::{
+    AuraRecord, AuraVal, aura_record_new, aura_record_set_val, infer_val_from_i64,
+};
 use crate::string::{AuraString, aura_string_from_rust_str};
 use rusqlite::types::{Value, ValueRef};
 use rusqlite::{Connection as SqliteConnection, params_from_iter};
@@ -70,14 +72,17 @@ impl AuraDbPool {
     fn create_connection(&self) -> Result<AuraDbConn, String> {
         match self.driver.to_lowercase().as_str() {
             "sqlite" | "sqlite3" => {
-                let conn = if self.dsn.is_empty() || self.dsn == ":memory:" || self.dsn == "memory://" {
-                    SqliteConnection::open_in_memory()
-                        .map_err(|e| format!("Failed to open in-memory SQLite database: {}", e))?
-                } else {
-                    let path = self.dsn.strip_prefix("sqlite://").unwrap_or(&self.dsn);
-                    SqliteConnection::open(path)
-                        .map_err(|e| format!("Failed to open SQLite database at '{}': {}", path, e))?
-                };
+                let conn =
+                    if self.dsn.is_empty() || self.dsn == ":memory:" || self.dsn == "memory://" {
+                        SqliteConnection::open_in_memory().map_err(|e| {
+                            format!("Failed to open in-memory SQLite database: {}", e)
+                        })?
+                    } else {
+                        let path = self.dsn.strip_prefix("sqlite://").unwrap_or(&self.dsn);
+                        SqliteConnection::open(path).map_err(|e| {
+                            format!("Failed to open SQLite database at '{}': {}", path, e)
+                        })?
+                    };
 
                 // Enable foreign keys and WAL mode for better concurrency
                 let _ = conn.execute_batch("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;");
@@ -99,7 +104,10 @@ impl AuraDbPool {
                     backend: DbBackend::MySql(mysql),
                 })
             }
-            other => Err(format!("Unsupported database driver: '{}'. Supported drivers: 'sqlite', 'postgres', 'mysql'", other)),
+            other => Err(format!(
+                "Unsupported database driver: '{}'. Supported drivers: 'sqlite', 'postgres', 'mysql'",
+                other
+            )),
         }
     }
 
@@ -197,7 +205,11 @@ pub extern "C" fn aura_db_open(
 }
 
 #[unsafe(no_mangle)]
-fn execute_query_on_conn(conn: &mut AuraDbConn, sql: &str, params: *mut AuraList) -> Result<AuraDbRows, String> {
+fn execute_query_on_conn(
+    conn: &mut AuraDbConn,
+    sql: &str,
+    params: *mut AuraList,
+) -> Result<AuraDbRows, String> {
     match &mut conn.backend {
         DbBackend::Sqlite(sqlite) => {
             let sql_params = extract_aura_params(params);
@@ -302,7 +314,11 @@ fn execute_query_on_conn(conn: &mut AuraDbConn, sql: &str, params: *mut AuraList
     }
 }
 
-fn execute_exec_on_conn(conn: &mut AuraDbConn, sql: &str, params: *mut AuraList) -> Result<(i64, i64), String> {
+fn execute_exec_on_conn(
+    conn: &mut AuraDbConn,
+    sql: &str,
+    params: *mut AuraList,
+) -> Result<(i64, i64), String> {
     match &mut conn.backend {
         DbBackend::Sqlite(sqlite) => {
             let sql_params = extract_aura_params(params);
@@ -471,14 +487,19 @@ pub extern "C" fn aura_db_begin(pool: *mut AuraDbPool) -> *mut AuraDbTx {
     let mut conn = match pool_clone.acquire() {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("[Aura DB Error] Failed to acquire connection for transaction: {}", e);
+            eprintln!(
+                "[Aura DB Error] Failed to acquire connection for transaction: {}",
+                e
+            );
             return std::ptr::null_mut();
         }
     };
 
     // Execute BEGIN
     let begin_res = match &mut conn.backend {
-        DbBackend::Sqlite(sqlite) => sqlite.execute_batch("BEGIN TRANSACTION;").map_err(|e| e.to_string()),
+        DbBackend::Sqlite(sqlite) => sqlite
+            .execute_batch("BEGIN TRANSACTION;")
+            .map_err(|e| e.to_string()),
         DbBackend::Postgres(pg) => pg.query("BEGIN;").map(|_| ()),
         DbBackend::MySql(mysql) => mysql.query("START TRANSACTION;").map(|_| ()),
     };
@@ -539,7 +560,9 @@ pub extern "C" fn aura_db_tx_rollback(tx: *mut AuraDbTx) -> i32 {
 
         let mut conn = t.conn.take().unwrap();
         let res = match &mut conn.backend {
-            DbBackend::Sqlite(sqlite) => sqlite.execute_batch("ROLLBACK;").map_err(|e| e.to_string()),
+            DbBackend::Sqlite(sqlite) => {
+                sqlite.execute_batch("ROLLBACK;").map_err(|e| e.to_string())
+            }
             DbBackend::Postgres(pg) => pg.query("ROLLBACK;").map(|_| ()),
             DbBackend::MySql(mysql) => mysql.query("ROLLBACK;").map(|_| ()),
         };
@@ -615,7 +638,13 @@ pub extern "C" fn aura_db_rows_get_val(rows: *mut AuraDbRows, idx: i32) -> i64 {
                 return match &row[idx as usize] {
                     AuraVal::Int(n) => *n,
                     AuraVal::Float(f) => *f as i64,
-                    AuraVal::Bool(b) => if *b { 1 } else { 0 },
+                    AuraVal::Bool(b) => {
+                        if *b {
+                            1
+                        } else {
+                            0
+                        }
+                    }
                     AuraVal::String(s) => *s as i64,
                     AuraVal::Record(rec) => *rec as i64,
                     AuraVal::List(l) => *l as i64,
@@ -641,7 +670,9 @@ pub extern "C" fn aura_db_rows_get_str(rows: *mut AuraDbRows, idx: i32) -> *mut 
                     AuraVal::String(s) => *s,
                     AuraVal::Int(n) => aura_string_from_rust_str(&n.to_string()),
                     AuraVal::Float(f) => aura_string_from_rust_str(&f.to_string()),
-                    AuraVal::Bool(b) => aura_string_from_rust_str(if *b { "true" } else { "false" }),
+                    AuraVal::Bool(b) => {
+                        aura_string_from_rust_str(if *b { "true" } else { "false" })
+                    }
                     _ => aura_string_from_rust_str(""),
                 };
             }
@@ -663,7 +694,13 @@ pub extern "C" fn aura_db_rows_get_i64(rows: *mut AuraDbRows, idx: i32) -> i64 {
                 return match &row[idx as usize] {
                     AuraVal::Int(n) => *n,
                     AuraVal::Float(f) => *f as i64,
-                    AuraVal::Bool(b) => if *b { 1 } else { 0 },
+                    AuraVal::Bool(b) => {
+                        if *b {
+                            1
+                        } else {
+                            0
+                        }
+                    }
                     AuraVal::String(s) => {
                         if !s.is_null() {
                             (**s).as_str().parse().unwrap_or(0)
@@ -890,11 +927,14 @@ pub extern "C" fn aura_db_ping(pool: *mut AuraDbPool) -> i64 {
     }
     let type_id = crate::gc::lookup_valid_ptr(pool as usize);
     if type_id == Some(crate::gc::TYPE_REDIS_CLIENT) {
-        let pong = crate::redis_client::aura_redis_ping(pool as *mut crate::redis_client::AuraRedisClient);
+        let pong =
+            crate::redis_client::aura_redis_ping(pool as *mut crate::redis_client::AuraRedisClient);
         return pong as i64;
     }
     if type_id == Some(crate::gc::TYPE_MONGO_CLIENT) {
-        return crate::mongo_client::aura_mongo_ping(pool as *mut crate::mongo_client::AuraMongoClient) as i64;
+        return crate::mongo_client::aura_mongo_ping(
+            pool as *mut crate::mongo_client::AuraMongoClient,
+        ) as i64;
     }
     unsafe {
         let pool_arc = Arc::from_raw(pool);
@@ -910,4 +950,3 @@ pub extern "C" fn aura_db_ping(pool: *mut AuraDbPool) -> i64 {
         }
     }
 }
-

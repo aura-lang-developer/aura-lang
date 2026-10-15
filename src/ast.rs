@@ -230,10 +230,7 @@ impl std::fmt::Display for Type {
                 }
             }
             Type::Record(fields) => {
-                let fs: Vec<String> = fields
-                    .iter()
-                    .map(|(k, v)| format!("{k}: {v}"))
-                    .collect();
+                let fs: Vec<String> = fields.iter().map(|(k, v)| format!("{k}: {v}")).collect();
                 write!(f, "{{ {} }}", fs.join(", "))
             }
             Type::Tuple(elems) => {

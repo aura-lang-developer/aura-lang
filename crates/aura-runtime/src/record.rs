@@ -2,8 +2,8 @@
 
 use crate::list::{AuraList, aura_list_get, aura_list_len};
 use crate::string::{AuraString, aura_string_from_rust_str};
-use serde_json::{Map, Number, Value as JsonValue};
 use rustc_hash::FxHashMap;
+use serde_json::{Map, Number, Value as JsonValue};
 use std::slice;
 use std::str;
 
@@ -152,12 +152,7 @@ pub extern "C" fn aura_record_set_list(
     }
 }
 
-pub fn aura_record_set_val(
-    rec: *mut AuraRecord,
-    key_ptr: *const u8,
-    key_len: usize,
-    val: AuraVal,
-) {
+pub fn aura_record_set_val(rec: *mut AuraRecord, key_ptr: *const u8, key_len: usize, val: AuraVal) {
     if rec.is_null() || key_ptr.is_null() || key_len == 0 {
         return;
     }

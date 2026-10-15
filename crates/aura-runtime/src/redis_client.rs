@@ -6,9 +6,9 @@
 //! - Automatic fallback to embedded mode when running standalone without external daemon.
 //! - Zero external dynamic library dependencies.
 
-use crate::list::{aura_list_new, aura_list_push, AuraList};
-use crate::record::{aura_record_new, aura_record_set_str, AuraRecord};
-use crate::string::{aura_string_from_rust_str, AuraString};
+use crate::list::{AuraList, aura_list_new, aura_list_push};
+use crate::record::{AuraRecord, aura_record_new, aura_record_set_str};
+use crate::string::{AuraString, aura_string_from_rust_str};
 use rustc_hash::FxHashMap;
 use std::collections::VecDeque;
 use std::io::{Read, Write};
@@ -56,14 +56,26 @@ impl AuraRedisClient {
         let (host, port) = if let Some(idx) = cleaned.find(':') {
             let (h, p) = cleaned.split_at(idx);
             let port_str = &p[1..];
-            let port_num: u16 = port_str.split('/').next().unwrap_or("6379").parse().unwrap_or(6379);
+            let port_num: u16 = port_str
+                .split('/')
+                .next()
+                .unwrap_or("6379")
+                .parse()
+                .unwrap_or(6379);
             (h, port_num)
         } else {
             (cleaned.split('/').next().unwrap_or("127.0.0.1"), 6379)
         };
 
-        let addr = format!("{}:{}", if host.is_empty() { "127.0.0.1" } else { host }, port);
-        match TcpStream::connect_timeout(&addr.parse().unwrap_or("127.0.0.1:6379".parse().unwrap()), Duration::from_millis(500)) {
+        let addr = format!(
+            "{}:{}",
+            if host.is_empty() { "127.0.0.1" } else { host },
+            port
+        );
+        match TcpStream::connect_timeout(
+            &addr.parse().unwrap_or("127.0.0.1:6379".parse().unwrap()),
+            Duration::from_millis(500),
+        ) {
             Ok(s) => {
                 let _ = s.set_read_timeout(Some(Duration::from_secs(3)));
                 let _ = s.set_write_timeout(Some(Duration::from_secs(3)));
@@ -404,8 +416,16 @@ impl AuraRedisClient {
                     if len == 0 {
                         return Vec::new();
                     }
-                    let s = if start < 0 { (len + start).max(0) } else { start.min(len) } as usize;
-                    let e = if stop < 0 { (len + stop + 1).max(0) } else { (stop + 1).min(len) } as usize;
+                    let s = if start < 0 {
+                        (len + start).max(0)
+                    } else {
+                        start.min(len)
+                    } as usize;
+                    let e = if stop < 0 {
+                        (len + stop + 1).max(0)
+                    } else {
+                        (stop + 1).min(len)
+                    } as usize;
                     if s < e {
                         return list.range(s..e).cloned().collect();
                     }
@@ -435,7 +455,8 @@ impl AuraRedisClient {
     pub fn expire(&self, key: &str, ttl_secs: i64) -> i32 {
         if let Ok(mut store) = self.memory_store.write() {
             if let Some(entry) = store.get_mut(key) {
-                entry.expires_at = Some(Instant::now() + Duration::from_secs(ttl_secs.max(0) as u64));
+                entry.expires_at =
+                    Some(Instant::now() + Duration::from_secs(ttl_secs.max(0) as u64));
                 return 1;
             }
         }
@@ -480,7 +501,11 @@ pub extern "C" fn aura_redis_set(
         } else {
             str::from_utf8_unchecked(slice::from_raw_parts(val_ptr, val_len))
         };
-        if (*client).set(key, val, ttl_secs) { 1 } else { 0 }
+        if (*client).set(key, val, ttl_secs) {
+            1
+        } else {
+            0
+        }
     }
 }
 

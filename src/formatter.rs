@@ -1261,7 +1261,10 @@ pub fn collect_files<P: AsRef<Path>>(path: P) -> Vec<PathBuf> {
 }
 
 pub fn run_cli(args: &[String]) {
-    if args.iter().any(|a| a == "--version" || a == "-V" || a == "version") {
+    if args
+        .iter()
+        .any(|a| a == "--version" || a == "-V" || a == "version")
+    {
         println!("aurafmt {}", env!("CARGO_PKG_VERSION"));
         return;
     }

@@ -4,18 +4,21 @@ use crate::ast::*;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-
 fn relative_path_between(target: &Path, base: &Path) -> String {
     let target = target.canonicalize().unwrap_or_else(|_| {
         if target.is_relative() {
-            std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")).join(target)
+            std::env::current_dir()
+                .unwrap_or_else(|_| PathBuf::from("."))
+                .join(target)
         } else {
             target.to_path_buf()
         }
     });
     let base = base.canonicalize().unwrap_or_else(|_| {
         if base.is_relative() {
-            std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")).join(base)
+            std::env::current_dir()
+                .unwrap_or_else(|_| PathBuf::from("."))
+                .join(base)
         } else {
             base.to_path_buf()
         }
@@ -25,7 +28,10 @@ fn relative_path_between(target: &Path, base: &Path) -> String {
     let base_comps: Vec<_> = base.components().collect();
 
     let mut common = 0;
-    while common < target_comps.len() && common < base_comps.len() && target_comps[common] == base_comps[common] {
+    while common < target_comps.len()
+        && common < base_comps.len()
+        && target_comps[common] == base_comps[common]
+    {
         common += 1;
     }
 
@@ -931,7 +937,9 @@ const __aura_import = async (m) => {
         self.write_line("    this.raw = nodeReq;");
         self.write_line("    this.method = nodeReq ? (nodeReq.method || 'GET') : 'GET';");
         self.write_line("    this.url = nodeReq ? (nodeReq.url || '/') : '/';");
-        self.write_line("    const host = (nodeReq && nodeReq.headers && nodeReq.headers.host) || 'localhost';");
+        self.write_line(
+            "    const host = (nodeReq && nodeReq.headers && nodeReq.headers.host) || 'localhost';",
+        );
         self.write_line("    let pathname = '/';");
         self.write_line("    try {");
         self.write_line("      const parsed = new URL(this.url, `http://${host}`);");
@@ -948,7 +956,9 @@ const __aura_import = async (m) => {
         self.write_line("    this.rawBody = this.body;");
         self.write_line("    this.remoteAddr = (nodeReq && (nodeReq.socket?.remoteAddress || nodeReq.connection?.remoteAddress)) || '';");
         self.write_line("    this.host = host;");
-        self.write_line("    this.proto = nodeReq ? `HTTP/${nodeReq.httpVersion || '1.1'}` : 'HTTP/1.1';");
+        self.write_line(
+            "    this.proto = nodeReq ? `HTTP/${nodeReq.httpVersion || '1.1'}` : 'HTTP/1.1';",
+        );
         self.write_line("  }");
         self.write_line("  pathValue(name) { return (this.params && this.params[name]) || ''; }");
         self.write_line("  param(name) { return this.pathValue(name); }");
@@ -973,7 +983,9 @@ const __aura_import = async (m) => {
         self.write_line("        this.body = b; this.rawBody = b;");
         self.write_line("        try { resolve(Ok(b ? JSON.parse(b) : {})); } catch (e) { resolve(Err(`Invalid JSON body: ${e.message}`)); }");
         self.write_line("      });");
-        self.write_line("      this.raw.on('error', (err) => resolve(Err(`Request error: ${err.message}`)));");
+        self.write_line(
+            "      this.raw.on('error', (err) => resolve(Err(`Request error: ${err.message}`)));",
+        );
         self.write_line("    });");
         self.write_line("  }");
         self.write_line("  async json() { return this.parseJson(); }");
@@ -983,8 +995,12 @@ const __aura_import = async (m) => {
         self.write_line("    return new Promise((resolve) => {");
         self.write_line("      let b = '';");
         self.write_line("      this.raw.on('data', chunk => { b += chunk; });");
-        self.write_line("      this.raw.on('end', () => { this.body = b; this.rawBody = b; resolve(Ok(b)); });");
-        self.write_line("      this.raw.on('error', (err) => resolve(Err(`Request error: ${err.message}`)));");
+        self.write_line(
+            "      this.raw.on('end', () => { this.body = b; this.rawBody = b; resolve(Ok(b)); });",
+        );
+        self.write_line(
+            "      this.raw.on('error', (err) => resolve(Err(`Request error: ${err.message}`)));",
+        );
         self.write_line("    });");
         self.write_line("  }");
         self.write_line("  context() { return { isCancelled: () => false, deadline: null, value: () => null }; }");
@@ -1000,10 +1016,14 @@ const __aura_import = async (m) => {
         self.write_line("    this.statusCode = status;");
         self.write_line("    this.statusText = status === 200 ? 'OK' : (status === 201 ? 'Created' : (status === 204 ? 'No Content' : (status === 404 ? 'Not Found' : (status === 500 ? 'Internal Server Error' : 'OK'))));");
         self.write_line("    this.headers = { ...headers };");
-        self.write_line("    this.body = typeof body === 'object' ? JSON.stringify(body) : String(body ?? '');");
+        self.write_line(
+            "    this.body = typeof body === 'object' ? JSON.stringify(body) : String(body ?? '');",
+        );
         self.write_line("    this.__aura_is_response = true;");
         self.write_line("  }");
-        self.write_line("  setHeader(name, value) { this.headers[name] = String(value); return this; }");
+        self.write_line(
+            "  setHeader(name, value) { this.headers[name] = String(value); return this; }",
+        );
         self.write_line("  getHeader(name) { return this.headers[name] || this.headers[String(name).toLowerCase()] || ''; }");
         self.write_line("  static new(status = 200, body = '') { return new __AuraHttpResponse(status, body); }");
         self.write_line("  static json(data, status = 200) { return new __AuraHttpResponse(status, JSON.stringify(data), { 'Content-Type': 'application/json; charset=utf-8' }); }");
@@ -1540,7 +1560,9 @@ const __aura_import = async (m) => {
         self.write_line("  },");
         self.write_line("  html: (res, statusCode, htmlContent) => {");
         self.write_line("    const st = (typeof statusCode === 'number') ? statusCode : 200;");
-        self.write_line("    const h = (typeof statusCode === 'number') ? htmlContent : statusCode;");
+        self.write_line(
+            "    const h = (typeof statusCode === 'number') ? htmlContent : statusCode;",
+        );
         self.write_line("    const payload = String(h ?? '');");
         self.write_line("    if (typeof res.writeHead === 'function') {");
         self.write_line("      res.writeHead(st, {");
@@ -2739,7 +2761,9 @@ const __aura_import = async (m) => {
         self.write_dts_line("}");
         self.write_dts_line("export interface ResponseWriter {");
         self.write_dts_line("  setHeader(key: string, value: string): void;");
-        self.write_dts_line("  writeHead(statusCode: number, headers?: Record<string, string>): void;");
+        self.write_dts_line(
+            "  writeHead(statusCode: number, headers?: Record<string, string>): void;",
+        );
         self.write_dts_line("  write(chunk: any): boolean;");
         self.write_dts_line("  writeString(chunk: string): boolean;");
         self.write_dts_line("  end(chunk?: any): void;");
@@ -2760,7 +2784,9 @@ const __aura_import = async (m) => {
         self.write_dts_line("export declare const Request: {");
         self.write_dts_line("  new(url: string, init?: any): HttpRequest;");
         self.write_dts_line("  get(url: string, headers?: Record<string, string>): HttpRequest;");
-        self.write_dts_line("  post(url: string, body?: any, headers?: Record<string, string>): HttpRequest;");
+        self.write_dts_line(
+            "  post(url: string, body?: any, headers?: Record<string, string>): HttpRequest;",
+        );
         self.write_dts_line("};");
         self.write_dts_line("export interface ServeMux {");
         self.write_dts_line(
@@ -3017,7 +3043,10 @@ const __aura_import = async (m) => {
                 }
             }
             if !bindings.is_empty() {
-                self.write_line(&format!("// Built-in standard module import: {}", imp.source));
+                self.write_line(&format!(
+                    "// Built-in standard module import: {}",
+                    imp.source
+                ));
                 for b in bindings {
                     self.write_line(&b);
                 }
@@ -4558,7 +4587,11 @@ const __aura_import = async (m) => {
                                 let count_js = self.expr_to_js_with_renames(&args[1], renames);
                                 return format!("Array({}).fill({})", count_js, item_js);
                             }
-                            if (member == "with_capacity" || member == "withCapacity" || member == "new") && !args.is_empty() {
+                            if (member == "with_capacity"
+                                || member == "withCapacity"
+                                || member == "new")
+                                && !args.is_empty()
+                            {
                                 return "[]".to_string();
                             }
                         }

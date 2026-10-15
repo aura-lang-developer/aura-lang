@@ -7,14 +7,14 @@
 //! - Aggregation pipeline stages: $match, $group (with $sum, $avg, $min, $max), $sort, $limit, $project.
 //! - Automatic embedded document storage engine for standalone zero-dependency execution.
 
-use crate::list::{aura_list_get, aura_list_len, aura_list_new, aura_list_push, AuraList};
+use crate::list::{AuraList, aura_list_get, aura_list_len, aura_list_new, aura_list_push};
 use crate::record::{
-    aura_record_new, aura_record_set_bool, aura_record_set_i64, aura_record_set_str,
-    infer_val_from_i64, record_to_json_value, val_to_json_value, AuraRecord, AuraVal,
+    AuraRecord, AuraVal, aura_record_new, aura_record_set_bool, aura_record_set_i64,
+    aura_record_set_str, infer_val_from_i64, record_to_json_value, val_to_json_value,
 };
 use crate::string::aura_string_from_rust_str;
 use rustc_hash::FxHashMap;
-use serde_json::{json, Map, Value as JsonValue};
+use serde_json::{Map, Value as JsonValue, json};
 use std::net::TcpStream;
 use std::slice;
 use std::str;
@@ -43,7 +43,8 @@ pub struct AuraMongoDatabase {
 pub struct AuraMongoClient {
     pub dsn: String,
     pub default_db_name: String,
-    pub databases: Arc<RwLock<FxHashMap<String, Arc<RwLock<FxHashMap<String, Arc<RwLock<Vec<MongoDoc>>>>>>>>>,
+    pub databases:
+        Arc<RwLock<FxHashMap<String, Arc<RwLock<FxHashMap<String, Arc<RwLock<Vec<MongoDoc>>>>>>>>>,
     pub tcp_stream: Option<Mutex<TcpStream>>,
     pub is_memory_only: bool,
 }
@@ -54,7 +55,11 @@ impl AuraMongoClient {
             let parts: Vec<&str> = dsn.split('/').collect();
             let last = parts.last().unwrap_or(&"default_db");
             let db = last.split('?').next().unwrap_or("default_db");
-            if db.is_empty() { "default_db".to_string() } else { db.to_string() }
+            if db.is_empty() {
+                "default_db".to_string()
+            } else {
+                db.to_string()
+            }
         } else {
             "default_db".to_string()
         };
@@ -75,7 +80,9 @@ impl AuraMongoClient {
             TcpStream::connect_timeout(
                 &addr.parse().unwrap_or("127.0.0.1:27017".parse().unwrap()),
                 Duration::from_millis(500),
-            ).ok().map(|s| {
+            )
+            .ok()
+            .map(|s| {
                 let _ = s.set_read_timeout(Some(Duration::from_secs(3)));
                 let _ = s.set_write_timeout(Some(Duration::from_secs(3)));
                 Mutex::new(s)
@@ -101,7 +108,10 @@ impl AuraMongoClient {
         };
 
         let mut dbs = self.databases.write().unwrap();
-        let cols = dbs.entry(db_name.to_string()).or_insert_with(|| Arc::new(RwLock::new(FxHashMap::default()))).clone();
+        let cols = dbs
+            .entry(db_name.to_string())
+            .or_insert_with(|| Arc::new(RwLock::new(FxHashMap::default())))
+            .clone();
 
         AuraMongoDatabase {
             name: db_name.to_string(),
@@ -118,7 +128,10 @@ impl AuraMongoClient {
 impl AuraMongoDatabase {
     pub fn collection(&self, name: &str) -> AuraMongoCollection {
         let mut cols = self.collections.write().unwrap();
-        let docs = cols.entry(name.to_string()).or_insert_with(|| Arc::new(RwLock::new(Vec::new()))).clone();
+        let docs = cols
+            .entry(name.to_string())
+            .or_insert_with(|| Arc::new(RwLock::new(Vec::new())))
+            .clone();
 
         AuraMongoCollection {
             name: name.to_string(),
@@ -148,34 +161,62 @@ fn matches_filter(doc: &JsonValue, filter: &JsonValue) -> bool {
                 for (op, op_val) in cond_obj {
                     match op.as_str() {
                         "$gt" => {
-                            if let (Some(dv), Some(ov)) = (doc_val.and_then(|x| x.as_f64()), op_val.as_f64()) {
-                                if !(dv > ov) { return false; }
-                            } else { return false; }
+                            if let (Some(dv), Some(ov)) =
+                                (doc_val.and_then(|x| x.as_f64()), op_val.as_f64())
+                            {
+                                if !(dv > ov) {
+                                    return false;
+                                }
+                            } else {
+                                return false;
+                            }
                         }
                         "$gte" => {
-                            if let (Some(dv), Some(ov)) = (doc_val.and_then(|x| x.as_f64()), op_val.as_f64()) {
-                                if !(dv >= ov) { return false; }
-                            } else { return false; }
+                            if let (Some(dv), Some(ov)) =
+                                (doc_val.and_then(|x| x.as_f64()), op_val.as_f64())
+                            {
+                                if !(dv >= ov) {
+                                    return false;
+                                }
+                            } else {
+                                return false;
+                            }
                         }
                         "$lt" => {
-                            if let (Some(dv), Some(ov)) = (doc_val.and_then(|x| x.as_f64()), op_val.as_f64()) {
-                                if !(dv < ov) { return false; }
-                            } else { return false; }
+                            if let (Some(dv), Some(ov)) =
+                                (doc_val.and_then(|x| x.as_f64()), op_val.as_f64())
+                            {
+                                if !(dv < ov) {
+                                    return false;
+                                }
+                            } else {
+                                return false;
+                            }
                         }
                         "$lte" => {
-                            if let (Some(dv), Some(ov)) = (doc_val.and_then(|x| x.as_f64()), op_val.as_f64()) {
-                                if !(dv <= ov) { return false; }
-                            } else { return false; }
+                            if let (Some(dv), Some(ov)) =
+                                (doc_val.and_then(|x| x.as_f64()), op_val.as_f64())
+                            {
+                                if !(dv <= ov) {
+                                    return false;
+                                }
+                            } else {
+                                return false;
+                            }
                         }
                         "$ne" => {
-                            if doc_val == Some(op_val) { return false; }
+                            if doc_val == Some(op_val) {
+                                return false;
+                            }
                         }
                         "$in" => {
                             if let Some(arr) = op_val.as_array() {
                                 if !arr.iter().any(|item| Some(item) == doc_val) {
                                     return false;
                                 }
-                            } else { return false; }
+                            } else {
+                                return false;
+                            }
                         }
                         _ => {}
                     }
@@ -486,10 +527,7 @@ pub extern "C" fn aura_mongo_find_one(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn aura_mongo_find(
-    col: *mut AuraMongoCollection,
-    filter_val: i64,
-) -> *mut AuraList {
+pub extern "C" fn aura_mongo_find(col: *mut AuraMongoCollection, filter_val: i64) -> *mut AuraList {
     let list = aura_list_new(16);
     if col.is_null() {
         return list;
@@ -600,7 +638,10 @@ pub extern "C" fn aura_mongo_delete_one(
 
     unsafe {
         if let Ok(mut docs) = (*col).docs.write() {
-            if let Some(idx) = docs.iter().position(|doc| matches_filter(&doc.data, &filter_json)) {
+            if let Some(idx) = docs
+                .iter()
+                .position(|doc| matches_filter(&doc.data, &filter_json))
+            {
                 docs.remove(idx);
                 deleted = 1;
             }
@@ -639,10 +680,7 @@ pub extern "C" fn aura_mongo_delete_many(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn aura_mongo_count(
-    col: *mut AuraMongoCollection,
-    filter_val: i64,
-) -> i64 {
+pub extern "C" fn aura_mongo_count(col: *mut AuraMongoCollection, filter_val: i64) -> i64 {
     if col.is_null() {
         return 0;
     }
@@ -650,7 +688,10 @@ pub extern "C" fn aura_mongo_count(
     let filter_json = extract_json_from_val(filter_val);
     unsafe {
         if let Ok(docs) = (*col).docs.read() {
-            return docs.iter().filter(|doc| matches_filter(&doc.data, &filter_json)).count() as i64;
+            return docs
+                .iter()
+                .filter(|doc| matches_filter(&doc.data, &filter_json))
+                .count() as i64;
         }
     }
     0
@@ -698,7 +739,9 @@ pub extern "C" fn aura_mongo_aggregate(
                             if let Some(s) = gk.as_str() {
                                 if s.starts_with('$') {
                                     let field = &s[1..];
-                                    d.get(field).map(|v| v.to_string()).unwrap_or_else(|| "null".to_string())
+                                    d.get(field)
+                                        .map(|v| v.to_string())
+                                        .unwrap_or_else(|| "null".to_string())
                                 } else {
                                     s.to_string()
                                 }
@@ -728,7 +771,10 @@ pub extern "C" fn aura_mongo_aggregate(
                                     } else if let Some(s) = sum_val.as_str() {
                                         if s.starts_with('$') {
                                             let f = &s[1..];
-                                            items.iter().filter_map(|it| it.get(f).and_then(|x| x.as_f64())).sum()
+                                            items
+                                                .iter()
+                                                .filter_map(|it| it.get(f).and_then(|x| x.as_f64()))
+                                                .sum()
                                         } else {
                                             0.0
                                         }
@@ -740,8 +786,15 @@ pub extern "C" fn aura_mongo_aggregate(
                                     if let Some(s) = avg_val.as_str() {
                                         if s.starts_with('$') {
                                             let f = &s[1..];
-                                            let sum: f64 = items.iter().filter_map(|it| it.get(f).and_then(|x| x.as_f64())).sum();
-                                            let avg = if !items.is_empty() { sum / items.len() as f64 } else { 0.0 };
+                                            let sum: f64 = items
+                                                .iter()
+                                                .filter_map(|it| it.get(f).and_then(|x| x.as_f64()))
+                                                .sum();
+                                            let avg = if !items.is_empty() {
+                                                sum / items.len() as f64
+                                            } else {
+                                                0.0
+                                            };
                                             grp_doc.insert(k.clone(), json!(avg));
                                         }
                                     }

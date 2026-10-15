@@ -1419,12 +1419,18 @@ pub fn print_test_help() {
 
 /// Parses command line arguments and runs the test suite.
 pub fn run_cli(args: &[String]) {
-    if args.iter().any(|a| a == "--version" || a == "-V" || a == "version") {
+    if args
+        .iter()
+        .any(|a| a == "--version" || a == "-V" || a == "version")
+    {
         println!("auratest {}", env!("CARGO_PKG_VERSION"));
         return;
     }
 
-    if args.iter().any(|a| a == "--help" || a == "-h" || a == "help") {
+    if args
+        .iter()
+        .any(|a| a == "--help" || a == "-h" || a == "help")
+    {
         print_test_help();
         return;
     }

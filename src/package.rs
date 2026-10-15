@@ -1359,7 +1359,10 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
 pub fn run_cli(args: &[String]) {
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
 
-    if args.iter().any(|a| a == "--version" || a == "-V" || a == "version") {
+    if args
+        .iter()
+        .any(|a| a == "--version" || a == "-V" || a == "version")
+    {
         println!("auramod {}", env!("CARGO_PKG_VERSION"));
         return;
     }

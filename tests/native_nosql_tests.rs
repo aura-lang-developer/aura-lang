@@ -54,7 +54,11 @@ fn test_native_redis_cranelift_binary_execution() {
 
     let out_bin = Path::new("test_cranelift_redis_bin");
     let res = aura_lang::build_native_binary(source, out_bin);
-    assert!(res.is_ok(), "Native compilation of Redis driver failed: {:?}", res.err());
+    assert!(
+        res.is_ok(),
+        "Native compilation of Redis driver failed: {:?}",
+        res.err()
+    );
 
     let output = Command::new(format!("./{}", out_bin.display()))
         .output()
@@ -63,7 +67,11 @@ fn test_native_redis_cranelift_binary_execution() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     println!("Redis Test STDOUT:\n{}", stdout);
 
-    assert!(output.status.success(), "Binary failed with status: {:?}", output.status);
+    assert!(
+        output.status.success(),
+        "Binary failed with status: {:?}",
+        output.status
+    );
     assert!(stdout.contains("Alice"));
     assert!(stdout.contains("admin"));
     assert!(stdout.contains("task1"));
@@ -132,7 +140,11 @@ fn test_native_mongo_cranelift_binary_execution() {
 
     let out_bin = Path::new("test_cranelift_mongo_bin");
     let res = aura_lang::build_native_binary(source, out_bin);
-    assert!(res.is_ok(), "Native compilation of MongoDB driver failed: {:?}", res.err());
+    assert!(
+        res.is_ok(),
+        "Native compilation of MongoDB driver failed: {:?}",
+        res.err()
+    );
 
     let output = Command::new(format!("./{}", out_bin.display()))
         .output()
@@ -141,7 +153,11 @@ fn test_native_mongo_cranelift_binary_execution() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     println!("MongoDB Test STDOUT:\n{}", stdout);
 
-    assert!(output.status.success(), "Binary failed with status: {:?}", output.status);
+    assert!(
+        output.status.success(),
+        "Binary failed with status: {:?}",
+        output.status
+    );
     assert!(stdout.contains("Alice"));
     assert!(stdout.contains("3")); // insertedCount
     assert!(stdout.contains("4")); // total
