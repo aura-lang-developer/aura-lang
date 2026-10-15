@@ -90,14 +90,14 @@ export fn runCli(): () {
   while (i < args.length) {
     let arg = args[i];
     if (arg == "--version" || arg == "-V" || arg == "-v" || arg == "version") {
-      println("aurac 0.7.0");
+      println("aurac 0.7.1");
       return ();
     }
     i = i + 1;
   }
 
   if (args.length < 3) {
-    println("Aura Self-Hosted Compiler (v0.7.0)");
+    println("Aura Self-Hosted Compiler (v0.7.1)");
     println("Usage: node aurac.mjs <file.aura> [-o <output>] [--target <js|go>] [--check] [--version]");
     return ();
   }

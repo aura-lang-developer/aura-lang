@@ -83,8 +83,9 @@ Aura compiles directly into **standalone native executable binaries** (Mach-O on
    - [Interactive Web Playground (`aurac playground`)](#7-interactive-web-playground)
 10. [🧩 Editor Configuration](#-editor-configuration)
 11. [🔄 Self-Hosted Compiler and Bootstrapping](#-self-hosted-compiler-and-bootstrapping)
-12. [🗺️ Current Status, Roadmap, and Milestones](#️-current-status-roadmap-and-milestones)
-13. [📄 License and Trademarks](#-license)
+12. [🛡️ Security and Runtime Hardening (v0.7.1)](#️-security-and-runtime-hardening-v071)
+13. [🗺️ Current Status, Roadmap, and Milestones](#️-current-status-roadmap-and-milestones)
+14. [📄 License and Trademarks](#-license)
 
 ---
 
@@ -208,9 +209,9 @@ Verify your installation:
 
 ```bash
 aura --version
-# Output: aura 0.7.0
+# Output: aura 0.7.1
 aurac --version
-# Output: aurac 0.7.0
+# Output: aurac 0.7.1
 ```
 
 ### 3. Compilation and Execution Modes
@@ -2007,6 +2008,25 @@ cargo test --test bootstrap_tests -- --test-threads=1
 
 ---
 
+## 🛡️ Security and Runtime Hardening (v0.7.1)
+
+Aura v0.7.1 introduces extensive defense-in-depth security hardening across the compiler, typechecker, garbage collector, and native standard runtime:
+
+| Subsystem / Layer | Vulnerability Addressed | Hardening & Mitigation Implemented |
+|---|---|---|
+| **Type Checker** | Incomplete pattern match exhaustiveness | Strict compile-time validation for `Option<T>`, `Result<T, E>`, and custom ADT sum types (record & tuple variants). Eliminates unhandled branch crashes. |
+| **Native Code Generator** | Variant tag collision in Cranelift (`aura_variant_new`) | Deterministic hashing with `FxHasher` (`compute_variant_tag`) replacing sequential index collisions across distinct types. |
+| **Memory / Concurrency** | GC data races during multi-fiber execution | Stop-The-World (STW) safepoint coordination via `GC_WORLD_LOCK` synchronization between worker fibers and the generational garbage collector. |
+| **Database Subsystem** | SQL Injection & Parameter Misalignment | Strictly typed parameter formatting and dialect-specific placeholder binding (`bind_postgres_sql` with `$1..$N`, `bind_mysql_sql` with `?`), plus handle type validation preventing pointer confusion. |
+| **Database Lifecycle** | Double-free & dangling pointers in `Tx`/`Pool` | Idempotent transaction and connection pool closing with atomic de-registration from runtime pool registry. |
+| **HTTP Web Server** | HTTP Response Splitting & CRLF Injection | Header key & value sanitization rejecting `\r` and `\n` characters before writing HTTP protocol frames. |
+| **TLS / HTTPS Subsystem** | Insecure silent fallback / false TLS indicator | Server startup aborts with explicit error code (`-1`) and log warnings if TLS configuration is supplied without linked native TLS provider. |
+| **Redis & Mongo Clients** | Remote hostname resolution & credential leaks | Native DNS resolution via `ToSocketAddrs`, full RESP multi-packet response framing, and URI credential stripping in logging. |
+| **OS Subsystem** | Data races & memory unsafety in environment vars | Global `ENV_LOCK` Mutex for `aura_os_setenv` and `aura_os_env`, with strict validation rejecting null bytes (`\0`) and `=` in variable names. |
+| **Supply Chain / Modules** | Argument and protocol injection in `auramod` / `aurapkg` | Path and version string sanitization against path traversal, command injection, and illegal git protocol characters. |
+
+---
+
 ## 🗺️ Current Status, Roadmap, and Milestones
 
 - [x] **Language Core**: Hindley-Milner type inference, algebraic data types (ADTs), exhaustive pattern matching, TCO optimization, and default immutability.
@@ -2022,7 +2042,8 @@ cargo test --test bootstrap_tests -- --test-threads=1
 - [x] **C/Rust FFI Generator (`aurabindgen`)**: Automatic conversion of `.h` headers into safe Aura interfaces.
 - [x] **Production-Grade Tooling**: Official LSP server (`auralsp`), terminal step debugger (`aurac step`), V8 DAP server (`aurac debug`), test runner (`auratest`), and opinionated formatter (`aurafmt`).
 - [x] **Rust 2024 Modernization & Toolchain Optimization**: Centralized Cargo workspace dependencies and lints, deduplicated crate tree (`object 0.39`), Thin LTO release profile (`[profile.release]`), `RwLock` + `FxHashMap` concurrent runtime GC, zero-overhead static scheduler, zero-alloc HTTP metric formatting, and structured `TypeError` diagnostics.
-- [x] **Quality Suite & Tests**: **250 automated tests passing successfully** across the repository.
+- [x] **Security & Runtime Hardening (v0.7.1)**: Stop-The-World GC synchronization, SQL injection prevention with dialect-aware binding ($1..$N, ?), HTTP response splitting/CRLF defense, compile-time match exhaustiveness enforcement, collision-free Cranelift ADT variant tags, thread-safe environment variables, and supply-chain package sanitization.
+- [x] **Quality Suite & Tests**: **256 automated tests passing successfully** across the repository.
 - [ ] **WebAssembly Backend (WASM/WASI)**: WebAssembly binary emission for serverless edge microservices.
 - [ ] **Advanced LLVM Optimizations**: Optional LTO optimization pipeline and SIMD vectorization for compute-intensive workloads.
 

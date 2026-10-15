@@ -82,8 +82,9 @@ Aura se compila directamente a **binarios nativos ejecutables autónomos** (form
    - [Playground Web Interactivo (`aurac playground`)](#7-playground-web-interactivo)
 10. [🧩 Configuración en Editores](#-configuración-en-editores)
 11. [🔄 Compilador Self-Hosted y Bootstrapping](#-compilador-self-hosted-y-bootstrapping)
-12. [🗺️ Estado Actual, Roadmap e Hitos](#️-estado-actual-roadmap-e-hitos)
-13. [📄 Licencia y Marcas Registradas](#-licencia)
+12. [🛡️ Seguridad y Blindaje del Runtime (v0.7.1)](#️-seguridad-y-blindaje-del-runtime-v071)
+13. [🗺️ Estado Actual, Roadmap e Hitos](#️-estado-actual-roadmap-e-hitos)
+14. [📄 Licencia y Marcas Registradas](#-licencia)
 
 ---
 
@@ -207,9 +208,9 @@ Verifica tu instalación:
 
 ```bash
 aura --version
-# Salida: aura 0.7.0
+# Salida: aura 0.7.1
 aurac --version
-# Salida: aurac 0.7.0
+# Salida: aurac 0.7.1
 ```
 
 ### 3. Modos de Compilación y Ejecución
@@ -2006,6 +2007,25 @@ cargo test --test bootstrap_tests -- --test-threads=1
 
 ---
 
+## 🛡️ Seguridad y Blindaje del Runtime (v0.7.1)
+
+Aura v0.7.1 incorpora mejoras críticas de seguridad y blindaje en profundidad a lo largo del compilador, el comprobador de tipos, el recolector de basura y el runtime nativo:
+
+| Subsistema / Capa | Vulnerabilidad Abordada | Mitigación y Blindaje Implementado |
+|---|---|---|
+| **Comprobador de Tipos** | Falta de exhaustividad en `match` | Validación estricta en tiempo de compilación para `Option<T>`, `Result<T, E>` y tipos algebraicos (ADTs de registro y tupla). Elimina cuelgues por ramas no controladas. |
+| **Generador Nativo** | Colisión de tags de variantes en Cranelift (`aura_variant_new`) | Hashing determinista con `FxHasher` (`compute_variant_tag`) reemplazando colisiones secuenciales entre tipos disjuntos. |
+| **Memoria y Concurrencia** | Condiciones de carrera en el GC durante ejecución multi-fiber | Coordinación Stop-The-World (STW) con `GC_WORLD_LOCK` sincronizando fibers de trabajo y el recolector de basura generacional. |
+| **Subsistema de Bases de Datos** | Inyección SQL y desalineación de parámetros | Formateo estricto de parámetros y binding de placeholders por dialecto (`bind_postgres_sql` con `$1..$N`, `bind_mysql_sql` con `?`), junto con validación de tipo de handle (`TYPE_DB_POOL`). |
+| **Ciclo de Vida de Conexiones** | Double-free y punteros colgantes en `Tx`/`Pool` | Cierre idempotente y seguro de transacciones y pools con desregistro atómico del registro global del runtime. |
+| **Servidor Web HTTP** | HTTP Response Splitting e Inyección CRLF | Sanitización obligatoria en claves y valores de cabeceras HTTP descartando caracteres `\r` y `\n` antes de la emisión de tramas. |
+| **Subsistema TLS / HTTPS** | Falso indicador de TLS / fallback silencioso inseguro | Aborto explícito al iniciar el servidor con código de error (`-1`) y advertencia si se solicita TLS sin el motor criptográfico nativo enlazado. |
+| **Clientes Redis y MongoDB** | Resolución DNS remota y fuga de credenciales | Resolución DNS nativa vía `ToSocketAddrs`, lectura completa multi-paquete para tramas RESP y saneamiento de credenciales en URIs registradas. |
+| **Subsistema de SO** | Condiciones de carrera en variables de entorno | Bloqueo global con `ENV_LOCK` en `aura_os_setenv` y `aura_os_env`, con validación estricta rechazando bytes nulos (`\0`) y `=` en nombres de variables. |
+| **Cadena de Suministro / Módulos** | Inyección de argumentos y protocolos en `auramod` / `aurapkg` | Sanitización exhaustiva en rutas de paquetes y versiones contra path traversal, inyección de comandos y protocolos maliciosos de Git. |
+
+---
+
 ## 🗺️ Estado Actual, Roadmap e Hitos
 
 - [x] **Núcleo del Lenguaje**: Inferencia de tipos Hindley-Milner, tipos algebraicos (ADTs), coincidencia de patrones exhaustiva, optimización TCO e inmutabilidad por defecto.
@@ -2021,7 +2041,8 @@ cargo test --test bootstrap_tests -- --test-threads=1
 - [x] **Generador FFI C/Rust (`aurabindgen`)**: Conversión automática de cabeceras `.h` a interfaces Aura seguras.
 - [x] **Herramientas de Grado de Producción**: Servidor LSP oficial (`auralsp`), depurador interactivo de terminal (`aurac step`), servidor DAP V8 (`aurac debug`), suite de pruebas (`auratest`) y formateador opinado (`aurafmt`).
 - [x] **Modernización y Optimización Rust 2024**: Dependencias y lints de Cargo centralizados en el workspace, árbol de crates deduplicado (`object 0.39`), perfil de release con Thin LTO (`[profile.release]`), GC concurrente del runtime con `RwLock` + `FxHashMap`, scheduler estático de costo cero, formateo de métricas HTTP zero-alloc y diagnósticos estructurados con `TypeError`.
-- [x] **Suite de Calidad y Tests**: **250 pruebas automatizadas pasando con éxito** en el repositorio.
+- [x] **Seguridad y Blindaje del Runtime (v0.7.1)**: Sincronización Stop-The-World en el GC, prevención de inyección SQL con binding por dialecto ($1..$N, ?), blindaje contra HTTP Response Splitting/CRLF, obligatoriedad de exhaustividad en match en compilación, tags deterministas para ADTs en Cranelift, acceso thread-safe a variables de entorno y sanitización en gestor de paquetes.
+- [x] **Suite de Calidad y Tests**: **256 pruebas automatizadas pasando con éxito** en el repositorio.
 - [ ] **Backend WebAssembly (WASM/WASI)**: Emisión de binarios WebAssembly para microservicios serverless en el edge.
 - [ ] **Optimizaciones Avanzadas LLVM**: Pipeline opcional de optimización LTO y vectorización SIMD para cargas de cómputo intensivo.
 
