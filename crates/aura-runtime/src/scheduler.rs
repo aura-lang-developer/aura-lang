@@ -23,7 +23,16 @@ pub struct Scheduler {
     deadlock_detection: AtomicBool,
 }
 
-use std::sync::OnceLock;
+use std::sync::{OnceLock, RwLock};
+
+static GC_WORLD_LOCK: RwLock<()> = RwLock::new(());
+
+pub fn gc_enter_safepoint() -> std::sync::RwLockWriteGuard<'static, ()> {
+    match GC_WORLD_LOCK.write() {
+        Ok(g) => g,
+        Err(p) => p.into_inner(),
+    }
+}
 
 static GLOBAL_SCHEDULER: OnceLock<Scheduler> = OnceLock::new();
 
@@ -179,9 +188,15 @@ fn worker_loop(sched: &'static Scheduler) {
         CURRENT_FIBER.set(raw_fiber);
         SCHEDULER_SP.set(&mut worker_sp);
 
-        unsafe {
-            let fiber_sp = (*raw_fiber).sp;
-            aura_swap_context(&mut worker_sp, fiber_sp);
+        {
+            let _worker_guard = match GC_WORLD_LOCK.read() {
+                Ok(g) => g,
+                Err(p) => p.into_inner(),
+            };
+            unsafe {
+                let fiber_sp = (*raw_fiber).sp;
+                aura_swap_context(&mut worker_sp, fiber_sp);
+            }
         }
 
         // Resumed back in worker thread stack!

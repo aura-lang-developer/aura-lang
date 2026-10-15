@@ -5332,6 +5332,7 @@ impl TypeChecker {
                 if arms.is_empty() {
                     return Err("Match expression must have at least one arm".to_string());
                 }
+                self.check_match_exhaustiveness(&subj_ty, arms)?;
 
                 let mut result_ty = None;
                 for arm in arms {
@@ -5718,6 +5719,75 @@ impl TypeChecker {
             }
             _ => Ok(ConcreteType::Any),
         }
+    }
+
+    fn check_match_exhaustiveness(
+        &self,
+        subj_ty: &ConcreteType,
+        arms: &[MatchArm],
+    ) -> Result<(), String> {
+        let has_catch_all = arms.iter().any(|arm| matches!(&arm.pattern, Pattern::Wildcard | Pattern::Variable(_)));
+        if has_catch_all {
+            return Ok(());
+        }
+
+        match subj_ty {
+            ConcreteType::Option(_) => {
+                let has_some = arms.iter().any(|arm| matches!(&arm.pattern, Pattern::Constructor { name, .. } if name == "Some"));
+                let has_none = arms.iter().any(|arm| matches!(&arm.pattern, Pattern::Constructor { name, .. } if name == "None"));
+                if !has_some || !has_none {
+                    return Err(format!(
+                        "Non-exhaustive patterns in match for Option: missing {}",
+                        if !has_some { "'Some'" } else { "'None'" }
+                    ));
+                }
+            }
+            ConcreteType::Result(_, _) => {
+                let has_ok = arms.iter().any(|arm| matches!(&arm.pattern, Pattern::Constructor { name, .. } if name == "Ok"));
+                let has_err = arms.iter().any(|arm| matches!(&arm.pattern, Pattern::Constructor { name, .. } if name == "Err"));
+                if !has_ok || !has_err {
+                    return Err(format!(
+                        "Non-exhaustive patterns in match for Result: missing {}",
+                        if !has_ok { "'Ok'" } else { "'Err'" }
+                    ));
+                }
+            }
+            ConcreteType::SumType { name, variants, .. } => {
+                for v_name in variants.keys() {
+                    let covered = arms.iter().any(|arm| match &arm.pattern {
+                        Pattern::Constructor { name: n, .. } => n == v_name,
+                        Pattern::Record { type_name: Some(n), .. } => n == v_name,
+                        _ => false,
+                    });
+                    if !covered {
+                        return Err(format!(
+                            "Non-exhaustive patterns in match for '{}': missing variant '{}'",
+                            name, v_name
+                        ));
+                    }
+                }
+            }
+            ConcreteType::Generic(_, inner) => {
+                if let ConcreteType::SumType { name, variants, .. } = &**inner {
+                    for v_name in variants.keys() {
+                        let covered = arms.iter().any(|arm| match &arm.pattern {
+                            Pattern::Constructor { name: n, .. } => n == v_name,
+                            Pattern::Record { type_name: Some(n), .. } => n == v_name,
+                            _ => false,
+                        });
+                        if !covered {
+                            return Err(format!(
+                                "Non-exhaustive patterns in match for '{}': missing variant '{}'",
+                                name, v_name
+                            ));
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        Ok(())
     }
 
     fn bind_pattern_with_type(

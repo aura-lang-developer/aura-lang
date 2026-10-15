@@ -204,6 +204,108 @@ pub extern "C" fn aura_db_open(
     }
 }
 
+fn format_postgres_literal(val: &Value) -> String {
+    match val {
+        Value::Null => "NULL".to_string(),
+        Value::Integer(i) => i.to_string(),
+        Value::Real(f) => f.to_string(),
+        Value::Text(s) => {
+            let escaped = s.replace('\'', "''");
+            format!("'{}'", escaped)
+        }
+        Value::Blob(b) => {
+            let mut hex = String::with_capacity(4 + b.len() * 2);
+            hex.push_str("'\\x");
+            for byte in b {
+                use std::fmt::Write as _;
+                let _ = write!(hex, "{:02x}", byte);
+            }
+            hex.push('\'');
+            hex
+        }
+    }
+}
+
+fn bind_postgres_sql(sql: &str, params: &[Value]) -> String {
+    if params.is_empty() {
+        return sql.to_string();
+    }
+    let mut result = sql.to_string();
+    for (i, param) in params.iter().enumerate() {
+        let placeholder = format!("${}", i + 1);
+        let literal = format_postgres_literal(param);
+        result = result.replace(&placeholder, &literal);
+    }
+    result
+}
+
+fn format_mysql_literal(val: &Value) -> String {
+    match val {
+        Value::Null => "NULL".to_string(),
+        Value::Integer(i) => i.to_string(),
+        Value::Real(f) => f.to_string(),
+        Value::Text(s) => {
+            let mut out = String::with_capacity(s.len() + 2);
+            out.push('\'');
+            for c in s.chars() {
+                match c {
+                    '\'' => out.push_str("''"),
+                    '\\' => out.push_str("\\\\"),
+                    '\0' => out.push_str("\\0"),
+                    '\n' => out.push_str("\\n"),
+                    '\r' => out.push_str("\\r"),
+                    _ => out.push(c),
+                }
+            }
+            out.push('\'');
+            out
+        }
+        Value::Blob(b) => {
+            let mut hex = String::with_capacity(3 + b.len() * 2);
+            hex.push_str("X'");
+            for byte in b {
+                use std::fmt::Write as _;
+                let _ = write!(hex, "{:02x}", byte);
+            }
+            hex.push('\'');
+            hex
+        }
+    }
+}
+
+fn bind_mysql_sql(sql: &str, params: &[Value]) -> String {
+    if params.is_empty() {
+        return sql.to_string();
+    }
+    let mut out = String::with_capacity(sql.len() + params.len() * 16);
+    let mut param_idx = 0;
+    let mut in_single_quote = false;
+    let mut in_double_quote = false;
+    let chars: Vec<char> = sql.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        if c == '\'' && !in_double_quote {
+            in_single_quote = !in_single_quote;
+            out.push(c);
+        } else if c == '"' && !in_single_quote {
+            in_double_quote = !in_double_quote;
+            out.push(c);
+        } else if c == '?' && !in_single_quote && !in_double_quote {
+            if param_idx < params.len() {
+                out.push_str(&format_mysql_literal(&params[param_idx]));
+                param_idx += 1;
+            } else {
+                out.push('?');
+            }
+        } else {
+            out.push(c);
+        }
+        i += 1;
+    }
+    out
+}
+
 #[unsafe(no_mangle)]
 fn execute_query_on_conn(
     conn: &mut AuraDbConn,
@@ -265,52 +367,60 @@ fn execute_query_on_conn(
                 Err(e) => Err(format!("SQLite query prepare error: {}", e)),
             }
         }
-        DbBackend::Postgres(pg) => match pg.query(sql) {
-            Ok(q_res) => {
-                let mut rows_data = Vec::new();
-                for pg_row in q_res.rows {
-                    let mut row_vals = Vec::new();
-                    for val_opt in pg_row.values {
-                        let aval = match val_opt {
-                            Some(s) => AuraVal::String(aura_string_from_rust_str(&s)),
-                            None => AuraVal::Null,
-                        };
-                        row_vals.push(aval);
+        DbBackend::Postgres(pg) => {
+            let sql_params = extract_aura_params(params);
+            let final_sql = bind_postgres_sql(sql, &sql_params);
+            match pg.query(&final_sql) {
+                Ok(q_res) => {
+                    let mut rows_data = Vec::new();
+                    for pg_row in q_res.rows {
+                        let mut row_vals = Vec::new();
+                        for val_opt in pg_row.values {
+                            let aval = match val_opt {
+                                Some(s) => AuraVal::String(aura_string_from_rust_str(&s)),
+                                None => AuraVal::Null,
+                            };
+                            row_vals.push(aval);
+                        }
+                        rows_data.push(row_vals);
                     }
-                    rows_data.push(row_vals);
+                    Ok(AuraDbRows {
+                        columns: q_res.columns,
+                        rows: rows_data,
+                        current_idx: -1,
+                        last_error: None,
+                    })
                 }
-                Ok(AuraDbRows {
-                    columns: q_res.columns,
-                    rows: rows_data,
-                    current_idx: -1,
-                    last_error: None,
-                })
+                Err(e) => Err(e),
             }
-            Err(e) => Err(e),
-        },
-        DbBackend::MySql(mysql) => match mysql.query(sql) {
-            Ok(q_res) => {
-                let mut rows_data = Vec::new();
-                for my_row in q_res.rows {
-                    let mut row_vals = Vec::new();
-                    for val_opt in my_row.values {
-                        let aval = match val_opt {
-                            Some(s) => AuraVal::String(aura_string_from_rust_str(&s)),
-                            None => AuraVal::Null,
-                        };
-                        row_vals.push(aval);
+        }
+        DbBackend::MySql(mysql) => {
+            let sql_params = extract_aura_params(params);
+            let final_sql = bind_mysql_sql(sql, &sql_params);
+            match mysql.query(&final_sql) {
+                Ok(q_res) => {
+                    let mut rows_data = Vec::new();
+                    for my_row in q_res.rows {
+                        let mut row_vals = Vec::new();
+                        for val_opt in my_row.values {
+                            let aval = match val_opt {
+                                Some(s) => AuraVal::String(aura_string_from_rust_str(&s)),
+                                None => AuraVal::Null,
+                            };
+                            row_vals.push(aval);
+                        }
+                        rows_data.push(row_vals);
                     }
-                    rows_data.push(row_vals);
+                    Ok(AuraDbRows {
+                        columns: q_res.columns,
+                        rows: rows_data,
+                        current_idx: -1,
+                        last_error: None,
+                    })
                 }
-                Ok(AuraDbRows {
-                    columns: q_res.columns,
-                    rows: rows_data,
-                    current_idx: -1,
-                    last_error: None,
-                })
+                Err(e) => Err(e),
             }
-            Err(e) => Err(e),
-        },
+        }
     }
 }
 
@@ -341,14 +451,22 @@ fn execute_exec_on_conn(
                 }
             }
         }
-        DbBackend::Postgres(pg) => match pg.query(sql) {
-            Ok(res) => Ok((res.rows_affected, res.last_insert_id)),
-            Err(e) => Err(e),
-        },
-        DbBackend::MySql(mysql) => match mysql.query(sql) {
-            Ok(res) => Ok((res.rows_affected, res.last_insert_id)),
-            Err(e) => Err(e),
-        },
+        DbBackend::Postgres(pg) => {
+            let sql_params = extract_aura_params(params);
+            let final_sql = bind_postgres_sql(sql, &sql_params);
+            match pg.query(&final_sql) {
+                Ok(res) => Ok((res.rows_affected, res.last_insert_id)),
+                Err(e) => Err(e),
+            }
+        }
+        DbBackend::MySql(mysql) => {
+            let sql_params = extract_aura_params(params);
+            let final_sql = bind_mysql_sql(sql, &sql_params);
+            match mysql.query(&final_sql) {
+                Ok(res) => Ok((res.rows_affected, res.last_insert_id)),
+                Err(e) => Err(e),
+            }
+        }
     }
 }
 
@@ -375,26 +493,30 @@ pub extern "C" fn aura_db_query(
     };
 
     let type_id = crate::gc::lookup_valid_ptr(handle as usize);
-    let result = if type_id == Some(crate::gc::TYPE_DB_TX) {
-        let tx = unsafe { &mut *(handle as *mut AuraDbTx) };
-        if let Some(ref mut conn) = tx.conn {
-            execute_query_on_conn(conn, sql, params)
-        } else {
-            Err("Transaction is inactive or closed".to_string())
-        }
-    } else {
-        let pool_arc = unsafe { Arc::from_raw(handle as *mut AuraDbPool) };
-        let pool_clone = Arc::clone(&pool_arc);
-        std::mem::forget(pool_arc);
-
-        match pool_clone.acquire() {
-            Ok(mut conn) => {
-                let res = execute_query_on_conn(&mut conn, sql, params);
-                pool_clone.release(conn);
-                res
+    let result = match type_id {
+        Some(crate::gc::TYPE_DB_TX) => {
+            let tx = unsafe { &mut *(handle as *mut AuraDbTx) };
+            if let Some(ref mut conn) = tx.conn {
+                execute_query_on_conn(conn, sql, params)
+            } else {
+                Err("Transaction is inactive or closed".to_string())
             }
-            Err(e) => Err(e),
         }
+        Some(crate::gc::TYPE_DB_POOL) => {
+            let pool_arc = unsafe { Arc::from_raw(handle as *mut AuraDbPool) };
+            let pool_clone = Arc::clone(&pool_arc);
+            std::mem::forget(pool_arc);
+
+            match pool_clone.acquire() {
+                Ok(mut conn) => {
+                    let res = execute_query_on_conn(&mut conn, sql, params);
+                    pool_clone.release(conn);
+                    res
+                }
+                Err(e) => Err(e),
+            }
+        }
+        _ => Err("Invalid or unallocated database handle passed to query".to_string()),
     };
 
     let rows = match result {
@@ -434,26 +556,30 @@ pub extern "C" fn aura_db_exec(
     };
 
     let type_id = crate::gc::lookup_valid_ptr(handle as usize);
-    let result = if type_id == Some(crate::gc::TYPE_DB_TX) {
-        let tx = unsafe { &mut *(handle as *mut AuraDbTx) };
-        if let Some(ref mut conn) = tx.conn {
-            execute_exec_on_conn(conn, sql, params)
-        } else {
-            Err("Transaction is inactive or closed".to_string())
-        }
-    } else {
-        let pool_arc = unsafe { Arc::from_raw(handle as *mut AuraDbPool) };
-        let pool_clone = Arc::clone(&pool_arc);
-        std::mem::forget(pool_arc);
-
-        match pool_clone.acquire() {
-            Ok(mut conn) => {
-                let res = execute_exec_on_conn(&mut conn, sql, params);
-                pool_clone.release(conn);
-                res
+    let result = match type_id {
+        Some(crate::gc::TYPE_DB_TX) => {
+            let tx = unsafe { &mut *(handle as *mut AuraDbTx) };
+            if let Some(ref mut conn) = tx.conn {
+                execute_exec_on_conn(conn, sql, params)
+            } else {
+                Err("Transaction is inactive or closed".to_string())
             }
-            Err(e) => Err(e),
         }
+        Some(crate::gc::TYPE_DB_POOL) => {
+            let pool_arc = unsafe { Arc::from_raw(handle as *mut AuraDbPool) };
+            let pool_clone = Arc::clone(&pool_arc);
+            std::mem::forget(pool_arc);
+
+            match pool_clone.acquire() {
+                Ok(mut conn) => {
+                    let res = execute_exec_on_conn(&mut conn, sql, params);
+                    pool_clone.release(conn);
+                    res
+                }
+                Err(e) => Err(e),
+            }
+        }
+        _ => Err("Invalid or unallocated database handle passed to exec".to_string()),
     };
 
     let exec_res = match result {
@@ -576,11 +702,23 @@ pub extern "C" fn aura_db_tx_rollback(tx: *mut AuraDbTx) -> i32 {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn aura_db_tx_close(tx: *mut AuraDbTx) {
-    if !tx.is_null() {
+    if !tx.is_null() && crate::gc::lookup_valid_ptr(tx as usize) == Some(crate::gc::TYPE_DB_TX) {
+        crate::gc::unregister_valid_ptr(tx as usize);
         unsafe {
-            let t = Box::from_raw(tx);
+            let mut t = Box::from_raw(tx);
             if t.is_active {
-                let _ = aura_db_tx_rollback(tx);
+                if let Some(conn) = t.conn.take() {
+                    let mut c = conn;
+                    let _ = match &mut c.backend {
+                        DbBackend::Sqlite(sqlite) => {
+                            sqlite.execute_batch("ROLLBACK;").map_err(|e| e.to_string())
+                        }
+                        DbBackend::Postgres(pg) => pg.query("ROLLBACK;").map(|_| ()),
+                        DbBackend::MySql(mysql) => mysql.query("ROLLBACK;").map(|_| ()),
+                    };
+                    t.is_active = false;
+                    t.pool.release(c);
+                }
             }
         }
     }
@@ -884,12 +1022,12 @@ pub extern "C" fn aura_db_exec_free(res: *mut AuraExecResult) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn aura_db_pool_close(pool: *mut AuraDbPool) {
-    if !pool.is_null() {
+    if !pool.is_null() && crate::gc::lookup_valid_ptr(pool as usize) == Some(crate::gc::TYPE_DB_POOL) {
+        crate::gc::unregister_valid_ptr(pool as usize);
         unsafe {
             let pool_arc = Arc::from_raw(pool);
             *pool_arc.is_closed.lock().unwrap() = true;
             pool_arc.conns.lock().unwrap().clear();
-            crate::gc::unregister_valid_ptr(pool as usize);
         }
     }
 }

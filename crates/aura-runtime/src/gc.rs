@@ -157,6 +157,7 @@ pub fn gc_safepoint() {
 }
 
 pub fn collect_garbage() {
+    let _world_guard = crate::scheduler::gc_enter_safepoint();
     let mut allocs = ALLOCATIONS.lock().unwrap();
     GC_TRIGGERED.store(false, Ordering::Relaxed);
 

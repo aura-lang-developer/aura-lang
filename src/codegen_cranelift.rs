@@ -82,6 +82,7 @@ pub struct CraneliftBackend {
     list_to_json_id: FuncId,
 
     // Variants (Option / Result)
+    variant_new_id: FuncId,
     variant_tag_id: FuncId,
     variant_val_id: FuncId,
     option_some_id: FuncId,
@@ -385,6 +386,19 @@ fn is_block_terminated(builder: &FunctionBuilder, block: Block) -> bool {
     })
 }
 
+fn compute_variant_tag(name: &str) -> i64 {
+    match name {
+        "None" => 0,
+        "Some" | "Ok" => 1,
+        "Err" => 2,
+        other => {
+            let mut hasher = rustc_hash::FxHasher::default();
+            std::hash::Hash::hash(other, &mut hasher);
+            ((std::hash::Hasher::finish(&hasher) & 0x7FFF_FFFF) as i64).max(10)
+        }
+    }
+}
+
 impl CraneliftBackend {
     pub fn new() -> Result<Self, String> {
         Self::with_target(None)
@@ -505,6 +519,7 @@ impl CraneliftBackend {
         let list_to_json_id = declare_import_fn(&mut module, "aura_list_to_json", 1, true);
 
         // Variants (Option / Result)
+        let variant_new_id = declare_import_fn(&mut module, "aura_variant_new", 2, true);
         let variant_tag_id = declare_import_fn(&mut module, "aura_variant_tag", 1, true);
         let variant_val_id = declare_import_fn(&mut module, "aura_variant_val", 1, true);
         let option_some_id = declare_import_fn(&mut module, "aura_option_some", 1, true);
@@ -655,6 +670,7 @@ impl CraneliftBackend {
             list_repeat_id,
             list_repeat_byte_id,
             list_to_json_id,
+            variant_new_id,
             variant_tag_id,
             variant_val_id,
             option_some_id,
@@ -1846,7 +1862,20 @@ impl CraneliftBackend {
                     let call = builder.ins().call(local_err, &[arg_val]);
                     Ok(builder.inst_results(call)[0])
                 }
-                _ => Ok(builder.ins().iconst(types::I64, 0)),
+                other => {
+                    let tag = compute_variant_tag(other);
+                    let tag_val = builder.ins().iconst(types::I64, tag);
+                    let arg_val = if !args.is_empty() {
+                        self.compile_expr(builder, &args[0], vars, defers, loop_ctx)?
+                    } else {
+                        builder.ins().iconst(types::I64, 0)
+                    };
+                    let local_new = self
+                        .module
+                        .declare_func_in_func(self.variant_new_id, builder.func);
+                    let call = builder.ins().call(local_new, &[tag_val, arg_val]);
+                    Ok(builder.inst_results(call)[0])
+                }
             },
             Expr::Match { subject, arms } => {
                 let sub_val = self.compile_expr(builder, subject, vars, defers, loop_ctx)?;
@@ -1867,12 +1896,7 @@ impl CraneliftBackend {
 
                     match &arm.pattern {
                         Pattern::Constructor { name, patterns } => {
-                            let expected_tag = match name.as_str() {
-                                "Some" | "Ok" => 1,
-                                "Err" => 2,
-                                "None" => 0,
-                                _ => 1,
-                            };
+                            let expected_tag = compute_variant_tag(name);
                             let tag_const = builder.ins().iconst(types::I64, expected_tag);
                             let matches = builder.ins().icmp(
                                 cranelift_codegen::ir::condcodes::IntCC::Equal,

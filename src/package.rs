@@ -1219,6 +1219,13 @@ fn download_package_to(
         return Ok(());
     };
 
+    if version.starts_with('-') {
+        return Err(format!("Invalid package version parameter: '{}'", version));
+    }
+    if pkg_path.starts_with('-') || pkg_path.contains("::") {
+        return Err(format!("Invalid package path parameter: '{}'", pkg_path));
+    }
+
     println!("⬇️  Fetching {}@{} from {}...", pkg_path, version, git_url);
 
     // Run git clone --depth 1 [--branch <version>] -- <url> <dest>
@@ -1243,6 +1250,10 @@ fn download_package_to(
             Ok(())
         }
         _ => {
+            eprintln!(
+                "[Aura Package Warning] Git clone failed or offline for '{}@{}'. Generating local stub fallback.",
+                pkg_path, version
+            );
             // If branch clone fails or git is not installed, fallback to stub creation so compilation works
             if !dest.exists() {
                 let _ = fs::create_dir_all(dest);

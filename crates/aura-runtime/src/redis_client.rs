@@ -31,6 +31,30 @@ struct MemoryEntry {
     expires_at: Option<Instant>,
 }
 
+fn is_resp_complete(bytes: &[u8]) -> bool {
+    if !bytes.ends_with(b"\r\n") || bytes.is_empty() {
+        return false;
+    }
+    match bytes[0] {
+        b'+' | b'-' | b':' => true,
+        b'$' => {
+            if bytes.starts_with(b"$-1\r\n") {
+                return true;
+            }
+            if let Some(pos) = bytes.iter().position(|&b| b == b'\n') {
+                let len_str = String::from_utf8_lossy(&bytes[1..pos]);
+                if let Ok(expected_len) = len_str.trim().parse::<usize>() {
+                    let total = pos + 1 + expected_len + 2;
+                    return bytes.len() >= total;
+                }
+            }
+            false
+        }
+        b'*' => true,
+        _ => true,
+    }
+}
+
 pub struct AuraRedisClient {
     stream: Option<Mutex<TcpStream>>,
     memory_store: Arc<RwLock<FxHashMap<String, MemoryEntry>>>,
@@ -72,10 +96,13 @@ impl AuraRedisClient {
             if host.is_empty() { "127.0.0.1" } else { host },
             port
         );
-        match TcpStream::connect_timeout(
-            &addr.parse().unwrap_or("127.0.0.1:6379".parse().unwrap()),
-            Duration::from_millis(500),
-        ) {
+        use std::net::ToSocketAddrs;
+        let socket_addr = addr
+            .to_socket_addrs()
+            .ok()
+            .and_then(|mut it| it.next())
+            .unwrap_or_else(|| "127.0.0.1:6379".parse().unwrap());
+        match TcpStream::connect_timeout(&socket_addr, Duration::from_millis(500)) {
             Ok(s) => {
                 let _ = s.set_read_timeout(Some(Duration::from_secs(3)));
                 let _ = s.set_write_timeout(Some(Duration::from_secs(3)));
@@ -109,13 +136,24 @@ impl AuraRedisClient {
                     return Err("Failed to write to Redis socket".to_string());
                 }
 
-                let mut buf = [0u8; 4096];
-                let n = stream.read(&mut buf).map_err(|e| e.to_string())?;
-                if n == 0 {
-                    return Err("Empty response from Redis".to_string());
+                let mut resp_bytes = Vec::new();
+                let mut chunk = [0u8; 4096];
+                loop {
+                    let n = stream.read(&mut chunk).map_err(|e| e.to_string())?;
+                    if n == 0 {
+                        if resp_bytes.is_empty() {
+                            return Err("Empty response from Redis".to_string());
+                        }
+                        break;
+                    }
+                    resp_bytes.extend_from_slice(&chunk[..n]);
+
+                    if is_resp_complete(&resp_bytes) {
+                        break;
+                    }
                 }
 
-                let resp_str = String::from_utf8_lossy(&buf[..n]).to_string();
+                let resp_str = String::from_utf8_lossy(&resp_bytes).to_string();
                 return Ok(resp_str);
             }
         }

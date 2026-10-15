@@ -5,6 +5,8 @@ use crate::string::{AuraString, aura_string_from_rust_str};
 use std::slice;
 use std::str;
 
+static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 #[unsafe(no_mangle)]
 pub extern "C" fn aura_os_env(key_ptr: *const u8, key_len: usize) -> *mut AuraString {
     if key_ptr.is_null() || key_len == 0 {
@@ -16,6 +18,7 @@ pub extern "C" fn aura_os_env(key_ptr: *const u8, key_len: usize) -> *mut AuraSt
         str::from_utf8(bytes).unwrap_or("")
     };
 
+    let _guard = ENV_LOCK.lock().unwrap();
     let val = std::env::var(key).unwrap_or_default();
     aura_string_from_rust_str(&val)
 }
@@ -45,8 +48,11 @@ pub extern "C" fn aura_os_setenv(
         }
     };
 
-    unsafe {
-        std::env::set_var(key, val);
+    if !key.is_empty() && !key.contains('=') && !key.contains('\0') && !val.contains('\0') {
+        let _guard = ENV_LOCK.lock().unwrap();
+        unsafe {
+            std::env::set_var(key, val);
+        }
     }
 }
 

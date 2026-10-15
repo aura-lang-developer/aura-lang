@@ -70,23 +70,31 @@ impl AuraMongoClient {
             let cleaned = dsn
                 .trim_start_matches("mongodb://")
                 .trim_start_matches("mongodb+srv://");
-            let host_port = cleaned.split('/').next().unwrap_or("127.0.0.1:27017");
+            let without_auth = match cleaned.find('@') {
+                Some(idx) => &cleaned[idx + 1..],
+                None => cleaned,
+            };
+            let host_port = without_auth.split('/').next().unwrap_or("127.0.0.1:27017");
             let addr = if host_port.contains(':') {
                 host_port.to_string()
             } else {
                 format!("{}:27017", host_port)
             };
 
-            TcpStream::connect_timeout(
-                &addr.parse().unwrap_or("127.0.0.1:27017".parse().unwrap()),
-                Duration::from_millis(500),
-            )
-            .ok()
-            .map(|s| {
-                let _ = s.set_read_timeout(Some(Duration::from_secs(3)));
-                let _ = s.set_write_timeout(Some(Duration::from_secs(3)));
-                Mutex::new(s)
-            })
+            use std::net::ToSocketAddrs;
+            let socket_addr = addr
+                .to_socket_addrs()
+                .ok()
+                .and_then(|mut it| it.next())
+                .unwrap_or_else(|| "127.0.0.1:27017".parse().unwrap());
+
+            TcpStream::connect_timeout(&socket_addr, Duration::from_millis(500))
+                .ok()
+                .map(|s| {
+                    let _ = s.set_read_timeout(Some(Duration::from_secs(3)));
+                    let _ = s.set_write_timeout(Some(Duration::from_secs(3)));
+                    Mutex::new(s)
+                })
         } else {
             None
         };

@@ -300,7 +300,7 @@ pub extern "C" fn aura_http_listen_and_serve(
 pub extern "C" fn aura_http_listen_and_serve_tls(
     mux: *mut AuraServeMux,
     addr_ptr: *const u8,
-    addr_len: usize,
+    _addr_len: usize,
     cert_file_ptr: *const u8,
     cert_file_len: usize,
     key_file_ptr: *const u8,
@@ -327,12 +327,11 @@ pub extern "C" fn aura_http_listen_and_serve_tls(
         return -1;
     }
 
-    println!(
-        "🔒 Starting Aura HTTPS Server with TLS encryption (Cert: '{}')",
+    eprintln!(
+        "[Aura HTTP Security] Native TLS engine is not linked into runtime. Refusing to serve unencrypted plaintext traffic on HTTPS endpoint for cert '{}'.",
         cert_file
     );
-    aura_http_listen_and_serve(mux, addr_ptr, addr_len);
-    0
+    -1
 }
 
 fn handle_connection(stream: TcpStream, mux: &AuraServeMux) {
@@ -544,7 +543,17 @@ fn handle_connection(stream: TcpStream, mux: &AuraServeMux) {
             }
 
             for (k, v) in &res.headers {
-                let _ = write!(headers_str, "{}: {}\r\n", k, v);
+                let clean_k: String = k
+                    .chars()
+                    .filter(|c| !c.is_control() && *c != ':' && !c.is_whitespace())
+                    .collect();
+                let clean_v: String = v
+                    .chars()
+                    .filter(|c| *c != '\r' && *c != '\n')
+                    .collect();
+                if !clean_k.is_empty() {
+                    let _ = write!(headers_str, "{}: {}\r\n", clean_k, clean_v);
+                }
             }
             headers_str.push_str("\r\n");
 
