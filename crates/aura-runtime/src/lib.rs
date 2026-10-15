@@ -661,4 +661,77 @@ mod tests {
 
         aura_mongo_close(client);
     }
+
+    #[test]
+    fn test_tlab_allocation_and_binary_search_gc() {
+        use crate::gc;
+
+        let before_collections = gc::get_collections_count();
+        // Allocate across TLAB batches (more than 64 items to trigger flush)
+        let mut ptrs = Vec::new();
+        for _ in 0..120 {
+            let p = gc::gc_alloc(64, gc::TYPE_RECORD);
+            assert!(!p.is_null());
+            ptrs.push(p);
+        }
+
+        // Flush remaining in thread-local buffer
+        gc::flush_tlab();
+
+        // Run garbage collection; since ptrs are not in stack scan range or global roots,
+        // they should be safely swept with binary search
+        gc::collect_garbage();
+        assert_eq!(gc::get_collections_count(), before_collections + 1);
+    }
+
+    #[test]
+    fn test_fiber_stack_canary_protection() {
+        use crate::context::{DEFAULT_STACK_SIZE, FiberStack, STACK_CANARY_MAGIC};
+
+        let stack = FiberStack::new(DEFAULT_STACK_SIZE);
+        assert!(stack.verify_canary(), "Canary must be valid upon creation");
+
+        // Intentionally tamper with the canary
+        unsafe {
+            *(stack.bottom() as *mut usize) = 0x1234_5678;
+        }
+        assert!(!stack.verify_canary(), "Tampered canary must be detected");
+
+        // Restore canary for clean drop
+        unsafe {
+            *(stack.bottom() as *mut usize) = STACK_CANARY_MAGIC;
+        }
+        assert!(stack.verify_canary());
+    }
+
+    #[test]
+    fn test_json_max_depth_protection() {
+        use crate::json::{aura_json_free, aura_json_parse};
+
+        // 1. Normal JSON (shallow depth)
+        let normal_json = b"{\"a\": {\"b\": {\"c\": 123}}}";
+        let doc1 = aura_json_parse(normal_json.as_ptr(), normal_json.len());
+        assert!(!doc1.is_null());
+        assert!(!unsafe { (*doc1).value.is_null() });
+        aura_json_free(doc1);
+
+        // 2. Overly deep JSON (70 nested arrays > 64)
+        let mut deep_json = Vec::new();
+        for _ in 0..70 {
+            deep_json.push(b'[');
+        }
+        deep_json.push(b'1');
+        for _ in 0..70 {
+            deep_json.push(b']');
+        }
+
+        let doc2 = aura_json_parse(deep_json.as_ptr(), deep_json.len());
+        assert!(!doc2.is_null());
+        assert!(
+            unsafe { (*doc2).value.is_null() },
+            "Excessive depth must be rejected with Null to prevent Stack Overflow"
+        );
+        aura_json_free(doc2);
+    }
 }
+

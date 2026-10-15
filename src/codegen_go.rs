@@ -1704,7 +1704,7 @@ func (auraJwtStatic) Verify(token, secret string) auraResult {
     h := hmac.New(sha256.New, []byte(secret))
     h.Write([]byte(unsigned))
     expectedSig := base64.RawURLEncoding.EncodeToString(h.Sum(nil))
-    if parts[2] != expectedSig {
+    if !hmac.Equal([]byte(parts[2]), []byte(expectedSig)) {
         return Err("Invalid JWT token signature")
     }
     payloadBytes, err := base64.RawURLEncoding.DecodeString(parts[1])

@@ -97,6 +97,22 @@ static TOTAL_ALLOCATED_BYTES: AtomicUsize = AtomicUsize::new(0);
 static GC_COLLECTION_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 const GC_THRESHOLD_BYTES: usize = 8 * 1024 * 1024; // 8 MB default GC threshold
+const TLAB_BATCH_SIZE: usize = 64;
+
+thread_local! {
+    static TLAB_BUFFER: std::cell::RefCell<Vec<SendPtr<GcHeader>>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Flushes the calling thread's local allocation buffer into the global allocation registry.
+pub fn flush_tlab() {
+    TLAB_BUFFER.with(|buf| {
+        let mut local = buf.borrow_mut();
+        if !local.is_empty() {
+            let mut allocs = ALLOCATIONS.lock().unwrap();
+            allocs.extend(local.drain(..));
+        }
+    });
+}
 
 pub fn get_gc_type(ptr: *const u8) -> Option<u32> {
     if ptr.is_null() || (ptr as usize) < 0x1000 {
@@ -136,8 +152,16 @@ pub fn gc_alloc(user_size: usize, type_id: u32) -> *mut u8 {
         let user_ptr = raw.add(header_size);
         ptr::write_bytes(user_ptr, 0, user_size);
 
-        let mut allocs = ALLOCATIONS.lock().unwrap();
-        allocs.push(SendPtr(header));
+        // Amortized TLAB lock-free allocation: batch additions to reduce Mutex contention
+        let should_flush = TLAB_BUFFER.with(|buf| {
+            let mut local = buf.borrow_mut();
+            local.push(SendPtr(header));
+            local.len() >= TLAB_BATCH_SIZE
+        });
+
+        if should_flush {
+            flush_tlab();
+        }
 
         register_valid_ptr(user_ptr as usize, type_id);
 
@@ -158,10 +182,12 @@ pub fn gc_safepoint() {
 
 pub fn collect_garbage() {
     let _world_guard = crate::scheduler::gc_enter_safepoint();
+    flush_tlab();
     let mut allocs = ALLOCATIONS.lock().unwrap();
     GC_TRIGGERED.store(false, Ordering::Relaxed);
 
-    // 1. Reset mark bits
+    // 1. Reset mark bits and sort by memory address for O(log N) binary search marking
+    allocs.sort_unstable_by_key(|hdr| hdr.0 as usize);
     for hdr in allocs.iter() {
         unsafe {
             (*hdr.0).marked = false;
@@ -225,24 +251,35 @@ fn scan_stack_range(bottom: *const u8, top: *const u8, allocs: &[SendPtr<GcHeade
 }
 
 fn mark_ptr(target: *mut u8, allocs: &[SendPtr<GcHeader>]) {
-    if target.is_null() {
+    if target.is_null() || (target as usize) < 0x1000 || allocs.is_empty() {
         return;
     }
 
-    for hdr in allocs {
+    let target_addr = target as usize;
+    // O(log N) binary search over sorted allocations
+    let idx = match allocs.binary_search_by(|hdr| {
         let h = hdr.0;
-        let obj_start = unsafe { (h as *mut u8).add(size_of::<GcHeader>()) };
-        let obj_end = unsafe { obj_start.add((*h).size) };
+        let obj_start = unsafe { (h as *mut u8).add(size_of::<GcHeader>()) } as usize;
+        let obj_end = obj_start + unsafe { (*h).size };
+        if target_addr < obj_start {
+            std::cmp::Ordering::Greater
+        } else if target_addr >= obj_end {
+            std::cmp::Ordering::Less
+        } else {
+            std::cmp::Ordering::Equal
+        }
+    }) {
+        Ok(i) => i,
+        Err(_) => return,
+    };
 
-        if target >= obj_start && target < obj_end {
-            unsafe {
-                if !(*h).marked {
-                    (*h).marked = true;
-                    // Scan internal fields of marked object for child pointers
-                    scan_stack_range(obj_start, obj_end, allocs);
-                }
-            }
-            break;
+    let h = allocs[idx].0;
+    unsafe {
+        if !(*h).marked {
+            (*h).marked = true;
+            let obj_start = (h as *mut u8).add(size_of::<GcHeader>());
+            let obj_end = obj_start.add((*h).size);
+            scan_stack_range(obj_start, obj_end, allocs);
         }
     }
 }

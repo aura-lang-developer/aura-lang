@@ -2016,11 +2016,14 @@ Aura v0.7.1 introduces extensive defense-in-depth security hardening across the 
 |---|---|---|
 | **Type Checker** | Incomplete pattern match exhaustiveness | Strict compile-time validation for `Option<T>`, `Result<T, E>`, and custom ADT sum types (record & tuple variants). Eliminates unhandled branch crashes. |
 | **Native Code Generator** | Variant tag collision in Cranelift (`aura_variant_new`) | Deterministic hashing with `FxHasher` (`compute_variant_tag`) replacing sequential index collisions across distinct types. |
-| **Memory / Concurrency** | GC data races during multi-fiber execution | Stop-The-World (STW) safepoint coordination via `GC_WORLD_LOCK` synchronization between worker fibers and the generational garbage collector. |
+| **Memory / GC Engine** | Lock contention & GC data races | Thread-Local Allocation Buffers (TLAB) with amortized batch flushing; Stop-The-World (STW) safepoints (`GC_WORLD_LOCK`); $O(\log N)$ binary search pointer marking. |
+| **Fiber Stack Integrity** | Stack buffer overflow in fiber execution | Hardware guard pages (`mprotect`) plus `STACK_CANARY_MAGIC` validation on stack allocation, reuse, and recycling. |
 | **Database Subsystem** | SQL Injection & Parameter Misalignment | Strictly typed parameter formatting and dialect-specific placeholder binding (`bind_postgres_sql` with `$1..$N`, `bind_mysql_sql` with `?`), plus handle type validation preventing pointer confusion. |
 | **Database Lifecycle** | Double-free & dangling pointers in `Tx`/`Pool` | Idempotent transaction and connection pool closing with atomic de-registration from runtime pool registry. |
-| **HTTP Web Server** | HTTP Response Splitting & CRLF Injection | Header key & value sanitization rejecting `\r` and `\n` characters before writing HTTP protocol frames. |
+| **HTTP Web Server** | HTTP Response Splitting, Slowloris & DoS | Response header sanitization (CRLF rejection); dual read/write socket timeouts (5s/10s); method validation (405); auto-injection of `X-Content-Type-Options: nosniff` and `X-Frame-Options: SAMEORIGIN`. |
 | **TLS / HTTPS Subsystem** | Insecure silent fallback / false TLS indicator | Server startup aborts with explicit error code (`-1`) and log warnings if TLS configuration is supplied without linked native TLS provider. |
+| **JSON Parser** | Stack Overflow DoS via nested payloads | Recursive depth validation enforcing `MAX_JSON_DEPTH = 64` across all native parser entrypoints. |
+| **Crypto & Auth** | Side-Channel Timing Attacks on JWT | Constant-time signature verification using `timingSafeEqual` (Node.js) and `hmac.Equal` (Go). |
 | **Redis & Mongo Clients** | Remote hostname resolution & credential leaks | Native DNS resolution via `ToSocketAddrs`, full RESP multi-packet response framing, and URI credential stripping in logging. |
 | **OS Subsystem** | Data races & memory unsafety in environment vars | Global `ENV_LOCK` Mutex for `aura_os_setenv` and `aura_os_env`, with strict validation rejecting null bytes (`\0`) and `=` in variable names. |
 | **Supply Chain / Modules** | Argument and protocol injection in `auramod` / `aurapkg` | Path and version string sanitization against path traversal, command injection, and illegal git protocol characters. |
@@ -2042,8 +2045,8 @@ Aura v0.7.1 introduces extensive defense-in-depth security hardening across the 
 - [x] **C/Rust FFI Generator (`aurabindgen`)**: Automatic conversion of `.h` headers into safe Aura interfaces.
 - [x] **Production-Grade Tooling**: Official LSP server (`auralsp`), terminal step debugger (`aurac step`), V8 DAP server (`aurac debug`), test runner (`auratest`), and opinionated formatter (`aurafmt`).
 - [x] **Rust 2024 Modernization & Toolchain Optimization**: Centralized Cargo workspace dependencies and lints, deduplicated crate tree (`object 0.39`), Thin LTO release profile (`[profile.release]`), `RwLock` + `FxHashMap` concurrent runtime GC, zero-overhead static scheduler, zero-alloc HTTP metric formatting, and structured `TypeError` diagnostics.
-- [x] **Security & Runtime Hardening (v0.7.1)**: Stop-The-World GC synchronization, SQL injection prevention with dialect-aware binding ($1..$N, ?), HTTP response splitting/CRLF defense, compile-time match exhaustiveness enforcement, collision-free Cranelift ADT variant tags, thread-safe environment variables, and supply-chain package sanitization.
-- [x] **Quality Suite & Tests**: **256 automated tests passing successfully** across the repository.
+- [x] **Security & Runtime Hardening (v0.7.1)**: TLAB lock-free GC allocations, binary search GC marking, fiber stack canaries, constant-time JWT verification (`timingSafeEqual` / `hmac.Equal`), JSON DoS depth limiting (depth <= 64), Slowloris socket timeouts, HTTP security headers (`nosniff`, `SAMEORIGIN`), Stop-The-World GC synchronization, SQL injection prevention ($1..$N, ?), compile-time match exhaustiveness, and supply-chain package sanitization.
+- [x] **Quality Suite & Tests**: **262 automated tests passing successfully** across the repository.
 - [ ] **WebAssembly Backend (WASM/WASI)**: WebAssembly binary emission for serverless edge microservices.
 - [ ] **Advanced LLVM Optimizations**: Optional LTO optimization pipeline and SIMD vectorization for compute-intensive workloads.
 

@@ -276,9 +276,10 @@ const __aura_import = async (m) => {
         self.write_line("    const parts = String(token ?? '').split('.');");
         self.write_line("    if (parts.length !== 3) return Err('Token JWT malformado: se esperan 3 segmentos');");
         self.write_line("    const unsigned = `${parts[0]}.${parts[1]}`;");
-        self.write_line("    const expectedSig = cryptoMod.createHmac('sha256', secret).update(unsigned).digest('base64url');");
+        self.write_line("    const sigBuf = Buffer.from(parts[2], 'utf8');");
+        self.write_line("    const expBuf = Buffer.from(expectedSig, 'utf8');");
         self.write_line(
-            "    if (parts[2] !== expectedSig) return Err('Invalid JWT token signature');",
+            "    if (sigBuf.length !== expBuf.length || !cryptoMod.timingSafeEqual(sigBuf, expBuf)) return Err('Invalid JWT token signature');",
         );
         self.write_line("    try {");
         self.write_line(

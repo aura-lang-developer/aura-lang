@@ -11,6 +11,19 @@ pub struct AuraJsonDoc {
     pub value: Value,
 }
 
+const MAX_JSON_DEPTH: usize = 64;
+
+fn check_json_depth(val: &Value, current_depth: usize) -> bool {
+    if current_depth > MAX_JSON_DEPTH {
+        return false;
+    }
+    match val {
+        Value::Array(arr) => arr.iter().all(|v| check_json_depth(v, current_depth + 1)),
+        Value::Object(obj) => obj.values().all(|v| check_json_depth(v, current_depth + 1)),
+        _ => true,
+    }
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn aura_json_parse(ptr: *const u8, len: usize) -> *mut AuraJsonDoc {
     if ptr.is_null() || len == 0 {
@@ -19,8 +32,8 @@ pub extern "C" fn aura_json_parse(ptr: *const u8, len: usize) -> *mut AuraJsonDo
 
     let slice_bytes = unsafe { slice::from_raw_parts(ptr, len) };
     let parsed: Value = match serde_json::from_slice(slice_bytes) {
-        Ok(v) => v,
-        Err(_) => Value::Null,
+        Ok(v) if check_json_depth(&v, 1) => v,
+        _ => Value::Null,
     };
 
     Box::into_raw(Box::new(AuraJsonDoc { value: parsed }))
@@ -148,14 +161,23 @@ pub fn json_value_to_aura_val(val: &Value) -> AuraVal {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn aura_json_free(doc: *mut AuraJsonDoc) {
+    if !doc.is_null() {
+        unsafe {
+            drop(Box::from_raw(doc));
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn aura_json_parse_to_record(ptr: *const u8, len: usize) -> *mut AuraRecord {
     if ptr.is_null() || len == 0 {
         return crate::record::aura_record_new();
     }
     let bytes = unsafe { slice::from_raw_parts(ptr, len) };
     let parsed: Value = match serde_json::from_slice(bytes) {
-        Ok(v) => v,
-        Err(_) => return crate::record::aura_record_new(),
+        Ok(v) if check_json_depth(&v, 1) => v,
+        _ => return crate::record::aura_record_new(),
     };
 
     match json_value_to_aura_val(&parsed) {

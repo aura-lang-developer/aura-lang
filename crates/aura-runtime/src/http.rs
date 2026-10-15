@@ -337,6 +337,7 @@ pub extern "C" fn aura_http_listen_and_serve_tls(
 fn handle_connection(stream: TcpStream, mux: &AuraServeMux) {
     let _ = stream.set_nodelay(true);
     let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(5)));
+    let _ = stream.set_write_timeout(Some(std::time::Duration::from_secs(10)));
 
     let mut reader = BufReader::with_capacity(16384, stream);
     let mut request_line = String::with_capacity(256);
@@ -357,6 +358,19 @@ fn handle_connection(stream: TcpStream, mux: &AuraServeMux) {
         }
 
         let method = parts[0];
+        // Validate method against command/header injection
+        let valid_method = matches!(
+            method,
+            "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS"
+        );
+        if !valid_method {
+            let raw_stream = reader.get_mut();
+            let _ = raw_stream.write_all(
+                b"HTTP/1.1 405 Method Not Allowed\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",
+            );
+            break;
+        }
+
         let uri = parts[1];
         let http_version = if parts.len() >= 3 {
             parts[2]
@@ -540,6 +554,16 @@ fn handle_connection(stream: TcpStream, mux: &AuraServeMux) {
                 && !res.headers.contains_key("Content-Type")
             {
                 headers_str.push_str("Content-Type: application/json\r\n");
+            }
+            if !res.headers.contains_key("x-content-type-options")
+                && !res.headers.contains_key("X-Content-Type-Options")
+            {
+                headers_str.push_str("X-Content-Type-Options: nosniff\r\n");
+            }
+            if !res.headers.contains_key("x-frame-options")
+                && !res.headers.contains_key("X-Frame-Options")
+            {
+                headers_str.push_str("X-Frame-Options: SAMEORIGIN\r\n");
             }
 
             for (k, v) in &res.headers {

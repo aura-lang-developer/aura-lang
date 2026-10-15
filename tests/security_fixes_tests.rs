@@ -173,3 +173,72 @@ fn test_adt_variant_compilation_and_matching() {
     let res = compile(source, &[]);
     assert!(res.is_ok(), "Compiling custom ADT pattern matching must succeed without tag collision");
 }
+
+#[test]
+fn test_timing_attack_jwt_codegen_protection() {
+    let source = r#"
+        import { jwt } from "jwt";
+
+        fn checkAuth(token: String): Result<String, String> => {
+            jwt.verify(token, "supersecret")
+        }
+    "#;
+
+    // 1. JS / Node Codegen must use timingSafeEqual
+    let res = compile(source, &[]).expect("JS compilation must succeed");
+    assert!(
+        res.js_code.contains("timingSafeEqual"),
+        "Node.js codegen must verify JWT signatures using crypto.timingSafeEqual"
+    );
+
+    // 2. Go Codegen must use hmac.Equal
+    let go_code = aura_lang::compile_to_go(source).expect("Go compilation must succeed");
+    assert!(
+        go_code.contains("hmac.Equal"),
+        "Go codegen must verify JWT signatures using hmac.Equal for constant-time comparison"
+    );
+}
+
+#[test]
+fn test_json_dos_depth_protection_runtime() {
+    // Maliciously nested JSON payload (70 levels > 64)
+    let mut payload = Vec::new();
+    for _ in 0..70 {
+        payload.push(b'[');
+    }
+    payload.push(b'1');
+    for _ in 0..70 {
+        payload.push(b']');
+    }
+
+    let doc = aura_runtime::json::aura_json_parse(payload.as_ptr(), payload.len());
+    assert!(!doc.is_null());
+    unsafe {
+        assert!(
+            (*doc).value.is_null(),
+            "Excessive JSON nesting (> 64) must be safely rejected to prevent stack exhaustion DoS"
+        );
+        aura_runtime::json::aura_json_free(doc);
+    }
+}
+
+#[test]
+fn test_fiber_stack_canary_integrity() {
+    use aura_runtime::context::{DEFAULT_STACK_SIZE, FiberStack, STACK_CANARY_MAGIC};
+
+    let stack = FiberStack::new(DEFAULT_STACK_SIZE);
+    assert!(stack.verify_canary(), "Stack canary must be valid at creation");
+
+    // Corrupt canary
+    unsafe {
+        *(stack.bottom() as *mut usize) = 0xBADF_00D0;
+    }
+    assert!(!stack.verify_canary(), "Corrupted canary must be detected");
+
+    // Restore for safe drop
+    unsafe {
+        *(stack.bottom() as *mut usize) = STACK_CANARY_MAGIC;
+    }
+    assert!(stack.verify_canary());
+}
+

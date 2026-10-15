@@ -92,6 +92,8 @@ pub struct FiberStack {
     layout: Layout,
 }
 
+pub const STACK_CANARY_MAGIC: usize = 0xDEAD_BEEF_CAFE_BABE;
+
 impl FiberStack {
     #[cfg(unix)]
     pub fn new(size: usize) -> Self {
@@ -103,7 +105,10 @@ impl FiberStack {
         if size == DEFAULT_STACK_SIZE {
             if let Ok(mut pool) = STACK_POOL.lock() {
                 if let Some(recycled) = pool.pop() {
-                    return recycled;
+                    if recycled.verify_canary() {
+                        return recycled;
+                    }
+                    eprintln!("[Aura Runtime Security Alert] Corrupted stack canary detected in pool, discarding");
                 }
             }
         }
@@ -132,6 +137,11 @@ impl FiberStack {
         }
 
         let base = unsafe { (ptr as *mut u8).add(guard_size) };
+        // Plant stack canary at the bottom of the stack to detect frame buffer overflows
+        unsafe {
+            *(base as *mut usize) = STACK_CANARY_MAGIC;
+        }
+
         FiberStack {
             mmap_ptr: ptr as *mut u8,
             total_mmap_size,
@@ -162,6 +172,13 @@ impl FiberStack {
     pub fn size(&self) -> usize {
         self.size
     }
+
+    pub fn verify_canary(&self) -> bool {
+        if self.base.is_null() {
+            return true;
+        }
+        unsafe { *(self.base as *const usize) == STACK_CANARY_MAGIC }
+    }
 }
 
 impl Drop for FiberStack {
@@ -172,7 +189,7 @@ impl Drop for FiberStack {
                 let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize }.max(4096);
                 let default_aligned =
                     ((DEFAULT_STACK_SIZE + page_size - 1) / page_size) * page_size;
-                if self.size == default_aligned {
+                if self.size == default_aligned && self.verify_canary() {
                     if let Ok(mut pool) = STACK_POOL.lock() {
                         if pool.len() < MAX_STACK_POOL {
                             let mmap_ptr = self.mmap_ptr;
