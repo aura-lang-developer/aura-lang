@@ -309,6 +309,17 @@ const __aura_import = async (m) => {
         self.write_line("  }");
         self.write_line("  return v;");
         self.write_line("};");
+        self.write_line("export const Int = (x) => Math.trunc(Number(x));");
+        self.write_line("export const Float = (x) => Number(x);");
+        self.write_line("export const __aura_coalesce = (v, def) => {");
+        self.write_line("  const getDef = () => (typeof def === \"function\" ? def() : def);");
+        self.write_line("  if (v && typeof v === \"object\") {");
+        self.write_line("    if (v.$ === \"Some\") return v._0;");
+        self.write_line("    if (v.$ === \"Ok\") return v.value;");
+        self.write_line("    if (v.$ === \"None\" || v.$ === \"Err\") return getDef();");
+        self.write_line("  }");
+        self.write_line("  return v !== null && v !== undefined ? v : getDef();");
+        self.write_line("};");
         self.write_line(
             "if (typeof Map !== \"undefined\" && !Map.new) { Map.new = () => new Map(); }",
         );
@@ -3391,6 +3402,10 @@ const __aura_import = async (m) => {
     }
 
     fn emit_type_alias(&mut self, alias: &TypeAliasDecl) {
+        if alias.is_distinct {
+            let exp = if alias.is_exported { "export " } else { "" };
+            self.write_line(&format!("{}const {} = (x) => x;", exp, alias.name));
+        }
         if alias.is_packed {
             self.write_line(&format!(
                 "// Packed struct: {} (zero-padding binary layout)",
@@ -3467,6 +3482,25 @@ const __aura_import = async (m) => {
                 }
                 Statement::Return(Some(v)) => self.expr_contains_async(v),
                 Statement::Return(None) => false,
+                Statement::Guard {
+                    condition,
+                    else_body,
+                } => {
+                    self.expr_contains_async(condition)
+                        || else_body.iter().any(|s| match s {
+                            Statement::Let { value, .. }
+                            | Statement::LetPattern { value, .. }
+                            | Statement::Expr(value) => self.expr_contains_async(value),
+                            Statement::Defer(value) | Statement::ErrDefer(value) => {
+                                self.expr_contains_async(value)
+                            }
+                            Statement::Assign { target, value } => {
+                                self.expr_contains_async(target) || self.expr_contains_async(value)
+                            }
+                            Statement::Return(Some(v)) => self.expr_contains_async(v),
+                            _ => false,
+                        })
+                }
             }),
             Expr::Binary { left, right, .. } | Expr::Pipeline { left, right } => {
                 self.expr_contains_async(left) || self.expr_contains_async(right)
@@ -3539,6 +3573,23 @@ const __aura_import = async (m) => {
                 }
                 Statement::Return(Some(v)) => self.expr_contains_defer(v),
                 Statement::Return(None) => false,
+                Statement::Guard {
+                    condition,
+                    else_body,
+                } => {
+                    self.expr_contains_defer(condition)
+                        || else_body.iter().any(|s| match s {
+                            Statement::Defer(_) | Statement::ErrDefer(_) => true,
+                            Statement::Let { value, .. }
+                            | Statement::LetPattern { value, .. }
+                            | Statement::Expr(value) => self.expr_contains_defer(value),
+                            Statement::Assign { target, value } => {
+                                self.expr_contains_defer(target) || self.expr_contains_defer(value)
+                            }
+                            Statement::Return(Some(v)) => self.expr_contains_defer(v),
+                            _ => false,
+                        })
+                }
             }),
             Expr::Binary { left, right, .. } | Expr::Pipeline { left, right } => {
                 self.expr_contains_defer(left) || self.expr_contains_defer(right)
@@ -4175,6 +4226,11 @@ const __aura_import = async (m) => {
                     vars.extend(self.pattern_bound_variables(item));
                 }
             }
+            Pattern::Or(patterns) => {
+                if let Some(first) = patterns.first() {
+                    vars.extend(self.pattern_bound_variables(first));
+                }
+            }
             _ => {}
         }
         vars
@@ -4326,6 +4382,19 @@ const __aura_import = async (m) => {
                     self.write_line("return;");
                 }
             }
+            Statement::Guard {
+                condition,
+                else_body,
+            } => {
+                let cond_js = self.expr_to_js(condition);
+                self.write_line(&format!("if (!({})) {{", cond_js));
+                self.indent_level += 1;
+                for s in else_body {
+                    self.emit_statement(s);
+                }
+                self.indent_level -= 1;
+                self.write_line("}");
+            }
         }
     }
 
@@ -4357,6 +4426,25 @@ const __aura_import = async (m) => {
                 }
                 Statement::Return(Some(v)) => self.expr_contains_try(v),
                 Statement::Return(None) => false,
+                Statement::Guard {
+                    condition,
+                    else_body,
+                } => {
+                    self.expr_contains_try(condition)
+                        || else_body.iter().any(|s| match s {
+                            Statement::Let { value, .. }
+                            | Statement::LetPattern { value, .. }
+                            | Statement::Expr(value) => self.expr_contains_try(value),
+                            Statement::Defer(value) | Statement::ErrDefer(value) => {
+                                self.expr_contains_try(value)
+                            }
+                            Statement::Assign { target, value } => {
+                                self.expr_contains_try(target) || self.expr_contains_try(value)
+                            }
+                            Statement::Return(Some(v)) => self.expr_contains_try(v),
+                            _ => false,
+                        })
+                }
             }),
             Expr::Binary { left, right, .. } | Expr::Pipeline { left, right } => {
                 self.expr_contains_try(left) || self.expr_contains_try(right)
@@ -4469,6 +4557,11 @@ const __aura_import = async (m) => {
                     .join(", ");
                 format!("{}({})", name, inner)
             }
+            Pattern::Or(patterns) => patterns
+                .iter()
+                .map(|p| self.pattern_to_js_destructuring(p))
+                .collect::<Vec<_>>()
+                .join(" | "),
         }
     }
 
@@ -4512,23 +4605,29 @@ const __aura_import = async (m) => {
             }
             Expr::Binary { op, left, right } => {
                 let l = self.expr_to_js_with_renames(left, renames);
-                let r = self.expr_to_js_with_renames(right, renames);
-                let op_str = match op {
-                    BinOp::Add => "+",
-                    BinOp::Sub => "-",
-                    BinOp::Mul => "*",
-                    BinOp::Div => "/",
-                    BinOp::Mod => "%",
-                    BinOp::Equal => "===",
-                    BinOp::NotEqual => "!==",
-                    BinOp::LessThan => "<",
-                    BinOp::LessEqual => "<=",
-                    BinOp::GreaterThan => ">",
-                    BinOp::GreaterEqual => ">=",
-                    BinOp::And => "&&",
-                    BinOp::Or => "||",
-                };
-                format!("({} {} {})", l, op_str, r)
+                if *op == BinOp::Coalesce {
+                    let r = self.expr_to_js_with_renames(right, renames);
+                    format!("__aura_coalesce({}, () => ({}))", l, r)
+                } else {
+                    let r = self.expr_to_js_with_renames(right, renames);
+                    let op_str = match op {
+                        BinOp::Add => "+",
+                        BinOp::Sub => "-",
+                        BinOp::Mul => "*",
+                        BinOp::Div => "/",
+                        BinOp::Mod => "%",
+                        BinOp::Equal => "===",
+                        BinOp::NotEqual => "!==",
+                        BinOp::LessThan => "<",
+                        BinOp::LessEqual => "<=",
+                        BinOp::GreaterThan => ">",
+                        BinOp::GreaterEqual => ">=",
+                        BinOp::And => "&&",
+                        BinOp::Or => "||",
+                        BinOp::Coalesce => unreachable!(),
+                    };
+                    format!("({} {} {})", l, op_str, r)
+                }
             }
             Expr::Unary { op, expr } => {
                 let e = self.expr_to_js_with_renames(expr, renames);
@@ -4817,6 +4916,26 @@ const __aura_import = async (m) => {
                     }
                     Statement::Return(Some(v)) => self.expr_contains_async(v),
                     Statement::Return(None) => false,
+                    Statement::Guard {
+                        condition,
+                        else_body,
+                    } => {
+                        self.expr_contains_async(condition)
+                            || else_body.iter().any(|s| match s {
+                                Statement::Let { value, .. }
+                                | Statement::LetPattern { value, .. }
+                                | Statement::Expr(value) => self.expr_contains_async(value),
+                                Statement::Defer(value) | Statement::ErrDefer(value) => {
+                                    self.expr_contains_async(value)
+                                }
+                                Statement::Assign { target, value } => {
+                                    self.expr_contains_async(target)
+                                        || self.expr_contains_async(value)
+                                }
+                                Statement::Return(Some(v)) => self.expr_contains_async(v),
+                                _ => false,
+                            })
+                    }
                 });
                 let has_defer = self.expr_contains_defer(&Expr::Block(stmts.to_vec()));
                 let mut lines = Vec::new();
@@ -5016,6 +5135,20 @@ const __aura_import = async (m) => {
                         Statement::Return(None) => {
                             lines.push("  return;".to_string());
                         }
+                        Statement::Guard {
+                            condition,
+                            else_body,
+                        } => {
+                            let cond_js = self.expr_to_js_with_renames(condition, renames);
+                            lines.push(format!("  if (!({})) {{", cond_js));
+                            for s in else_body {
+                                lines.push(format!(
+                                    "    {}",
+                                    self.statement_to_js_string(s, renames)
+                                ));
+                            }
+                            lines.push("  }".to_string());
+                        }
                     }
                 }
                 if has_defer {
@@ -5181,6 +5314,20 @@ const __aura_import = async (m) => {
                             }
                             Statement::Return(None) => {
                                 lines.push("  return;".to_string());
+                            }
+                            Statement::Guard {
+                                condition,
+                                else_body,
+                            } => {
+                                let cond_js = self.expr_to_js_with_renames(condition, renames);
+                                lines.push(format!("  if (!({})) {{", cond_js));
+                                for s in else_body {
+                                    lines.push(format!(
+                                        "    {}",
+                                        self.statement_to_js_string(s, renames)
+                                    ));
+                                }
+                                lines.push("  }".to_string());
                             }
                         }
                     }
@@ -5358,6 +5505,20 @@ const __aura_import = async (m) => {
                             }
                             Statement::Return(None) => {
                                 lines.push("  return;".to_string());
+                            }
+                            Statement::Guard {
+                                condition,
+                                else_body,
+                            } => {
+                                let cond_js = self.expr_to_js_with_renames(condition, renames);
+                                lines.push(format!("  if (!({})) {{", cond_js));
+                                for s in else_body {
+                                    lines.push(format!(
+                                        "    {}",
+                                        self.statement_to_js_string(s, renames)
+                                    ));
+                                }
+                                lines.push("  }".to_string());
                             }
                         }
                     }
@@ -5759,6 +5920,17 @@ const __aura_import = async (m) => {
                 format!("return {};", self.expr_to_js_with_renames(e, renames))
             }
             Statement::Return(None) => "return;".to_string(),
+            Statement::Guard {
+                condition,
+                else_body,
+            } => {
+                let cond_js = self.expr_to_js_with_renames(condition, renames);
+                let else_stmts: Vec<String> = else_body
+                    .iter()
+                    .map(|s| self.statement_to_js_string(s, renames))
+                    .collect();
+                format!("if (!({})) {{ {} }}", cond_js, else_stmts.join(" "))
+            }
         }
     }
 
@@ -5807,6 +5979,18 @@ const __aura_import = async (m) => {
                     target,
                     items.len()
                 )
+            }
+            Pattern::Or(patterns) => {
+                let conds: Vec<String> = patterns
+                    .iter()
+                    .map(|p| self.pattern_condition(p, target))
+                    .filter(|c| !c.is_empty())
+                    .collect();
+                if conds.is_empty() {
+                    String::new()
+                } else {
+                    format!("({})", conds.join(" || "))
+                }
             }
         }
     }
@@ -5862,6 +6046,13 @@ const __aura_import = async (m) => {
                     s.push_str(&self.pattern_bindings_js(r, &rest_target));
                 }
                 s
+            }
+            Pattern::Or(patterns) => {
+                if let Some(first) = patterns.first() {
+                    self.pattern_bindings_js(first, target)
+                } else {
+                    String::new()
+                }
             }
             _ => String::new(),
         }

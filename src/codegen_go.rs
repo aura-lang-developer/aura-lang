@@ -179,6 +179,24 @@ var None any = nil
 func Ok(v any) auraResult { return auraResult{Val: v, IsOk: true} }
 func Err(e any) auraResult { return auraResult{Err: fmt.Sprint(e), IsOk: false} }
 
+func __auraCoalesce[T any](v any, def T) T {
+    if v == nil {
+        return def
+    }
+    if res, ok := v.(auraResult); ok {
+        if !res.IsOk {
+            return def
+        }
+        if val, ok := res.Val.(T); ok {
+            return val
+        }
+    }
+    if val, ok := v.(T); ok {
+        return val
+    }
+    return def
+}
+
 func parseFloat(v any) float64 {
     s := fmt.Sprint(v)
     f, _ := strconv.ParseFloat(strings.TrimSpace(s), 64)
@@ -3006,6 +3024,17 @@ impl GoCodeGen {
                     "return".to_string()
                 }
             }
+            Statement::Guard {
+                condition,
+                else_body,
+            } => {
+                let cond_str = self.emit_expr(condition);
+                let mut body_strs = Vec::new();
+                for s in else_body {
+                    body_strs.push(self.emit_statement_to_string(s));
+                }
+                format!("if !({}) {{ {} }}", cond_str, body_strs.join("; "))
+            }
             _ => String::new(),
         }
     }
@@ -3403,6 +3432,19 @@ impl GoCodeGen {
                     self.write_line("return");
                 }
             }
+            Statement::Guard {
+                condition,
+                else_body,
+            } => {
+                let cond_str = self.emit_expr(condition);
+                self.write_line(&format!("if !({}) {{", cond_str));
+                self.indent_level += 1;
+                for stmt in else_body {
+                    self.emit_statement(stmt);
+                }
+                self.indent_level -= 1;
+                self.write_line("}");
+            }
         }
     }
 
@@ -3744,6 +3786,40 @@ impl GoCodeGen {
                     self.emit_statement_or_expr(&arm.body);
                     self.indent_level -= 1;
                 }
+                Pattern::Or(patterns) => {
+                    let mut conds = Vec::new();
+                    for pat in patterns {
+                        if let Pattern::Literal(lit) = pat {
+                            conds.push(format!(
+                                "any({}) == any({})",
+                                subj,
+                                self.emit_expr(&Expr::Literal(lit.clone()))
+                            ));
+                        } else if let Pattern::Constructor { name, .. } = pat {
+                            if name == "Some" {
+                                conds.push(format!("{} != nil", subj));
+                            } else if name == "None" {
+                                conds.push(format!("{} == nil", subj));
+                            } else {
+                                conds.push(format!("fmt.Sprint({}) == \"{}\"", subj, name));
+                            }
+                        }
+                    }
+                    let cond_str = if conds.is_empty() {
+                        "true".to_string()
+                    } else {
+                        conds.join(" || ")
+                    };
+                    if !first_emitted {
+                        self.write_line(&format!("if {} {{", cond_str));
+                        first_emitted = true;
+                    } else {
+                        self.write_line(&format!("}} else if {} {{", cond_str));
+                    }
+                    self.indent_level += 1;
+                    self.emit_statement_or_expr(&arm.body);
+                    self.indent_level -= 1;
+                }
                 _ => {}
             }
         }
@@ -4013,22 +4089,27 @@ impl GoCodeGen {
                         r = format!("int64({r})");
                     }
                 }
-                let op_str = match op {
-                    BinOp::Add => "+",
-                    BinOp::Sub => "-",
-                    BinOp::Mul => "*",
-                    BinOp::Div => "/",
-                    BinOp::Mod => "%",
-                    BinOp::Equal => "==",
-                    BinOp::NotEqual => "!=",
-                    BinOp::LessThan => "<",
-                    BinOp::LessEqual => "<=",
-                    BinOp::GreaterThan => ">",
-                    BinOp::GreaterEqual => ">=",
-                    BinOp::And => "&&",
-                    BinOp::Or => "||",
-                };
-                format!("({} {} {})", l, op_str, r)
+                if *op == BinOp::Coalesce {
+                    format!("__auraCoalesce({}, {})", l, r)
+                } else {
+                    let op_str = match op {
+                        BinOp::Add => "+",
+                        BinOp::Sub => "-",
+                        BinOp::Mul => "*",
+                        BinOp::Div => "/",
+                        BinOp::Mod => "%",
+                        BinOp::Equal => "==",
+                        BinOp::NotEqual => "!=",
+                        BinOp::LessThan => "<",
+                        BinOp::LessEqual => "<=",
+                        BinOp::GreaterThan => ">",
+                        BinOp::GreaterEqual => ">=",
+                        BinOp::And => "&&",
+                        BinOp::Or => "||",
+                        BinOp::Coalesce => unreachable!(),
+                    };
+                    format!("({} {} {})", l, op_str, r)
+                }
             }
             Expr::Unary { op, expr } => {
                 let e = self.emit_expr(expr);
@@ -4685,6 +4766,33 @@ impl GoCodeGen {
                                 "{{ {} := {}; _ = {}; {} }}",
                                 vname, subj, vname, arm_body
                             ));
+                        }
+                        Pattern::Or(patterns) => {
+                            let mut conds = Vec::new();
+                            for pat in patterns {
+                                if let Pattern::Literal(lit) = pat {
+                                    conds.push(format!(
+                                        "any({}) == any({})",
+                                        subj,
+                                        self.emit_expr(&Expr::Literal(lit.clone()))
+                                    ));
+                                } else if let Pattern::Constructor { name, .. } = pat {
+                                    if name == "Some" {
+                                        conds.push(format!("{} != nil", subj));
+                                    } else if name == "None" {
+                                        conds.push(format!("{} == nil", subj));
+                                    } else {
+                                        conds.push(format!("fmt.Sprint({}) == \"{}\"", subj, name));
+                                    }
+                                }
+                            }
+                            let cond_str = if conds.is_empty() {
+                                "true".to_string()
+                            } else {
+                                conds.join(" || ")
+                            };
+                            let arm_body = self.emit_arm_return_expr(&arm.body);
+                            arm_strs.push(format!("if {} {{ {} }}", cond_str, arm_body));
                         }
                         _ => {}
                     }

@@ -571,10 +571,7 @@ fn handle_connection(stream: TcpStream, mux: &AuraServeMux) {
                     .chars()
                     .filter(|c| !c.is_control() && *c != ':' && !c.is_whitespace())
                     .collect();
-                let clean_v: String = v
-                    .chars()
-                    .filter(|c| *c != '\r' && *c != '\n')
-                    .collect();
+                let clean_v: String = v.chars().filter(|c| *c != '\r' && *c != '\n').collect();
                 if !clean_k.is_empty() {
                     let _ = write!(headers_str, "{}: {}\r\n", clean_k, clean_v);
                 }

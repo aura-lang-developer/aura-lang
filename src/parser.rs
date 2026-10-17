@@ -90,6 +90,8 @@ impl Parser {
             TokenKind::Interface => Ok("interface".to_string()),
             TokenKind::Panic => Ok("panic".to_string()),
             TokenKind::Recover => Ok("recover".to_string()),
+            TokenKind::Distinct => Ok("distinct".to_string()),
+            TokenKind::Guard => Ok("guard".to_string()),
             TokenKind::Underscore => Ok("_".to_string()),
             other => Err(format!("Expected identifier, found {:?}", other)),
         }
@@ -222,6 +224,7 @@ impl Parser {
                     name,
                     is_exported,
                     is_packed: true,
+                    is_distinct: false,
                     type_params,
                     target,
                 }))
@@ -236,6 +239,7 @@ impl Parser {
                     name,
                     is_exported,
                     is_packed: false,
+                    is_distinct: false,
                     type_params,
                     target,
                 }))
@@ -248,6 +252,7 @@ impl Parser {
                 if self.peek() == &TokenKind::Equal {
                     self.advance();
                 }
+                let is_distinct = self.match_token(&TokenKind::Distinct);
                 let is_packed = self.match_token(&TokenKind::Packed);
                 let _ = self.match_token(&TokenKind::Struct);
 
@@ -279,6 +284,7 @@ impl Parser {
                         name,
                         is_exported,
                         is_packed,
+                        is_distinct,
                         type_params,
                         target,
                     }))
@@ -781,6 +787,20 @@ impl Parser {
             };
             self.match_token(&TokenKind::Semicolon);
             Ok(Statement::ErrDefer(Box::new(final_expr)))
+        } else if self.match_token(&TokenKind::Guard) {
+            let condition = self.parse_expr()?;
+            self.expect(TokenKind::Else)?;
+            self.expect(TokenKind::LBrace)?;
+            let mut else_body = Vec::new();
+            while self.peek() != &TokenKind::RBrace && self.peek() != &TokenKind::Eof {
+                else_body.push(self.parse_statement()?);
+            }
+            self.expect(TokenKind::RBrace)?;
+            self.match_token(&TokenKind::Semicolon);
+            Ok(Statement::Guard {
+                condition,
+                else_body,
+            })
         } else if self.match_token(&TokenKind::Return) {
             let val = if self.peek() != &TokenKind::Semicolon && self.peek() != &TokenKind::RBrace {
                 Some(self.parse_expr()?)
@@ -898,16 +918,29 @@ impl Parser {
     }
 
     fn parse_pipeline_expr(&mut self) -> Result<Expr, String> {
-        let mut left = self.parse_logical_or()?;
+        let mut left = self.parse_coalesce_expr()?;
 
         while self.match_token(&TokenKind::Pipe) {
-            let right = self.parse_logical_or()?;
+            let right = self.parse_coalesce_expr()?;
             left = Expr::Pipeline {
                 left: Box::new(left),
                 right: Box::new(right),
             };
         }
 
+        Ok(left)
+    }
+
+    fn parse_coalesce_expr(&mut self) -> Result<Expr, String> {
+        let mut left = self.parse_logical_or()?;
+        while self.match_token(&TokenKind::QuestionQuestion) {
+            let right = self.parse_logical_or()?;
+            left = Expr::Binary {
+                op: BinOp::Coalesce,
+                left: Box::new(left),
+                right: Box::new(right),
+            };
+        }
         Ok(left)
     }
 
@@ -1697,6 +1730,36 @@ impl Parser {
 
     fn parse_if_expr(&mut self) -> Result<Expr, String> {
         self.expect(TokenKind::If)?;
+        if self.match_token(&TokenKind::Let) {
+            let pattern = self.parse_pattern()?;
+            self.expect(TokenKind::Equal)?;
+            let subject = self.parse_expr()?;
+            let then_branch = self.parse_block_expr()?;
+            let else_branch = if self.match_token(&TokenKind::Else) {
+                if self.peek() == &TokenKind::If {
+                    self.parse_if_expr()?
+                } else {
+                    self.parse_block_expr()?
+                }
+            } else {
+                Expr::Literal(Literal::Unit)
+            };
+            return Ok(Expr::Match {
+                subject: Box::new(subject),
+                arms: vec![
+                    MatchArm {
+                        pattern,
+                        guard: None,
+                        body: then_branch,
+                    },
+                    MatchArm {
+                        pattern: Pattern::Wildcard,
+                        guard: None,
+                        body: else_branch,
+                    },
+                ],
+            });
+        }
         let condition = self.parse_expr()?;
         let then_branch = self.parse_block_expr()?;
         let else_branch = if self.match_token(&TokenKind::Else) {
@@ -1841,6 +1904,19 @@ impl Parser {
     }
 
     fn parse_pattern(&mut self) -> Result<Pattern, String> {
+        let first = self.parse_single_pattern()?;
+        if self.peek() == &TokenKind::PipeOp {
+            let mut patterns = vec![first];
+            while self.match_token(&TokenKind::PipeOp) {
+                patterns.push(self.parse_single_pattern()?);
+            }
+            Ok(Pattern::Or(patterns))
+        } else {
+            Ok(first)
+        }
+    }
+
+    fn parse_single_pattern(&mut self) -> Result<Pattern, String> {
         match self.peek().clone() {
             TokenKind::Underscore => {
                 self.advance();

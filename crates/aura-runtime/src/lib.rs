@@ -734,4 +734,3 @@ mod tests {
         aura_json_free(doc2);
     }
 }
-

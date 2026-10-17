@@ -78,6 +78,10 @@ pub enum ConcreteType {
         type_args: Vec<ConcreteType>,
         variants: HashMap<String, VariantFieldTypes>,
     },
+    Distinct {
+        name: String,
+        underlying: Box<ConcreteType>,
+    },
     Generic(Vec<String>, Box<ConcreteType>),
     TypeVar(String),
     Any,
@@ -152,6 +156,7 @@ impl std::fmt::Display for ConcreteType {
             ConcreteType::Generic(params, inner) => {
                 write!(f, "<{}> {}", params.join(", "), inner)
             }
+            ConcreteType::Distinct { name, .. } => write!(f, "{name}"),
             ConcreteType::TypeVar(v) => write!(f, "{}", v),
             ConcreteType::Any => write!(f, "Any"),
         }
@@ -269,6 +274,10 @@ impl ConcreteType {
                     ConcreteType::Generic(params.clone(), Box::new(inner.substitute(&new_bindings)))
                 }
             }
+            ConcreteType::Distinct { name, underlying } => ConcreteType::Distinct {
+                name: name.clone(),
+                underlying: Box::new(underlying.substitute(bindings)),
+            },
             _ => self.clone(),
         }
     }
@@ -3948,14 +3957,28 @@ impl TypeChecker {
                     self.env.insert_type(sum.name.clone(), sum_type);
                 }
                 Item::TypeAlias(alias) => {
-                    let ty = self.resolve_ast_type(&alias.target)?;
-                    let ty = if !alias.type_params.is_empty() {
-                        ConcreteType::Generic(alias.type_params.clone(), Box::new(ty))
+                    let base_ty = self.resolve_ast_type(&alias.target)?;
+                    let ty = if alias.is_distinct {
+                        ConcreteType::Distinct {
+                            name: alias.name.clone(),
+                            underlying: Box::new(base_ty.clone()),
+                        }
+                    } else if !alias.type_params.is_empty() {
+                        ConcreteType::Generic(alias.type_params.clone(), Box::new(base_ty.clone()))
                     } else {
-                        ty
+                        base_ty.clone()
                     };
                     self.env.insert_type(alias.name.clone(), ty.clone());
-                    self.type_alias_map.insert(alias.name.clone(), ty);
+                    self.type_alias_map.insert(alias.name.clone(), ty.clone());
+                    if alias.is_distinct {
+                        self.env.insert_var(
+                            alias.name.clone(),
+                            ConcreteType::Function {
+                                params: vec![base_ty],
+                                return_type: Box::new(ty),
+                            },
+                        );
+                    }
                 }
                 Item::Interface(iface) => {
                     let mut methods = HashMap::new();
@@ -4436,6 +4459,34 @@ impl TypeChecker {
                 }
                 Ok(())
             }
+            Statement::Guard {
+                condition,
+                else_body,
+            } => {
+                let cond_ty = self.infer_expr(condition, env)?;
+                self.unify(&ConcreteType::Bool, &cond_ty, "Guard statement condition")?;
+                let mut else_env = env.enter_scope();
+                let mut diverges = false;
+                for s in else_body {
+                    if matches!(s, Statement::Return(_) | Statement::Expr(Expr::Panic(_))) {
+                        diverges = true;
+                    }
+                    if let Statement::Expr(Expr::FunctionCall { callee, .. }) = s {
+                        if let Expr::Identifier(ref name) = **callee {
+                            if name == "panic" {
+                                diverges = true;
+                            }
+                        }
+                    }
+                    self.check_statement(s, &mut else_env)?;
+                }
+                if !diverges {
+                    return Err(
+                        "Guard 'else' block must diverge (e.g. return or panic)".to_string()
+                    );
+                }
+                Ok(())
+            }
         }
     }
 
@@ -4546,6 +4597,37 @@ impl TypeChecker {
                         self.unify(&right_ty, &ConcreteType::Bool, "Logical right operand")?;
                         Ok(ConcreteType::Bool)
                     }
+                    BinOp::Coalesce => {
+                        let is_panic = matches!(&**right, Expr::Panic(_))
+                            || matches!(&**right, Expr::FunctionCall { callee, .. } if matches!(&**callee, Expr::Identifier(id) if id == "panic"));
+                        match left_ty {
+                            ConcreteType::Option(inner) => {
+                                if !is_panic {
+                                    self.unify(
+                                        &inner,
+                                        &right_ty,
+                                        "Null coalescing '??' default operand",
+                                    )?;
+                                }
+                                Ok(*inner)
+                            }
+                            ConcreteType::Result(ok_ty, _) => {
+                                if !is_panic {
+                                    self.unify(
+                                        &ok_ty,
+                                        &right_ty,
+                                        "Result coalescing '??' default operand",
+                                    )?;
+                                }
+                                Ok(*ok_ty)
+                            }
+                            ConcreteType::Any => Ok(right_ty),
+                            other => Err(format!(
+                                "Left operand of '??' must be Option<T> or Result<T, E>, found '{}'",
+                                other
+                            )),
+                        }
+                    }
                 }
             }
             Expr::Unary { op, expr } => {
@@ -4650,6 +4732,35 @@ impl TypeChecker {
 
                 // Check if callee is Identifier for map, filter, sort, iter
                 if let Expr::Identifier(fn_name) = &**callee {
+                    if let Some(ConcreteType::Distinct {
+                        name: d_name,
+                        underlying,
+                    }) = env.lookup_type(fn_name)
+                    {
+                        if let Some(arg) = args.first() {
+                            let arg_ty = self.infer_expr(arg, env)?;
+                            self.unify(
+                                &underlying,
+                                &arg_ty,
+                                &format!("Distinct type constructor '{}'", d_name),
+                            )?;
+                            return Ok(ConcreteType::Distinct {
+                                name: d_name,
+                                underlying,
+                            });
+                        }
+                    }
+                    if (fn_name == "Int"
+                        || fn_name == "Float"
+                        || fn_name == "String"
+                        || fn_name == "Bool")
+                        && args.len() == 1
+                    {
+                        let arg_ty = self.infer_expr(&args[0], env)?;
+                        if let ConcreteType::Distinct { ref underlying, .. } = arg_ty {
+                            return Ok(*underlying.clone());
+                        }
+                    }
                     if (fn_name == "len" || fn_name == "cap") && !args.is_empty() {
                         let _ = self.infer_expr(&args[0], env)?;
                         return Ok(ConcreteType::Int);
@@ -5421,6 +5532,38 @@ impl TypeChecker {
                         Statement::Return(None) => {
                             last_ty = ConcreteType::Unit;
                         }
+                        Statement::Guard {
+                            condition,
+                            else_body,
+                        } => {
+                            let cond_ty = self.infer_expr(condition, &mut block_env)?;
+                            self.unify(&ConcreteType::Bool, &cond_ty, "Guard statement condition")?;
+                            let mut else_env = block_env.enter_scope();
+                            let mut diverges = false;
+                            for s in else_body {
+                                if matches!(
+                                    s,
+                                    Statement::Return(_) | Statement::Expr(Expr::Panic(_))
+                                ) {
+                                    diverges = true;
+                                }
+                                if let Statement::Expr(Expr::FunctionCall { callee, .. }) = s {
+                                    if let Expr::Identifier(ref name) = **callee {
+                                        if name == "panic" {
+                                            diverges = true;
+                                        }
+                                    }
+                                }
+                                self.check_statement(s, &mut else_env)?;
+                            }
+                            if !diverges {
+                                return Err(
+                                    "Guard 'else' block must diverge (e.g. return or panic)"
+                                        .to_string(),
+                                );
+                            }
+                            last_ty = ConcreteType::Unit;
+                        }
                     }
                 }
 
@@ -5726,15 +5869,38 @@ impl TypeChecker {
         subj_ty: &ConcreteType,
         arms: &[MatchArm],
     ) -> Result<(), String> {
-        let has_catch_all = arms.iter().any(|arm| matches!(&arm.pattern, Pattern::Wildcard | Pattern::Variable(_)));
+        fn pattern_matches_tag(pat: &Pattern, tag: &str) -> bool {
+            match pat {
+                Pattern::Constructor { name, .. } => name == tag,
+                Pattern::Record {
+                    type_name: Some(name),
+                    ..
+                } => name == tag,
+                Pattern::Or(pats) => pats.iter().any(|p| pattern_matches_tag(p, tag)),
+                _ => false,
+            }
+        }
+        fn pattern_is_catch_all(pat: &Pattern) -> bool {
+            match pat {
+                Pattern::Wildcard | Pattern::Variable(_) => true,
+                Pattern::Or(pats) => pats.iter().any(pattern_is_catch_all),
+                _ => false,
+            }
+        }
+
+        let has_catch_all = arms.iter().any(|arm| pattern_is_catch_all(&arm.pattern));
         if has_catch_all {
             return Ok(());
         }
 
         match subj_ty {
             ConcreteType::Option(_) => {
-                let has_some = arms.iter().any(|arm| matches!(&arm.pattern, Pattern::Constructor { name, .. } if name == "Some"));
-                let has_none = arms.iter().any(|arm| matches!(&arm.pattern, Pattern::Constructor { name, .. } if name == "None"));
+                let has_some = arms
+                    .iter()
+                    .any(|arm| pattern_matches_tag(&arm.pattern, "Some"));
+                let has_none = arms
+                    .iter()
+                    .any(|arm| pattern_matches_tag(&arm.pattern, "None"));
                 if !has_some || !has_none {
                     return Err(format!(
                         "Non-exhaustive patterns in match for Option: missing {}",
@@ -5743,8 +5909,12 @@ impl TypeChecker {
                 }
             }
             ConcreteType::Result(_, _) => {
-                let has_ok = arms.iter().any(|arm| matches!(&arm.pattern, Pattern::Constructor { name, .. } if name == "Ok"));
-                let has_err = arms.iter().any(|arm| matches!(&arm.pattern, Pattern::Constructor { name, .. } if name == "Err"));
+                let has_ok = arms
+                    .iter()
+                    .any(|arm| pattern_matches_tag(&arm.pattern, "Ok"));
+                let has_err = arms
+                    .iter()
+                    .any(|arm| pattern_matches_tag(&arm.pattern, "Err"));
                 if !has_ok || !has_err {
                     return Err(format!(
                         "Non-exhaustive patterns in match for Result: missing {}",
@@ -5754,11 +5924,9 @@ impl TypeChecker {
             }
             ConcreteType::SumType { name, variants, .. } => {
                 for v_name in variants.keys() {
-                    let covered = arms.iter().any(|arm| match &arm.pattern {
-                        Pattern::Constructor { name: n, .. } => n == v_name,
-                        Pattern::Record { type_name: Some(n), .. } => n == v_name,
-                        _ => false,
-                    });
+                    let covered = arms
+                        .iter()
+                        .any(|arm| pattern_matches_tag(&arm.pattern, v_name));
                     if !covered {
                         return Err(format!(
                             "Non-exhaustive patterns in match for '{}': missing variant '{}'",
@@ -5770,11 +5938,9 @@ impl TypeChecker {
             ConcreteType::Generic(_, inner) => {
                 if let ConcreteType::SumType { name, variants, .. } = &**inner {
                     for v_name in variants.keys() {
-                        let covered = arms.iter().any(|arm| match &arm.pattern {
-                            Pattern::Constructor { name: n, .. } => n == v_name,
-                            Pattern::Record { type_name: Some(n), .. } => n == v_name,
-                            _ => false,
-                        });
+                        let covered = arms
+                            .iter()
+                            .any(|arm| pattern_matches_tag(&arm.pattern, v_name));
                         if !covered {
                             return Err(format!(
                                 "Non-exhaustive patterns in match for '{}': missing variant '{}'",
@@ -5944,6 +6110,12 @@ impl TypeChecker {
                 }
                 Ok(())
             }
+            Pattern::Or(patterns) => {
+                for pat in patterns {
+                    self.bind_pattern_with_type(pat, subject_ty, env)?;
+                }
+                Ok(())
+            }
         }
     }
 
@@ -6003,6 +6175,7 @@ impl TypeChecker {
             ConcreteType::Channel(elem)
             | ConcreteType::SendChannel(elem)
             | ConcreteType::RecvChannel(elem) => self.validate_sendable_type(elem),
+            ConcreteType::Distinct { underlying, .. } => self.validate_sendable_type(underlying),
             _ => Ok(()),
         }
     }
@@ -6021,6 +6194,30 @@ impl TypeChecker {
         }
 
         match (expected, actual) {
+            (
+                ConcreteType::Distinct {
+                    name: n1,
+                    underlying: u1,
+                },
+                ConcreteType::Distinct {
+                    name: n2,
+                    underlying: u2,
+                },
+            ) => {
+                if n1 == n2 {
+                    self.unify(u1, u2, context)
+                } else {
+                    Err(format!(
+                        "Type mismatch: cannot unify distinct type '{}' with distinct type '{}' in {}",
+                        n1, n2, context
+                    ))
+                }
+            }
+            (ConcreteType::Distinct { name, .. }, other)
+            | (other, ConcreteType::Distinct { name, .. }) => Err(format!(
+                "Type mismatch: distinct type '{}' cannot be implicitly converted to '{}' in {}",
+                name, other, context
+            )),
             (ConcreteType::TypeVar(_), _) | (_, ConcreteType::TypeVar(_)) => Ok(()),
             (ConcreteType::Option(e), ConcreteType::Option(a)) => self.unify(e, a, context),
             (ConcreteType::Result(ok1, err1), ConcreteType::Result(ok2, err2)) => {

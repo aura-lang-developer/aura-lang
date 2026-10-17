@@ -108,7 +108,9 @@ impl FiberStack {
                     if recycled.verify_canary() {
                         return recycled;
                     }
-                    eprintln!("[Aura Runtime Security Alert] Corrupted stack canary detected in pool, discarding");
+                    eprintln!(
+                        "[Aura Runtime Security Alert] Corrupted stack canary detected in pool, discarding"
+                    );
                 }
             }
         }

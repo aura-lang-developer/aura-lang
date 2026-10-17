@@ -21,6 +21,7 @@ pub struct CraneliftBackend {
     func_ids: HashMap<String, FuncId>,
     globals: HashMap<String, DataId>,
     byte_lists: HashSet<String>,
+    distinct_types: HashSet<String>,
 
     // Runtime imported function IDs
     rt_start_id: FuncId,
@@ -223,6 +224,11 @@ fn collect_pattern_names(pattern: &Pattern, names: &mut Vec<String>) {
                 collect_pattern_names(r, names);
             }
         }
+        Pattern::Or(patterns) => {
+            for p in patterns {
+                collect_pattern_names(p, names);
+            }
+        }
         _ => {}
     }
 }
@@ -243,6 +249,34 @@ fn collect_let_names(expr: &Expr, names: &mut Vec<String>) {
                     Statement::Assign { target, value } => {
                         collect_let_names(target, names);
                         collect_let_names(value, names);
+                    }
+                    Statement::Guard {
+                        condition,
+                        else_body,
+                    } => {
+                        collect_let_names(condition, names);
+                        for s in else_body {
+                            match s {
+                                Statement::Let { name, value, .. } => {
+                                    names.push(name.clone());
+                                    collect_let_names(value, names);
+                                }
+                                Statement::LetPattern { pattern, value, .. } => {
+                                    collect_pattern_names(pattern, names);
+                                    collect_let_names(value, names);
+                                }
+                                Statement::Assign { target, value } => {
+                                    collect_let_names(target, names);
+                                    collect_let_names(value, names);
+                                }
+                                Statement::Defer(e) | Statement::ErrDefer(e) => {
+                                    collect_let_names(e, names)
+                                }
+                                Statement::Expr(e) => collect_let_names(e, names),
+                                Statement::Return(Some(e)) => collect_let_names(e, names),
+                                _ => {}
+                            }
+                        }
                     }
                     Statement::Defer(e) | Statement::ErrDefer(e) => collect_let_names(e, names),
                     Statement::Expr(e) => collect_let_names(e, names),
@@ -625,6 +659,7 @@ impl CraneliftBackend {
             func_ids: HashMap::new(),
             globals: HashMap::new(),
             byte_lists: HashSet::new(),
+            distinct_types: HashSet::new(),
             rt_start_id,
             fiber_spawn_id,
             fiber_yield_id,
@@ -775,6 +810,11 @@ impl CraneliftBackend {
                         has_main = true;
                     }
                 }
+                Item::TypeAlias(alias) => {
+                    if alias.is_distinct {
+                        self.distinct_types.insert(alias.name.clone());
+                    }
+                }
                 Item::Extern(ext) => {
                     for f in &ext.functions {
                         let has_ret = !matches!(f.return_type, Type::Unit);
@@ -805,6 +845,38 @@ impl CraneliftBackend {
                         }
                         Statement::Return(Some(e)) => {
                             collect_let_names(e, &mut all_let_names);
+                        }
+                        Statement::Guard {
+                            condition,
+                            else_body,
+                        } => {
+                            collect_let_names(condition, &mut all_let_names);
+                            for s in else_body {
+                                match s {
+                                    Statement::Let { name, value, .. } => {
+                                        all_let_names.push(name.clone());
+                                        collect_let_names(value, &mut all_let_names);
+                                    }
+                                    Statement::LetPattern { pattern, value, .. } => {
+                                        collect_pattern_names(pattern, &mut all_let_names);
+                                        collect_let_names(value, &mut all_let_names);
+                                    }
+                                    Statement::Assign { target, value } => {
+                                        collect_let_names(target, &mut all_let_names);
+                                        collect_let_names(value, &mut all_let_names);
+                                    }
+                                    Statement::Defer(e) | Statement::ErrDefer(e) => {
+                                        collect_let_names(e, &mut all_let_names);
+                                    }
+                                    Statement::Expr(e) => {
+                                        collect_let_names(e, &mut all_let_names);
+                                    }
+                                    Statement::Return(Some(e)) => {
+                                        collect_let_names(e, &mut all_let_names);
+                                    }
+                                    _ => {}
+                                }
+                            }
                         }
                         _ => {}
                     }
@@ -1137,6 +1209,15 @@ impl CraneliftBackend {
                     Ok(builder
                         .ins()
                         .load(types::I64, MemFlagsData::trusted(), addr, 0))
+                } else if name.chars().next().map_or(false, |c| c.is_uppercase()) {
+                    let tag = compute_variant_tag(name);
+                    let tag_val = builder.ins().iconst(types::I64, tag);
+                    let zero = builder.ins().iconst(types::I64, 0);
+                    let local_new = self
+                        .module
+                        .declare_func_in_func(self.variant_new_id, builder.func);
+                    let call = builder.ins().call(local_new, &[tag_val, zero]);
+                    Ok(builder.inst_results(call)[0])
                 } else {
                     Err(format!("Undefined variable '{}'", name))
                 }
@@ -1381,6 +1462,55 @@ impl CraneliftBackend {
                 let call = builder.ins().call(local_get, &[obj_val, ptr_val, len_val]);
                 Ok(builder.inst_results(call)[0])
             }
+            Expr::Binary {
+                op: BinOp::Coalesce,
+                left,
+                right,
+            } => {
+                let l = self.compile_expr(builder, left, vars, defers, loop_ctx)?;
+                let local_tag = self
+                    .module
+                    .declare_func_in_func(self.variant_tag_id, builder.func);
+                let call_tag = builder.ins().call(local_tag, &[l]);
+                let tag_val = builder.inst_results(call_tag)[0];
+                let tag_some_ok = builder.ins().iconst(types::I64, 1);
+                let is_present = builder.ins().icmp(
+                    cranelift_codegen::ir::condcodes::IntCC::Equal,
+                    tag_val,
+                    tag_some_ok,
+                );
+
+                let present_block = builder.create_block();
+                let fallback_block = builder.create_block();
+                let merge_block = builder.create_block();
+                let res_var = builder.declare_var(types::I64);
+
+                builder
+                    .ins()
+                    .brif(is_present, present_block, &[], fallback_block, &[]);
+
+                // Present path: extract inner value
+                builder.switch_to_block(present_block);
+                builder.seal_block(present_block);
+                let local_val_fn = self
+                    .module
+                    .declare_func_in_func(self.variant_val_id, builder.func);
+                let call_val = builder.ins().call(local_val_fn, &[l]);
+                let val = builder.inst_results(call_val)[0];
+                builder.def_var(res_var, val);
+                builder.ins().jump(merge_block, &[]);
+
+                // Fallback path: evaluate right
+                builder.switch_to_block(fallback_block);
+                builder.seal_block(fallback_block);
+                let r = self.compile_expr(builder, right, vars, defers, loop_ctx)?;
+                builder.def_var(res_var, r);
+                builder.ins().jump(merge_block, &[]);
+
+                builder.switch_to_block(merge_block);
+                builder.seal_block(merge_block);
+                Ok(builder.use_var(res_var))
+            }
             Expr::Binary { op, left, right } => {
                 let l = self.compile_expr(builder, left, vars, defers, loop_ctx)?;
                 let r = self.compile_expr(builder, right, vars, defers, loop_ctx)?;
@@ -1489,6 +1619,7 @@ impl CraneliftBackend {
                     }
                     BinOp::And => Ok(builder.ins().band(l, r)),
                     BinOp::Or => Ok(builder.ins().bor(l, r)),
+                    BinOp::Coalesce => unreachable!(),
                 }
             }
             Expr::Unary { op, expr } => {
@@ -1652,6 +1783,62 @@ impl CraneliftBackend {
                             let zero = builder.ins().iconst(types::I64, 0);
                             self.compile_defers(builder, defers, vars, loop_ctx, zero)?;
                             builder.ins().return_(&[zero]);
+                        }
+                        Statement::Guard {
+                            condition,
+                            else_body,
+                        } => {
+                            let cond_val =
+                                self.compile_expr(builder, condition, vars, defers, loop_ctx)?;
+                            let cont_block = builder.create_block();
+                            let else_block = builder.create_block();
+
+                            let zero = builder.ins().iconst(types::I64, 0);
+                            let is_true = builder.ins().icmp(
+                                cranelift_codegen::ir::condcodes::IntCC::NotEqual,
+                                cond_val,
+                                zero,
+                            );
+                            builder
+                                .ins()
+                                .brif(is_true, cont_block, &[], else_block, &[]);
+
+                            builder.switch_to_block(else_block);
+                            builder.seal_block(else_block);
+                            for s in else_body {
+                                if let Some(cur_b) = builder.current_block()
+                                    && is_block_terminated(builder, cur_b)
+                                {
+                                    break;
+                                }
+                                match s {
+                                    Statement::Return(Some(e)) => {
+                                        let ret =
+                                            self.compile_expr(builder, e, vars, defers, loop_ctx)?;
+                                        self.compile_defers(builder, defers, vars, loop_ctx, ret)?;
+                                        builder.ins().return_(&[ret]);
+                                    }
+                                    Statement::Return(None) => {
+                                        let zero = builder.ins().iconst(types::I64, 0);
+                                        self.compile_defers(builder, defers, vars, loop_ctx, zero)?;
+                                        builder.ins().return_(&[zero]);
+                                    }
+                                    Statement::Expr(e) => {
+                                        self.compile_expr(builder, e, vars, defers, loop_ctx)?;
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            if let Some(cur) = builder.current_block()
+                                && !is_block_terminated(builder, cur)
+                            {
+                                builder
+                                    .ins()
+                                    .trap(cranelift_codegen::ir::TrapCode::unwrap_user(1));
+                            }
+
+                            builder.switch_to_block(cont_block);
+                            builder.seal_block(cont_block);
                         }
                         _ => {}
                     }
@@ -1935,6 +2122,106 @@ impl CraneliftBackend {
                                     );
                                 }
                             }
+
+                            let body_res =
+                                self.compile_expr(builder, &arm.body, vars, defers, loop_ctx)?;
+                            if !builder.is_unreachable() {
+                                builder.def_var(res_var, body_res);
+                                builder.ins().jump(merge_block, &[]);
+                            }
+                        }
+                        Pattern::Or(sub_patterns) => {
+                            let mut any_match = builder.ins().iconst(types::I64, 0);
+                            for p in sub_patterns {
+                                match p {
+                                    Pattern::Constructor { name, .. } => {
+                                        let expected_tag = compute_variant_tag(name);
+                                        let tag_const =
+                                            builder.ins().iconst(types::I64, expected_tag);
+                                        let matches = builder.ins().icmp(
+                                            cranelift_codegen::ir::condcodes::IntCC::Equal,
+                                            tag_val,
+                                            tag_const,
+                                        );
+                                        let m_ext = builder.ins().uextend(types::I64, matches);
+                                        any_match = builder.ins().bor(any_match, m_ext);
+                                    }
+                                    Pattern::Literal(Literal::Int(n)) => {
+                                        let lit_val = builder.ins().iconst(types::I64, *n);
+                                        let matches = builder.ins().icmp(
+                                            cranelift_codegen::ir::condcodes::IntCC::Equal,
+                                            sub_val,
+                                            lit_val,
+                                        );
+                                        let m_ext = builder.ins().uextend(types::I64, matches);
+                                        any_match = builder.ins().bor(any_match, m_ext);
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            let zero = builder.ins().iconst(types::I64, 0);
+                            let matched = builder.ins().icmp(
+                                cranelift_codegen::ir::condcodes::IntCC::NotEqual,
+                                any_match,
+                                zero,
+                            );
+                            builder
+                                .ins()
+                                .brif(matched, arm_exec_block, &[], next_test_block, &[]);
+
+                            builder.switch_to_block(arm_exec_block);
+                            builder.seal_block(arm_exec_block);
+
+                            for p in sub_patterns {
+                                if let Pattern::Constructor { patterns, .. } = p
+                                    && !patterns.is_empty()
+                                    && let Pattern::Variable(v_name) = &patterns[0]
+                                {
+                                    let local_val_fn = self
+                                        .module
+                                        .declare_func_in_func(self.variant_val_id, builder.func);
+                                    let call_val = builder.ins().call(local_val_fn, &[sub_val]);
+                                    let inner_val = builder.inst_results(call_val)[0];
+
+                                    let var = builder.declare_var(types::I64);
+                                    builder.def_var(var, inner_val);
+                                    vars.insert(v_name.clone(), (var, types::I64));
+                                    if let Some(&data_id) = self.globals.get(v_name) {
+                                        let local_data =
+                                            self.module.declare_data_in_func(data_id, builder.func);
+                                        let addr =
+                                            builder.ins().symbol_value(types::I64, local_data);
+                                        builder.ins().store(
+                                            MemFlagsData::trusted(),
+                                            inner_val,
+                                            addr,
+                                            0,
+                                        );
+                                    }
+                                    break;
+                                }
+                            }
+
+                            let body_res =
+                                self.compile_expr(builder, &arm.body, vars, defers, loop_ctx)?;
+                            if !builder.is_unreachable() {
+                                builder.def_var(res_var, body_res);
+                                builder.ins().jump(merge_block, &[]);
+                            }
+                        }
+                        Pattern::Literal(Literal::Int(n)) => {
+                            let lit_val = builder.ins().iconst(types::I64, *n);
+                            let matches = builder.ins().icmp(
+                                cranelift_codegen::ir::condcodes::IntCC::Equal,
+                                sub_val,
+                                lit_val,
+                            );
+                            builder
+                                .ins()
+                                .brif(matches, arm_exec_block, &[], next_test_block, &[]);
+
+                            builder.switch_to_block(arm_exec_block);
+                            builder.seal_block(arm_exec_block);
 
                             let body_res =
                                 self.compile_expr(builder, &arm.body, vars, defers, loop_ctx)?;
@@ -3178,6 +3465,14 @@ impl CraneliftBackend {
                     .declare_func_in_func(self.result_err_id, builder.func);
                 let call = builder.ins().call(local_err, &[arg_val]);
                 return Ok(builder.inst_results(call)[0]);
+            }
+
+            if self.distinct_types.contains(name) || name == "Int" || name == "Float" {
+                if !args.is_empty() {
+                    return self.compile_expr(builder, &args[0], vars, defers, loop_ctx);
+                } else {
+                    return Ok(builder.ins().iconst(types::I64, 0));
+                }
             }
 
             if let Some(&func_id) = self.func_ids.get(name) {

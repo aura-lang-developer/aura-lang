@@ -1022,7 +1022,9 @@ pub extern "C" fn aura_db_exec_free(res: *mut AuraExecResult) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn aura_db_pool_close(pool: *mut AuraDbPool) {
-    if !pool.is_null() && crate::gc::lookup_valid_ptr(pool as usize) == Some(crate::gc::TYPE_DB_POOL) {
+    if !pool.is_null()
+        && crate::gc::lookup_valid_ptr(pool as usize) == Some(crate::gc::TYPE_DB_POOL)
+    {
         crate::gc::unregister_valid_ptr(pool as usize);
         unsafe {
             let pool_arc = Arc::from_raw(pool);

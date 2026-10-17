@@ -50,6 +50,8 @@ pub enum TokenKind {
     Recover,
     Struct,
     Packed,
+    Distinct,
+    Guard,
 
     // Identifiers & Literals
     Ident(String),
@@ -59,33 +61,34 @@ pub enum TokenKind {
     TemplateString(Vec<RawTemplateSegment>),
 
     // Operators
-    Pipe,         // |>
-    FatArrow,     // =>
-    Arrow,        // ->
-    ArrowLeft,    // <-
-    Equal,        // =
-    EqualEqual,   // ==
-    NotEqual,     // !=
-    Less,         // <
-    LessEqual,    // <=
-    Greater,      // >
-    GreaterEqual, // >=
-    Plus,         // +
-    PlusEqual,    // +=
-    Minus,        // -
-    MinusEqual,   // -=
-    Star,         // *
-    StarEqual,    // *=
-    Slash,        // /
-    SlashEqual,   // /=
-    Percent,      // %
-    PercentEqual, // %=
-    Ampersand,    // &
-    AndAnd,       // &&
-    OrOr,         // ||
-    Bang,         // !
-    PipeOp,       // | (single pipe for types / match)
-    Question,     // ?
+    Pipe,             // |>
+    FatArrow,         // =>
+    Arrow,            // ->
+    ArrowLeft,        // <-
+    Equal,            // =
+    EqualEqual,       // ==
+    NotEqual,         // !=
+    Less,             // <
+    LessEqual,        // <=
+    Greater,          // >
+    GreaterEqual,     // >=
+    Plus,             // +
+    PlusEqual,        // +=
+    Minus,            // -
+    MinusEqual,       // -=
+    Star,             // *
+    StarEqual,        // *=
+    Slash,            // /
+    SlashEqual,       // /=
+    Percent,          // %
+    PercentEqual,     // %=
+    Ampersand,        // &
+    AndAnd,           // &&
+    OrOr,             // ||
+    Bang,             // !
+    PipeOp,           // | (single pipe for types / match)
+    Question,         // ?
+    QuestionQuestion, // ??
 
     // Delimiters & Punctuation
     LParen,     // (
@@ -149,6 +152,8 @@ impl fmt::Display for TokenKind {
             TokenKind::Recover => write!(f, "recover"),
             TokenKind::Struct => write!(f, "struct"),
             TokenKind::Packed => write!(f, "packed"),
+            TokenKind::Distinct => write!(f, "distinct"),
+            TokenKind::Guard => write!(f, "guard"),
             TokenKind::Ident(s) => write!(f, "{s}"),
             TokenKind::Int(n) => write!(f, "{n}"),
             TokenKind::Float(n) => write!(f, "{n}"),
@@ -180,6 +185,7 @@ impl fmt::Display for TokenKind {
             TokenKind::Bang => write!(f, "!"),
             TokenKind::PipeOp => write!(f, "|"),
             TokenKind::Question => write!(f, "?"),
+            TokenKind::QuestionQuestion => write!(f, "??"),
             TokenKind::LParen => write!(f, "("),
             TokenKind::RParen => write!(f, ")"),
             TokenKind::LBrace => write!(f, "{{"),
@@ -367,6 +373,8 @@ impl<'a> Lexer<'a> {
                 "recover" => TokenKind::Recover,
                 "struct" => TokenKind::Struct,
                 "packed" => TokenKind::Packed,
+                "distinct" => TokenKind::Distinct,
+                "guard" => TokenKind::Guard,
                 "_" => TokenKind::Underscore,
                 _ => TokenKind::Ident(s),
             };
@@ -527,7 +535,12 @@ impl<'a> Lexer<'a> {
         let kind = match ch {
             '?' => {
                 self.advance();
-                TokenKind::Question
+                if self.peek() == Some('?') {
+                    self.advance();
+                    TokenKind::QuestionQuestion
+                } else {
+                    TokenKind::Question
+                }
             }
             '|' => {
                 self.advance();

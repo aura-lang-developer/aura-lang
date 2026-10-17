@@ -116,6 +116,8 @@ pub struct TypeAliasDecl {
     pub is_exported: bool,
     /// Whether the underlying struct has zero padding and packed binary alignment (Zig model).
     pub is_packed: bool,
+    /// Whether this is a distinct nominal newtype incompatible with other types of the same shape.
+    pub is_distinct: bool,
     /// Generic type parameters (e.g. `<T>`).
     pub type_params: Vec<String>,
     /// Underlying target type representation.
@@ -295,6 +297,13 @@ pub enum Statement {
     Expr(Expr),
     /// Function return statement with an optional return value expression (`return 42;`).
     Return(Option<Expr>),
+    /// Guard statement enforcing pre-conditions with a diverging else block (`guard condition else { return; };`).
+    Guard {
+        /// Boolean condition expression that must be true to proceed.
+        condition: Expr,
+        /// Block executed if condition evaluates to false. Must diverge.
+        else_body: Vec<Statement>,
+    },
 }
 
 // -----------------------------------------------------------------------------
@@ -512,6 +521,7 @@ pub enum BinOp {
     GreaterEqual,
     And,
     Or,
+    Coalesce,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -573,6 +583,7 @@ pub enum Pattern {
         items: Vec<Pattern>,
         rest: Option<Box<Pattern>>,
     },
+    Or(Vec<Pattern>),
 }
 
 // -----------------------------------------------------------------------------
@@ -639,6 +650,15 @@ pub fn walk_statement<V: AstVisitor + ?Sized>(visitor: &mut V, stmt: &Statement)
         Statement::Return(opt_expr) => {
             if let Some(expr) = opt_expr {
                 visitor.visit_expr(expr);
+            }
+        }
+        Statement::Guard {
+            condition,
+            else_body,
+        } => {
+            visitor.visit_expr(condition);
+            for s in else_body {
+                visitor.visit_statement(s);
             }
         }
     }
@@ -806,6 +826,11 @@ pub fn walk_pattern<V: AstVisitor + ?Sized>(visitor: &mut V, pattern: &Pattern) 
                 visitor.visit_pattern(r);
             }
         }
+        Pattern::Or(patterns) => {
+            for p in patterns {
+                visitor.visit_pattern(p);
+            }
+        }
     }
 }
 
@@ -865,6 +890,7 @@ mod tests {
                     name: "Id".to_string(),
                     is_exported: true,
                     is_packed: false,
+                    is_distinct: false,
                     type_params: vec![],
                     target: Type::Named {
                         name: "Int".to_string(),

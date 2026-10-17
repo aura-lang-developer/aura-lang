@@ -72,7 +72,10 @@ fn test_match_exhaustiveness_allowed_with_wildcard() {
     "#;
 
     let res = compile(source, &[]);
-    assert!(res.is_ok(), "Match with wildcard must succeed exhaustiveness check");
+    assert!(
+        res.is_ok(),
+        "Match with wildcard must succeed exhaustiveness check"
+    );
 }
 
 #[test]
@@ -83,12 +86,23 @@ fn test_package_manager_security_argument_validation() {
     // Option injection in version
     let res_ver = PackageManager::get(&root, "github.com/myorg/pkg@--upload-pack=evil");
     assert!(res_ver.is_err(), "Must reject version starting with hyphen");
-    assert!(res_ver.unwrap_err().contains("cannot start with '-' (command injection prevention)"));
+    assert!(
+        res_ver
+            .unwrap_err()
+            .contains("cannot start with '-' (command injection prevention)")
+    );
 
     // Protocol injection in package path
     let res_path = PackageManager::get(&root, "ext::sh -c evil@v1.0.0");
-    assert!(res_path.is_err(), "Must reject package path with protocol injection");
-    assert!(res_path.unwrap_err().contains("Security violation: package path"));
+    assert!(
+        res_path.is_err(),
+        "Must reject package path with protocol injection"
+    );
+    assert!(
+        res_path
+            .unwrap_err()
+            .contains("Security violation: package path")
+    );
 
     let _ = fs::remove_dir_all(&root);
 }
@@ -108,7 +122,10 @@ fn test_runtime_c_api_security_safeguards() {
         key.as_ptr(),
         key.len() - 1,
     );
-    assert_eq!(res, -1, "TLS endpoint must fail cleanly when certificates are missing or TLS engine is unlinked");
+    assert_eq!(
+        res, -1,
+        "TLS endpoint must fail cleanly when certificates are missing or TLS engine is unlinked"
+    );
 
     // 2. aura_db_query and aura_db_exec reject arbitrary invalid handles safely without segfault
     let invalid_handle = 0xDEADBEEF as *mut ();
@@ -122,7 +139,13 @@ fn test_runtime_c_api_security_safeguards() {
     assert!(!rows.is_null());
     unsafe {
         assert!((*rows).last_error.is_some());
-        assert!((*rows).last_error.as_ref().unwrap().contains("Invalid or unallocated database handle"));
+        assert!(
+            (*rows)
+                .last_error
+                .as_ref()
+                .unwrap()
+                .contains("Invalid or unallocated database handle")
+        );
         aura_runtime::db::aura_db_rows_close(rows);
     }
 
@@ -135,7 +158,13 @@ fn test_runtime_c_api_security_safeguards() {
     assert!(!exec_res.is_null());
     unsafe {
         assert!((*exec_res).error.is_some());
-        assert!((*exec_res).error.as_ref().unwrap().contains("Invalid or unallocated database handle"));
+        assert!(
+            (*exec_res)
+                .error
+                .as_ref()
+                .unwrap()
+                .contains("Invalid or unallocated database handle")
+        );
         aura_runtime::db::aura_db_exec_free(exec_res);
     }
 
@@ -150,7 +179,12 @@ fn test_runtime_c_api_security_safeguards() {
     // 5. aura_os_setenv safely rejects malicious keys with '=' or null bytes
     let bad_key = b"AURA=TEST\0";
     let bad_val = b"123\0";
-    aura_runtime::os::aura_os_setenv(bad_key.as_ptr(), bad_key.len() - 1, bad_val.as_ptr(), bad_val.len() - 1);
+    aura_runtime::os::aura_os_setenv(
+        bad_key.as_ptr(),
+        bad_key.len() - 1,
+        bad_val.as_ptr(),
+        bad_val.len() - 1,
+    );
 }
 
 #[test]
@@ -171,7 +205,10 @@ fn test_adt_variant_compilation_and_matching() {
     "#;
 
     let res = compile(source, &[]);
-    assert!(res.is_ok(), "Compiling custom ADT pattern matching must succeed without tag collision");
+    assert!(
+        res.is_ok(),
+        "Compiling custom ADT pattern matching must succeed without tag collision"
+    );
 }
 
 #[test]
@@ -227,7 +264,10 @@ fn test_fiber_stack_canary_integrity() {
     use aura_runtime::context::{DEFAULT_STACK_SIZE, FiberStack, STACK_CANARY_MAGIC};
 
     let stack = FiberStack::new(DEFAULT_STACK_SIZE);
-    assert!(stack.verify_canary(), "Stack canary must be valid at creation");
+    assert!(
+        stack.verify_canary(),
+        "Stack canary must be valid at creation"
+    );
 
     // Corrupt canary
     unsafe {
@@ -241,4 +281,3 @@ fn test_fiber_stack_canary_integrity() {
     }
     assert!(stack.verify_canary());
 }
-
