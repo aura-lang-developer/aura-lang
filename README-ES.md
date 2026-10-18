@@ -82,7 +82,7 @@ Aura se compila directamente a **binarios nativos ejecutables autónomos** (form
    - [Playground Web Interactivo (`aurac playground`)](#7-playground-web-interactivo)
 10. [🧩 Configuración en Editores](#-configuración-en-editores)
 11. [🔄 Compilador Self-Hosted y Bootstrapping](#-compilador-self-hosted-y-bootstrapping)
-12. [🛡️ Seguridad y Blindaje del Runtime (v0.7.1)](#️-seguridad-y-blindaje-del-runtime-v071)
+12. [🛡️ Seguridad y Blindaje del Runtime (v0.8.0)](#️-seguridad-y-blindaje-del-runtime-v080)
 13. [🗺️ Estado Actual, Roadmap e Hitos](#️-estado-actual-roadmap-e-hitos)
 14. [📄 Licencia y Marcas Registradas](#-licencia)
 
@@ -208,9 +208,9 @@ Verifica tu instalación:
 
 ```bash
 aura --version
-# Salida: aura 0.7.1
+# Salida: aura 0.8.0
 aurac --version
-# Salida: aurac 0.7.1
+# Salida: aurac 0.8.0
 ```
 
 ### 3. Modos de Compilación y Ejecución
@@ -2007,9 +2007,9 @@ cargo test --test bootstrap_tests -- --test-threads=1
 
 ---
 
-## 🛡️ Seguridad y Blindaje del Runtime (v0.7.1)
+## 🛡️ Seguridad y Blindaje del Runtime (v0.8.0)
 
-Aura v0.7.1 incorpora mejoras críticas de seguridad y blindaje en profundidad a lo largo del compilador, el comprobador de tipos, el recolector de basura y el runtime nativo:
+Aura v0.8.0 incorpora mejoras críticas de seguridad y blindaje en profundidad a lo largo del compilador, el comprobador de tipos, el recolector de basura y el runtime nativo:
 
 | Subsistema / Capa | Vulnerabilidad Abordada | Mitigación y Blindaje Implementado |
 |---|---|---|
@@ -2050,8 +2050,8 @@ Aura v0.7.1 incorpora mejoras críticas de seguridad y blindaje en profundidad a
 - [x] **Generador FFI C/Rust (`aurabindgen`)**: Conversión automática de cabeceras `.h` a interfaces Aura seguras.
 - [x] **Herramientas de Grado de Producción**: Servidor LSP oficial (`auralsp`), depurador interactivo de terminal (`aurac step`), servidor DAP V8 (`aurac debug`), suite de pruebas (`auratest`) y formateador opinado (`aurafmt`).
 - [x] **Modernización y Optimización Rust 2024**: Dependencias y lints de Cargo centralizados en el workspace, árbol de crates deduplicado (`object 0.39`), perfil de release con Thin LTO (`[profile.release]`), GC concurrente del runtime con `RwLock` + `FxHashMap`, scheduler estático de costo cero, formateo de métricas HTTP zero-alloc y diagnósticos estructurados con `TypeError`.
-- [x] **Seguridad y Blindaje del Runtime (v0.7.1)**: Asignaciones TLAB lock-free en el GC, marcado de punteros en GC con búsqueda binaria, canarios de integridad en pilas de fibras, validación JWT en tiempo constante (`timingSafeEqual` / `hmac.Equal`), límite de anidamiento JSON (profundidad <= 64), sockets HTTP con timeouts anti-Slowloris, cabeceras automáticas de seguridad (`nosniff`, `SAMEORIGIN`), sincronización Stop-The-World en el GC, prevención de inyección SQL ($1..$N, ?), y sanitización en gestor de paquetes.
-- [x] **Suite de Calidad y Tests**: **262 pruebas automatizadas pasando con éxito** en el repositorio.
+- [x] **Seguridad y Blindaje del Runtime (v0.8.0)**: Asignaciones TLAB lock-free en el GC, marcado de punteros en GC con búsqueda binaria, canarios de integridad en pilas de fibras, validación JWT en tiempo constante (`timingSafeEqual` / `hmac.Equal`), límite de anidamiento JSON (profundidad <= 64), sockets HTTP con timeouts anti-Slowloris, cabeceras automáticas de seguridad (`nosniff`, `SAMEORIGIN`), sincronización Stop-The-World en el GC, prevención de inyección SQL ($1..$N, ?), sanitización en gestor de paquetes, inmutabilidad forzada por defecto (`let mut`), protección aritmética de módulo cero (`SIGFPE`), desenvolvimiento formal para `?`, seguridad en frontera de fibras (`spawn`), worklist iterativa en GC, literales de cadena cruda (`r"..."`) y linter estático integrado (`aura lint`).
+- [x] **Suite de Calidad y Tests**: **269+ pruebas automatizadas pasando con éxito** en el repositorio.
 - [ ] **Backend WebAssembly (WASM/WASI)**: Emisión de binarios WebAssembly para microservicios serverless en el edge.
 - [ ] **Optimizaciones Avanzadas LLVM**: Pipeline opcional de optimización LTO y vectorización SIMD para cargas de cómputo intensivo.
 

@@ -83,7 +83,7 @@ Aura compiles directly into **standalone native executable binaries** (Mach-O on
    - [Interactive Web Playground (`aurac playground`)](#7-interactive-web-playground)
 10. [🧩 Editor Configuration](#-editor-configuration)
 11. [🔄 Self-Hosted Compiler and Bootstrapping](#-self-hosted-compiler-and-bootstrapping)
-12. [🛡️ Security and Runtime Hardening (v0.7.1)](#️-security-and-runtime-hardening-v071)
+12. [🛡️ Security and Runtime Hardening (v0.8.0)](#️-security-and-runtime-hardening-v080)
 13. [🗺️ Current Status, Roadmap, and Milestones](#️-current-status-roadmap-and-milestones)
 14. [📄 License and Trademarks](#-license)
 
@@ -209,9 +209,9 @@ Verify your installation:
 
 ```bash
 aura --version
-# Output: aura 0.7.1
+# Output: aura 0.8.0
 aurac --version
-# Output: aurac 0.7.1
+# Output: aurac 0.8.0
 ```
 
 ### 3. Compilation and Execution Modes
@@ -2008,9 +2008,9 @@ cargo test --test bootstrap_tests -- --test-threads=1
 
 ---
 
-## 🛡️ Security and Runtime Hardening (v0.7.1)
+## 🛡️ Security and Runtime Hardening (v0.8.0)
 
-Aura v0.7.1 introduces extensive defense-in-depth security hardening across the compiler, typechecker, garbage collector, and native standard runtime:
+Aura v0.8.0 introduces extensive defense-in-depth security hardening across the compiler, typechecker, garbage collector, and native standard runtime:
 
 | Subsystem / Layer | Vulnerability Addressed | Hardening & Mitigation Implemented |
 |---|---|---|
@@ -2051,8 +2051,8 @@ Aura v0.7.1 introduces extensive defense-in-depth security hardening across the 
 - [x] **C/Rust FFI Generator (`aurabindgen`)**: Automatic conversion of `.h` headers into safe Aura interfaces.
 - [x] **Production-Grade Tooling**: Official LSP server (`auralsp`), terminal step debugger (`aurac step`), V8 DAP server (`aurac debug`), test runner (`auratest`), and opinionated formatter (`aurafmt`).
 - [x] **Rust 2024 Modernization & Toolchain Optimization**: Centralized Cargo workspace dependencies and lints, deduplicated crate tree (`object 0.39`), Thin LTO release profile (`[profile.release]`), `RwLock` + `FxHashMap` concurrent runtime GC, zero-overhead static scheduler, zero-alloc HTTP metric formatting, and structured `TypeError` diagnostics.
-- [x] **Security & Runtime Hardening (v0.7.1)**: TLAB lock-free GC allocations, binary search GC marking, fiber stack canaries, constant-time JWT verification (`timingSafeEqual` / `hmac.Equal`), JSON DoS depth limiting (depth <= 64), Slowloris socket timeouts, HTTP security headers (`nosniff`, `SAMEORIGIN`), Stop-The-World GC synchronization, SQL injection prevention ($1..$N, ?), compile-time match exhaustiveness, and supply-chain package sanitization.
-- [x] **Quality Suite & Tests**: **262 automated tests passing successfully** across the repository.
+- [x] **Security & Runtime Hardening (v0.8.0)**: TLAB lock-free GC allocations, binary search GC marking, fiber stack canaries, constant-time JWT verification (`timingSafeEqual` / `hmac.Equal`), JSON DoS depth limiting (depth <= 64), Slowloris socket timeouts, HTTP security headers (`nosniff`, `SAMEORIGIN`), Stop-The-World GC synchronization, SQL injection prevention ($1..$N, ?), compile-time match exhaustiveness, supply-chain package sanitization, static immutability enforcement (`let mut`), Cranelift modulo zero safety (`SIGFPE` guard), formal static type unwrapping for `?`, fiber boundary raw pointer safety (`spawn`), iterative GC worklist, raw string literals (`r"..."`), and integrated static security linter (`aura lint`).
+- [x] **Quality Suite & Tests**: **269+ automated tests passing successfully** across the repository.
 - [ ] **WebAssembly Backend (WASM/WASI)**: WebAssembly binary emission for serverless edge microservices.
 - [ ] **Advanced LLVM Optimizations**: Optional LTO optimization pipeline and SIMD vectorization for compute-intensive workloads.
 

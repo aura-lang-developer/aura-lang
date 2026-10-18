@@ -6,6 +6,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.0] - 2026-10-18
+
+### 🛡️ Language Security Invariants, Raw Strings & Static Linter
+
+Aura v0.8.0 is a major release introducing compile-time immutability enforcement, formal monadic type unwrapping for the try operator (`?`), fiber concurrency boundary safety, CPU hardware trap protections in Cranelift, iterative GC stack safety, raw string literals, and a built-in static security and quality linter (`aura lint`).
+
+#### 1. Language Invariants & Type System Hardening
+- **Static Immutability Enforcement (`let` vs `let mut`)**: Variables declared with `let` are now strictly immutable at compile time. Reassignment attempts trigger compiler error `E0400` unless explicitly declared with `let mut` (`src/typechecker.rs`).
+- **Formal Monadic Type Unwrapping for Try Operator (`?`)**: Full static type inference for `Expr::Try(inner)` unwrapping `Result<T, E> -> T` and `Option<T> -> T`. Applying `?` to unsupported non-Result/non-Option expressions is rejected with error `E0302` (`src/typechecker.rs`).
+- **Fiber Concurrency Boundary Safety (`spawn`)**: Static analysis detects and rejects raw pointer (`*T`) captures inside `spawn { ... }` blocks with error `E0401`, eliminating cross-thread data race hazards and unsafe memory sharing (`src/typechecker.rs`).
+
+#### 2. Native Code Generation & Hardware Trap Resilience
+- **Cranelift Modulo Zero Hardware Trap Protection (`SIGFPE`)**: Division and modulo by zero (`BinOp::Mod`, `BinOp::Div`) in Cranelift JIT/AOT code generation now evaluate trap-safe conditional branches, converting hardware CPU `SIGFPE` crashes into clean recoverable panics (`src/codegen_cranelift.rs`).
+
+#### 3. Garbage Collector & Runtime Hardening
+- **Iterative GC Worklist**: Replaced deeply recursive `mark_ptr` traversal with an iterative heap-allocated worklist (`Vec<usize>`) in `crates/aura-runtime/src/gc.rs`, preventing runtime stack exhaustion on deep or cyclic object graphs.
+- **Safe Redis DSN Parsing & Native RESP Authentication**: Enhanced Redis connection parser to strictly isolate authentication credentials from hostname/port, automatically dispatching RESP `AUTH <password>` upon socket connection (`crates/aura-runtime/src/redis_client.rs`).
+- **Playground Anti-Slowloris Socket Protection**: Configured strict read (3s) and write (5s) timeouts on incoming TCP sockets in the interactive web playground server (`src/playground.rs`).
+- **C-API Channels Null Safety**: Replaced unsafe assertion panics with graceful null-pointer validations and error codes in runtime FFI channels (`crates/aura-runtime/src/c_api.rs`).
+
+#### 4. Ergonomic Language Features
+- **Raw String Literals**: Added full lexer and compiler support for raw string literals (`r"..."` and `r#"..."#`) preserving verbatim text without escape character interpretation (`src/lexer.rs`). Ideal for regular expressions, embedded SQL, JSON payloads, and filesystem paths.
+
+#### 5. Developer Tooling & Static Analysis
+- **Integrated Static Linter (`aura lint` / `aurac lint`)**: Added a dedicated AST visitor-based linter CLI command (`src/cli.rs`, `src/linter.rs`):
+  - `SEC001`: Detects potential SQL injection vectors in string interpolations and dynamic string concatenations.
+  - `SEC002`: Flags hardcoded secrets, passwords, and private API credentials.
+  - `LINT001`: Warns on mutable variables (`let mut`) that are never reassigned, recommending `let`.
+  - `LINT002`: Identifies empty pattern match constructs.
+
+#### 6. Test Suite & Verification
+- Dedicated test suites added: `tests/security_fixes_tests.rs` (17 tests), `tests/lint_tests.rs` (7 tests), and `tests/native_cranelift_tests.rs` (4 tests).
+- Subcommand version testing expanded to cover `aura lint` and `aurac lint`.
+- 100% of automated tests passing across all workspace crates (**269+ passing tests**).
+
+---
+
 ## [0.7.1] - 2026-10-15
 
 ### 🛡️ Security Hardening & Runtime Integrity

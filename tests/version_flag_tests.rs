@@ -62,7 +62,7 @@ fn test_aurac_version_subcommand() {
 
 #[test]
 fn test_aurac_subcommands_version_flag() {
-    let subcommands = ["build", "run", "check", "emit-go", "watch"];
+    let subcommands = ["build", "run", "check", "lint", "emit-go", "watch"];
     for subcmd in subcommands {
         let output = Command::new(env!("CARGO_BIN_EXE_aurac"))
             .args([subcmd, "--version"])
@@ -137,7 +137,7 @@ fn test_aura_primary_binary_version() {
 
 #[test]
 fn test_aura_subcommands_version_flag() {
-    let subcommands = ["build", "run", "check", "emit-go", "watch"];
+    let subcommands = ["build", "run", "check", "lint", "emit-go", "watch"];
     for subcmd in subcommands {
         let output = Command::new(env!("CARGO_BIN_EXE_aura"))
             .args([subcmd, "--version"])
