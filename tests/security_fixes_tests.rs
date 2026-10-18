@@ -281,3 +281,122 @@ fn test_fiber_stack_canary_integrity() {
     }
     assert!(stack.verify_canary());
 }
+
+#[test]
+fn test_immutability_reassignment_rejection() {
+    let source = r#"
+        fn testImm(): Unit => {
+            let x = 10;
+            x = 20;
+        }
+    "#;
+
+    let err = compile(source, &[]).expect_err("Must reject reassigning immutable variable");
+    assert!(
+        err.contains("Cannot assign to immutable variable 'x'"),
+        "Unexpected error: {}",
+        err
+    );
+}
+
+#[test]
+fn test_mutability_reassignment_allowed() {
+    let source = r#"
+        fn testMut(): Int => {
+            let mut x = 10;
+            x = 20;
+            x
+        }
+    "#;
+
+    let res = compile(source, &[]);
+    assert!(res.is_ok(), "Must allow reassigning mutable variable");
+}
+
+#[test]
+fn test_try_operator_static_typing() {
+    let source = r#"
+        fn getNumber(): Result<Int, String> => {
+            Ok(42)
+        }
+
+        fn compute(): Result<Int, String> => {
+            let n: Int = getNumber()?;
+            Ok(n + 1)
+        }
+    "#;
+
+    let res = compile(source, &[]);
+    assert!(res.is_ok(), "Try operator must unwrap Result<Int, E> to Int");
+}
+
+#[test]
+fn test_try_operator_rejection_on_non_result_or_option() {
+    let source = r#"
+        fn badTry(): Int => {
+            let x = 10;
+            let y = x?;
+            y
+        }
+    "#;
+
+    let err = compile(source, &[]).expect_err("Must reject '?' on non-Result/Option type");
+    assert!(
+        err.contains("Cannot apply '?' operator to non-Result/Option type"),
+        "Unexpected error: {}",
+        err
+    );
+}
+
+#[test]
+fn test_concurrency_spawn_raw_pointer_capture_rejection() {
+    let source = r#"
+        fn unsafeSpawn(): Unit => {
+            let mut val = 42;
+            let ptrVal = ptr(val);
+            spawn {
+                let _ = *ptrVal;
+            };
+        }
+    "#;
+
+    let err = compile(source, &[]).expect_err("Must reject raw pointer capture across spawn boundary");
+    assert!(
+        err.contains("Concurrency Safety Error [E0401]"),
+        "Unexpected error: {}",
+        err
+    );
+}
+
+#[test]
+fn test_raw_string_literals_lexer_and_compiler() {
+    let source = r##"
+        let raw1 = r"hello\nworld";
+        let raw2 = r#"hello "quoted" world"#;
+    "##;
+
+    let res = compile(source, &[]);
+    assert!(res.is_ok(), "Raw string literals must compile cleanly");
+}
+
+#[test]
+fn test_chan_c_api_null_pointer_safety() {
+    use aura_runtime::c_api::{aura_chan_close, aura_chan_recv, aura_chan_send};
+
+    // Passing null pointers must safely no-op or return null without crashing
+    aura_chan_send(std::ptr::null_mut(), std::ptr::null_mut());
+    let recv_res = aura_chan_recv(std::ptr::null_mut());
+    assert!(recv_res.is_null());
+    aura_chan_close(std::ptr::null_mut());
+}
+
+#[test]
+fn test_redis_dsn_with_password_parsing() {
+    use aura_runtime::redis_client::AuraRedisClient;
+
+    // Must not panic or fail to open embedded client with credential-bearing DSNs
+    let client = AuraRedisClient::open("redis://:supersecret@127.0.0.1:6379");
+    assert!(client.set("testkey", "testval", 0));
+    let retrieved = client.get("testkey");
+    assert_eq!(retrieved, Some("testval".to_string()));
+}

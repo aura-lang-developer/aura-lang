@@ -11,6 +11,7 @@ pub mod codegen_go;
 pub mod dts_parser;
 pub mod formatter;
 pub mod lexer;
+pub mod linter;
 pub mod lsp;
 pub mod package;
 pub mod parser;

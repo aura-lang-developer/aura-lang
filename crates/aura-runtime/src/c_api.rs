@@ -46,7 +46,9 @@ pub extern "C" fn aura_chan_new(capacity: usize) -> *mut AuraChannel {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn aura_chan_send(chan: *mut AuraChannel, val: *mut ()) {
-    assert!(!chan.is_null());
+    if chan.is_null() {
+        return;
+    }
     unsafe {
         (*chan).send(val);
     }
@@ -54,13 +56,17 @@ pub extern "C" fn aura_chan_send(chan: *mut AuraChannel, val: *mut ()) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn aura_chan_recv(chan: *mut AuraChannel) -> *mut () {
-    assert!(!chan.is_null());
+    if chan.is_null() {
+        return std::ptr::null_mut();
+    }
     unsafe { (*chan).recv() }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn aura_chan_close(chan: *mut AuraChannel) {
-    assert!(!chan.is_null());
+    if chan.is_null() {
+        return;
+    }
     unsafe {
         (*chan).close();
     }

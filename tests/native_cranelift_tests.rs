@@ -93,3 +93,31 @@ fn test_native_cranelift_release_mode() {
     assert!(stdout.contains("Hello from Cranelift Release Binary!"));
     assert!(stdout.contains("350"));
 }
+
+#[test]
+fn test_native_cranelift_modulo_zero_safety() {
+    let source = r#"
+        export fn main(): Unit => {
+            let x = 100;
+            let y = 0;
+            let m = x % y;
+            println(m);
+            println("Modulo by zero handled safely without SIGFPE");
+        }
+    "#;
+
+    let out_bin = Path::new("test_cranelift_mod_zero_bin");
+    let res = aura_lang::build_native_binary(source, out_bin);
+    assert!(res.is_ok(), "Native compilation failed: {:?}", res.err());
+    assert!(out_bin.exists());
+
+    let output = Command::new("./test_cranelift_mod_zero_bin")
+        .output()
+        .expect("Failed to run native binary");
+
+    let _ = fs::remove_file(out_bin);
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "Process must not crash on modulo by zero");
+    assert!(stdout.contains("Modulo by zero handled safely without SIGFPE"));
+}

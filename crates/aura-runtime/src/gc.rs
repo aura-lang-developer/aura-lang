@@ -194,23 +194,29 @@ pub fn collect_garbage() {
         }
     }
 
-    // 2. Scan Global Roots
+    // 2. Scan Global Roots and Fiber Stacks into an iterative Worklist
+    let mut worklist = Vec::with_capacity(1024);
     {
         let roots = GLOBAL_ROOTS.lock().unwrap();
         for root_slot in roots.iter() {
             if !root_slot.0.is_null() {
                 let ptr = unsafe { *root_slot.0 };
-                mark_ptr(ptr, &allocs);
+                if !ptr.is_null() && (ptr as usize) >= 0x1000 {
+                    worklist.push(ptr as usize);
+                }
             }
         }
     }
 
-    // 3. Scan All Active Fiber Stacks (Conservative stack scanning across ALL workers)
+    // 3. Scan All Active Fiber Stacks into the Worklist
     crate::scheduler::for_each_active_fiber(|sp, top| {
-        scan_stack_range(sp, top, &allocs);
+        scan_stack_range(sp, top, &mut worklist);
     });
 
-    // 4. Sweep Phase: reclaim unmarked
+    // 4. Iteratively process all reachable objects (zero-recursion, immune to Stack Overflow)
+    process_mark_worklist(&mut worklist, &allocs);
+
+    // 5. Sweep Phase: reclaim unmarked
     let mut i = 0;
     while i < allocs.len() {
         let hdr = allocs[i].0;
@@ -234,7 +240,7 @@ pub fn collect_garbage() {
     GC_COLLECTION_COUNT.fetch_add(1, Ordering::Relaxed);
 }
 
-fn scan_stack_range(bottom: *const u8, top: *const u8, allocs: &[SendPtr<GcHeader>]) {
+fn scan_stack_range(bottom: *const u8, top: *const u8, worklist: &mut Vec<usize>) {
     let mut cur = bottom as usize;
     let limit = top as usize;
 
@@ -243,44 +249,62 @@ fn scan_stack_range(bottom: *const u8, top: *const u8, allocs: &[SendPtr<GcHeade
 
     while cur + 8 <= limit {
         let val = unsafe { *(cur as *const usize) };
-        if val != 0 {
-            mark_ptr(val as *mut u8, allocs);
+        if val >= 0x1000 {
+            worklist.push(val);
         }
         cur += 8;
     }
 }
 
-fn mark_ptr(target: *mut u8, allocs: &[SendPtr<GcHeader>]) {
-    if target.is_null() || (target as usize) < 0x1000 || allocs.is_empty() {
-        return;
+fn process_mark_worklist(worklist: &mut Vec<usize>, allocs: &[SendPtr<GcHeader>]) {
+    while let Some(target_addr) = worklist.pop() {
+        if target_addr < 0x1000 || allocs.is_empty() {
+            continue;
+        }
+
+        // O(log N) binary search over sorted allocations
+        let idx = match allocs.binary_search_by(|hdr| {
+            let h = hdr.0;
+            let obj_start = unsafe { (h as *mut u8).add(size_of::<GcHeader>()) } as usize;
+            let obj_end = obj_start + unsafe { (*h).size };
+            if target_addr < obj_start {
+                std::cmp::Ordering::Greater
+            } else if target_addr >= obj_end {
+                std::cmp::Ordering::Less
+            } else {
+                std::cmp::Ordering::Equal
+            }
+        }) {
+            Ok(i) => i,
+            Err(_) => continue,
+        };
+
+        let h = allocs[idx].0;
+        unsafe {
+            if !(*h).marked {
+                (*h).marked = true;
+                let obj_start = (h as *mut u8).add(size_of::<GcHeader>()) as usize;
+                let obj_end = obj_start + (*h).size;
+
+                let mut cur = (obj_start + 7) & !7;
+                while cur + 8 <= obj_end {
+                    let val = *(cur as *const usize);
+                    if val >= 0x1000 {
+                        worklist.push(val);
+                    }
+                    cur += 8;
+                }
+            }
+        }
     }
+}
 
-    let target_addr = target as usize;
-    // O(log N) binary search over sorted allocations
-    let idx = match allocs.binary_search_by(|hdr| {
-        let h = hdr.0;
-        let obj_start = unsafe { (h as *mut u8).add(size_of::<GcHeader>()) } as usize;
-        let obj_end = obj_start + unsafe { (*h).size };
-        if target_addr < obj_start {
-            std::cmp::Ordering::Greater
-        } else if target_addr >= obj_end {
-            std::cmp::Ordering::Less
-        } else {
-            std::cmp::Ordering::Equal
-        }
-    }) {
-        Ok(i) => i,
-        Err(_) => return,
-    };
-
-    let h = allocs[idx].0;
-    unsafe {
-        if !(*h).marked {
-            (*h).marked = true;
-            let obj_start = (h as *mut u8).add(size_of::<GcHeader>());
-            let obj_end = obj_start.add((*h).size);
-            scan_stack_range(obj_start, obj_end, allocs);
-        }
+#[allow(dead_code)]
+#[inline]
+fn mark_ptr(target: *mut u8, allocs: &[SendPtr<GcHeader>]) {
+    if !target.is_null() && (target as usize) >= 0x1000 {
+        let mut worklist = vec![target as usize];
+        process_mark_worklist(&mut worklist, allocs);
     }
 }
 

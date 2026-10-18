@@ -73,29 +73,48 @@ impl AuraRedisClient {
             };
         }
 
-        // Parse host and port from DSN (e.g. redis://127.0.0.1:6379 or 127.0.0.1:6379)
+        // Parse authentication, host and port from DSN (e.g. redis://:password@127.0.0.1:6379 or 127.0.0.1:6379)
         let cleaned = dsn
             .trim_start_matches("redis://")
             .trim_start_matches("tcp://");
-        let (host, port) = if let Some(idx) = cleaned.find(':') {
-            let (h, p) = cleaned.split_at(idx);
-            let port_str = &p[1..];
-            let port_num: u16 = port_str
-                .split('/')
-                .next()
-                .unwrap_or("6379")
-                .parse()
-                .unwrap_or(6379);
-            (h, port_num)
-        } else {
-            (cleaned.split('/').next().unwrap_or("127.0.0.1"), 6379)
+
+        let (auth_part, host_port_part) = match cleaned.find('@') {
+            Some(idx) => (Some(&cleaned[..idx]), &cleaned[idx + 1..]),
+            None => (None, cleaned),
         };
 
-        let addr = format!(
-            "{}:{}",
-            if host.is_empty() { "127.0.0.1" } else { host },
-            port
-        );
+        let password = auth_part.and_then(|auth| {
+            if let Some(idx) = auth.find(':') {
+                let p = &auth[idx + 1..];
+                if !p.is_empty() {
+                    Some(p.to_string())
+                } else {
+                    None
+                }
+            } else if !auth.is_empty() {
+                Some(auth.to_string())
+            } else {
+                None
+            }
+        });
+
+        let host_port_clean = host_port_part.split('/').next().unwrap_or("127.0.0.1:6379");
+        let (host, port) = if let Some(idx) = host_port_clean.find(':') {
+            let (h, p) = host_port_clean.split_at(idx);
+            let port_num: u16 = p[1..].parse().unwrap_or(6379);
+            (if h.is_empty() { "127.0.0.1" } else { h }, port_num)
+        } else {
+            (
+                if host_port_clean.is_empty() {
+                    "127.0.0.1"
+                } else {
+                    host_port_clean
+                },
+                6379,
+            )
+        };
+
+        let addr = format!("{}:{}", host, port);
         use std::net::ToSocketAddrs;
         let socket_addr = addr
             .to_socket_addrs()
@@ -103,9 +122,19 @@ impl AuraRedisClient {
             .and_then(|mut it| it.next())
             .unwrap_or_else(|| "127.0.0.1:6379".parse().unwrap());
         match TcpStream::connect_timeout(&socket_addr, Duration::from_millis(500)) {
-            Ok(s) => {
+            Ok(mut s) => {
                 let _ = s.set_read_timeout(Some(Duration::from_secs(3)));
                 let _ = s.set_write_timeout(Some(Duration::from_secs(3)));
+
+                // If authentication password is provided, send AUTH command
+                if let Some(ref pwd) = password {
+                    let auth_cmd = format!("*2\r\n$4\r\nAUTH\r\n${}\r\n{}\r\n", pwd.len(), pwd);
+                    if s.write_all(auth_cmd.as_bytes()).is_ok() {
+                        let mut resp_buf = [0u8; 128];
+                        let _ = s.read(&mut resp_buf);
+                    }
+                }
+
                 Self {
                     stream: Some(Mutex::new(s)),
                     memory_store,

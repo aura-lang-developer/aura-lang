@@ -322,6 +322,56 @@ impl<'a> Lexer<'a> {
             }
         };
 
+        if ch == 'r' && (self.peek_next() == Some('"') || self.peek_next() == Some('#')) {
+            let mut num_hashes = 0;
+            let mut probe_pos = self.pos + 1;
+            while probe_pos < self.chars.len() && self.chars[probe_pos] == '#' {
+                num_hashes += 1;
+                probe_pos += 1;
+            }
+            if probe_pos < self.chars.len() && self.chars[probe_pos] == '"' {
+                self.advance(); // consume 'r'
+                for _ in 0..num_hashes {
+                    self.advance();
+                }
+                self.advance(); // consume opening '"'
+                let mut s = String::new();
+                let mut found_end = false;
+                while let Some(c) = self.advance() {
+                    if c == '"' {
+                        let mut end_hashes = 0;
+                        while end_hashes < num_hashes && self.peek() == Some('#') {
+                            self.advance();
+                            end_hashes += 1;
+                        }
+                        if end_hashes == num_hashes {
+                            found_end = true;
+                            break;
+                        } else {
+                            s.push('"');
+                            for _ in 0..end_hashes {
+                                s.push('#');
+                            }
+                        }
+                    } else {
+                        s.push(c);
+                    }
+                }
+                if !found_end {
+                    return Err("Unterminated raw string literal".to_string());
+                }
+                return Ok(Token {
+                    kind: TokenKind::String(s),
+                    span: Span {
+                        start: start_pos,
+                        end: self.pos,
+                        line,
+                        column,
+                    },
+                });
+            }
+        }
+
         if ch.is_alphabetic() || ch == '_' {
             let mut s = String::new();
             while let Some(c) = self.peek() {
@@ -435,6 +485,7 @@ impl<'a> Lexer<'a> {
                 },
             });
         }
+
 
         if ch == '"' {
             self.advance();

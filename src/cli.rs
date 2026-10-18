@@ -53,6 +53,7 @@ pub fn print_usage() {
     println!("  {bin} debug <file.aura> [--step] [--port <port>] [--no-brk] [--tags <tags>]");
     println!("  {bin} step <file.aura> [--port <port>] [--tags <tags>]");
     println!("  {bin} check <file.aura> [--tags <tags>]");
+    println!("  {bin} lint <file.aura>");
     println!("  {bin} emit-go <file.aura> [-o <output.go>]");
     println!("  {bin} watch <file.aura> [-o <binary>] [--run]");
     println!("  {bin} test [flags] [paths...]");
@@ -286,6 +287,49 @@ impl CliCommand for CheckCommand {
                 }
             },
             Err(e) => eprintln!("Error reading '{}': {}", filename, e),
+        }
+    }
+}
+
+/// Command encapsulating static security and code quality linting (`aurac lint <file.aura>`).
+pub struct LintCommand {
+    /// Path to the Aura source file to lint.
+    pub filename: String,
+}
+
+impl CliCommand for LintCommand {
+    fn execute(&self) {
+        let filename = &self.filename;
+        let content = match fs::read_to_string(filename) {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("Error reading '{}': {}", filename, e);
+                std::process::exit(1);
+            }
+        };
+
+        match aura_lang::linter::lint_source(&content) {
+            Ok(diagnostics) => {
+                if diagnostics.is_empty() {
+                    println!("✓ Lint passed: no issues found in '{}'.", filename);
+                } else {
+                    println!("Lint findings for '{}':", filename);
+                    let mut has_errors = false;
+                    for diag in &diagnostics {
+                        println!("  {}", diag);
+                        if diag.severity == aura_lang::linter::LintSeverity::Error {
+                            has_errors = true;
+                        }
+                    }
+                    if has_errors {
+                        std::process::exit(1);
+                    }
+                }
+            }
+            Err(err) => {
+                eprintln!("✕ Syntax error while linting '{}': {}", filename, err);
+                std::process::exit(1);
+            }
         }
     }
 }
@@ -565,6 +609,19 @@ pub fn run_cli(args: &[String]) {
             }
             let filename = args[2].clone();
             let cmd = CheckCommand { filename };
+            cmd.execute();
+        }
+        "lint" => {
+            if args.iter().skip(2).any(|a| a == "--version" || a == "-V") {
+                print_version();
+                return;
+            }
+            if args.len() < 3 {
+                eprintln!("Error: Missing input file for 'lint'.");
+                return;
+            }
+            let filename = args[2].clone();
+            let cmd = LintCommand { filename };
             cmd.execute();
         }
         "run" => {

@@ -286,6 +286,7 @@ impl ConcreteType {
 #[derive(Debug)]
 pub struct TypeEnv {
     variables: HashMap<String, ConcreteType>,
+    mutability: HashMap<String, bool>,
     types: HashMap<String, ConcreteType>,
     parent: Option<Box<TypeEnv>>,
 }
@@ -300,6 +301,7 @@ impl TypeEnv {
     pub fn new() -> Self {
         let mut env = Self {
             variables: HashMap::new(),
+            mutability: HashMap::new(),
             types: HashMap::new(),
             parent: None,
         };
@@ -3741,13 +3743,29 @@ impl TypeEnv {
     pub fn enter_scope(&self) -> Self {
         Self {
             variables: HashMap::new(),
+            mutability: HashMap::new(),
             types: HashMap::new(),
             parent: Some(Box::new(self.clone())),
         }
     }
 
-    pub fn insert_var(&mut self, name: String, ty: ConcreteType) {
+    pub fn insert_var_mut(&mut self, name: String, ty: ConcreteType, is_mut: bool) {
+        self.mutability.insert(name.clone(), is_mut);
         self.variables.insert(name, ty);
+    }
+
+    pub fn insert_var(&mut self, name: String, ty: ConcreteType) {
+        self.insert_var_mut(name, ty, true);
+    }
+
+    pub fn is_mut(&self, name: &str) -> Option<bool> {
+        if let Some(&m) = self.mutability.get(name) {
+            Some(m)
+        } else if let Some(ref parent) = self.parent {
+            parent.is_mut(name)
+        } else {
+            None
+        }
     }
 
     pub fn lookup_var(&self, name: &str) -> Option<ConcreteType> {
@@ -3799,6 +3817,7 @@ impl Clone for TypeEnv {
     fn clone(&self) -> Self {
         Self {
             variables: self.variables.clone(),
+            mutability: self.mutability.clone(),
             types: self.types.clone(),
             parent: self.parent.clone(),
         }
@@ -4410,17 +4429,17 @@ impl TypeChecker {
         match stmt {
             Statement::Let {
                 name,
+                is_mut,
                 type_annotation,
                 value,
-                ..
             } => {
                 let val_ty = self.infer_expr(value, env)?;
                 if let Some(annot) = type_annotation {
                     let annot_ty = self.resolve_ast_type(annot)?;
                     self.unify(&annot_ty, &val_ty, &format!("Let binding '{}'", name))?;
-                    env.insert_var(name.clone(), annot_ty);
+                    env.insert_var_mut(name.clone(), annot_ty, *is_mut);
                 } else {
-                    env.insert_var(name.clone(), val_ty);
+                    env.insert_var_mut(name.clone(), val_ty, *is_mut);
                 }
                 Ok(())
             }
@@ -4440,6 +4459,14 @@ impl TypeChecker {
                 Ok(())
             }
             Statement::Assign { target, value } => {
+                if let Expr::Identifier(name) = target {
+                    if let Some(false) = env.is_mut(name) {
+                        return Err(format!(
+                            "Cannot assign to immutable variable '{}'. Declare with 'let mut' if mutation is intended.",
+                            name
+                        ));
+                    }
+                }
                 let target_ty = self.infer_expr(target, env)?;
                 let val_ty = self.infer_expr(value, env)?;
                 self.unify(&target_ty, &val_ty, "Variable reassignment")?;
@@ -5486,17 +5513,17 @@ impl TypeChecker {
                     match stmt {
                         Statement::Let {
                             name,
+                            is_mut,
                             type_annotation,
                             value,
-                            ..
                         } => {
                             let val_ty = self.infer_expr(value, &mut block_env)?;
                             if let Some(annot) = type_annotation {
                                 let annot_ty = self.resolve_ast_type(annot)?;
                                 self.unify(&annot_ty, &val_ty, &format!("Let binding '{}'", name))?;
-                                block_env.insert_var(name.clone(), annot_ty);
+                                block_env.insert_var_mut(name.clone(), annot_ty, *is_mut);
                             } else {
-                                block_env.insert_var(name.clone(), val_ty);
+                                block_env.insert_var_mut(name.clone(), val_ty, *is_mut);
                             }
                         }
                         Statement::LetPattern {
@@ -5514,6 +5541,14 @@ impl TypeChecker {
                             }
                         }
                         Statement::Assign { target, value } => {
+                            if let Expr::Identifier(name) = target {
+                                if let Some(false) = block_env.is_mut(name) {
+                                    return Err(format!(
+                                        "Cannot assign to immutable variable '{}'. Declare with 'let mut' if mutation is intended.",
+                                        name
+                                    ));
+                                }
+                            }
                             let target_ty = self.infer_expr(target, &mut block_env)?;
                             let val_ty = self.infer_expr(value, &mut block_env)?;
                             self.unify(&target_ty, &val_ty, "Variable reassignment")?;
@@ -5701,7 +5736,9 @@ impl TypeChecker {
             }
             Expr::Placeholder => Ok(ConcreteType::Any),
             Expr::Spawn(expr) => {
-                let _ = self.infer_expr(expr, env)?;
+                let ty = self.infer_expr(expr, env)?;
+                self.validate_sendable_type(&ty)?;
+                self.check_spawn_safety(expr, env)?;
                 Ok(ConcreteType::Unit)
             }
             Expr::ChanSend { channel, value } => {
@@ -5860,8 +5897,83 @@ impl TypeChecker {
                     Ok(ConcreteType::String)
                 }
             }
+            Expr::Try(inner) => {
+                let inner_ty = self.infer_expr(inner, env)?;
+                match inner_ty {
+                    ConcreteType::Result(ok, _err) => Ok(*ok),
+                    ConcreteType::Option(val) => Ok(*val),
+                    ConcreteType::Any => Ok(ConcreteType::Any),
+                    other => Err(format!(
+                        "Cannot apply '?' operator to non-Result/Option type '{}'",
+                        other
+                    )),
+                }
+            }
             _ => Ok(ConcreteType::Any),
         }
+    }
+
+    fn check_spawn_safety(&self, expr: &Expr, env: &TypeEnv) -> Result<(), String> {
+        match expr {
+            Expr::Identifier(id) => {
+                if let Some(ConcreteType::Pointer(inner)) = env.lookup_var(id) {
+                    return Err(format!(
+                        "Concurrency Safety Error [E0401]: Cannot capture raw pointer '*{}' ('{}') across fiber spawn boundary. Raw pointers violate thread isolation. Use safe value types or synchronized channels.",
+                        inner, id
+                    ));
+                }
+            }
+            Expr::Deref(inner)
+            | Expr::AddressOf(inner)
+            | Expr::Unary { expr: inner, .. }
+            | Expr::Try(inner)
+            | Expr::Async(inner)
+            | Expr::Await(inner)
+            | Expr::ChanRecv(inner)
+            | Expr::Panic(inner) => {
+                self.check_spawn_safety(inner, env)?;
+            }
+            Expr::ChanSend { channel, value } => {
+                self.check_spawn_safety(channel, env)?;
+                self.check_spawn_safety(value, env)?;
+            }
+            Expr::Pipeline { left, right } => {
+                self.check_spawn_safety(left, env)?;
+                self.check_spawn_safety(right, env)?;
+            }
+            Expr::MemberAccess { object, .. } => {
+                self.check_spawn_safety(object, env)?;
+            }
+            Expr::IndexAccess { object, index } => {
+                self.check_spawn_safety(object, env)?;
+                self.check_spawn_safety(index, env)?;
+            }
+            Expr::Block(stmts) => {
+                for s in stmts {
+                    match s {
+                        Statement::Expr(e) | Statement::Return(Some(e)) => self.check_spawn_safety(e, env)?,
+                        Statement::Let { value, .. } => self.check_spawn_safety(value, env)?,
+                        Statement::Assign { target, value } => {
+                            self.check_spawn_safety(target, env)?;
+                            self.check_spawn_safety(value, env)?;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            Expr::FunctionCall { callee, args } => {
+                self.check_spawn_safety(callee, env)?;
+                for a in args {
+                    self.check_spawn_safety(a, env)?;
+                }
+            }
+            Expr::Binary { left, right, .. } => {
+                self.check_spawn_safety(left, env)?;
+                self.check_spawn_safety(right, env)?;
+            }
+            _ => {}
+        }
+        Ok(())
     }
 
     fn check_match_exhaustiveness(

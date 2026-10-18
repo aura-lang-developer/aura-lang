@@ -50,6 +50,9 @@ pub fn start_server(port: u16) -> Result<(), String> {
 }
 
 fn handle_client(mut stream: TcpStream) {
+    let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(3)));
+    let _ = stream.set_write_timeout(Some(std::time::Duration::from_secs(5)));
+
     let mut buffer = [0u8; 65536];
     let bytes_read = match stream.read(&mut buffer) {
         Ok(n) if n > 0 => n,

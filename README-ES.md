@@ -2026,6 +2026,12 @@ Aura v0.7.1 incorpora mejoras críticas de seguridad y blindaje en profundidad a
 | **Clientes Redis y MongoDB** | Resolución DNS remota y fuga de credenciales | Resolución DNS nativa vía `ToSocketAddrs`, lectura completa multi-paquete para tramas RESP y saneamiento de credenciales en URIs registradas. |
 | **Subsistema de SO** | Condiciones de carrera en variables de entorno | Bloqueo global con `ENV_LOCK` en `aura_os_setenv` y `aura_os_env`, con validación estricta rechazando bytes nulos (`\0`) y `=` en nombres de variables. |
 | **Cadena de Suministro / Módulos** | Inyección de argumentos y protocolos en `auramod` / `aurapkg` | Sanitización exhaustiva en rutas de paquetes y versiones contra path traversal, inyección de comandos y protocolos maliciosos de Git. |
+| **Inmutabilidad Estática** | Mutación accidental y corrupción de estado | Inmutabilidad por defecto forzada en tiempo de compilación (`E0400`). Variables declaradas con `let` no pueden ser reasignadas; requiere `let mut` explícito. |
+| **Seguridad Aritmética** | Caída `SIGFPE` por división o módulo entre cero | Codegen de Cranelift emite validación con saltos seguros a prueba de trampas de hardware en `BinOp::Mod` idéntico a `BinOp::Div`. |
+| **Desenvolvimiento Estático Seguro** | Desenvolvimiento indefinido con `?` en tipos no mónadas | Inferencia estricta en el typechecker (`E0302`) que desenvuelve `Result<T, E> -> T` y `Option<T> -> T`, rechazando tipos arbitrarios. |
+| **Frontera de Concurrencia (Fibers)** | Carreras de datos y escape de punteros crudos entre fibras | Verificación estática en expresiones `spawn` que rechaza punteros crudos (`*T`, `E0401`) capturados dentro del bloque concurrente. |
+| **Recolector de Basura** | Desbordamiento de pila por recursión en grafos profundos | Worklist iterativa sobre heap (`Vec<usize>`) reemplazando frames recursivos en el trazado de punteros del GC. |
+| **Linter Estático de Seguridad y Calidad** | Inyecciones SQL y credenciales expuestas | Herramienta de análisis estático integrada (`aura lint`) que detecta plantillas SQL sin parametrizar (`SEC001`), credenciales hardcodeadas (`SEC002`) y mutabilidad no utilizada (`LINT001`). |
 
 ---
 

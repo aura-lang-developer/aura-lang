@@ -1568,7 +1568,37 @@ impl CraneliftBackend {
                         builder.seal_block(merge_block);
                         Ok(builder.use_var(res_var))
                     }
-                    BinOp::Mod => Ok(builder.ins().srem(l, r)),
+                    BinOp::Mod => {
+                        let res_var = builder.declare_var(types::I64);
+                        let zero = builder.ins().iconst(types::I64, 0);
+                        let is_zero = builder.ins().icmp(
+                            cranelift_codegen::ir::condcodes::IntCC::Equal,
+                            r,
+                            zero,
+                        );
+                        let safe_mod_block = builder.create_block();
+                        let zero_mod_block = builder.create_block();
+                        let merge_block = builder.create_block();
+
+                        builder
+                            .ins()
+                            .brif(is_zero, zero_mod_block, &[], safe_mod_block, &[]);
+
+                        builder.switch_to_block(safe_mod_block);
+                        builder.seal_block(safe_mod_block);
+                        let mod_res = builder.ins().srem(l, r);
+                        builder.def_var(res_var, mod_res);
+                        builder.ins().jump(merge_block, &[]);
+
+                        builder.switch_to_block(zero_mod_block);
+                        builder.seal_block(zero_mod_block);
+                        builder.def_var(res_var, zero);
+                        builder.ins().jump(merge_block, &[]);
+
+                        builder.switch_to_block(merge_block);
+                        builder.seal_block(merge_block);
+                        Ok(builder.use_var(res_var))
+                    }
                     BinOp::Equal => {
                         let local_eq = self
                             .module

@@ -2027,6 +2027,12 @@ Aura v0.7.1 introduces extensive defense-in-depth security hardening across the 
 | **Redis & Mongo Clients** | Remote hostname resolution & credential leaks | Native DNS resolution via `ToSocketAddrs`, full RESP multi-packet response framing, and URI credential stripping in logging. |
 | **OS Subsystem** | Data races & memory unsafety in environment vars | Global `ENV_LOCK` Mutex for `aura_os_setenv` and `aura_os_env`, with strict validation rejecting null bytes (`\0`) and `=` in variable names. |
 | **Supply Chain / Modules** | Argument and protocol injection in `auramod` / `aurapkg` | Path and version string sanitization against path traversal, command injection, and illegal git protocol characters. |
+| **Static Immutability** | Accidental mutation & state drift | Default immutability strictly enforced at typecheck time (`E0400`). Variables declared with `let` cannot be reassigned; `let mut` required explicitly. |
+| **Arithmetic Safety** | Hardware `SIGFPE` crash on modulo / division by zero | Cranelift codegen emits conditional zero-divisor trap-safe checks for `BinOp::Mod` matching `BinOp::Div`. |
+| **Formal Type Unwrapping** | Undefined unwrapping of non-monadic types with `?` | Strict typechecker inference (`E0302`) unwrapping `Result<T, E> -> T` and `Option<T> -> T`, rejecting arbitrary types. |
+| **Fiber Concurrency Boundary** | Data races and raw pointer escapes across fibers | Static verification on `spawn` expressions rejecting raw pointers (`*T`, `E0401`) captured inside concurrent closures. |
+| **Garbage Collector** | Recursion stack overflow on deep object graphs | Iterative mark worklist (`Vec<usize>`) replacing recursive call frames in GC tracing. |
+| **Security & Quality Linter** | SQL injection and exposed credentials | Integrated static analysis tool (`aura lint`) detecting unparameterized SQL templates (`SEC001`), hardcoded credentials (`SEC002`), and unused mutability (`LINT001`). |
 
 ---
 
