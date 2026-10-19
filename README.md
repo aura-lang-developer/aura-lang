@@ -1325,9 +1325,9 @@ Aura features a high-performance, strongly-typed native database subsystem desig
 
 #### Architectural Highlights
 - **Embedded SQLite Engine**: Statically bundled SQLite 3 C-engine with in-memory (`:memory:`) and file-based database support.
-- **Pure-Rust PostgreSQL Wire Protocol (3.0)**: Native TCP client implementation supporting Cleartext and MD5 authentication, parameterized extended queries, and streaming row decoding.
+- **Pure-Rust PostgreSQL Wire Protocol (3.0)**: Native TCP client implementation supporting Cleartext, MD5, and modern `SCRAM-SHA-256` authentication (RFC 7677 / RFC 5802 for PostgreSQL 14+, Supabase, and Neon), parameterized extended queries (`$1..$N`), and streaming row decoding without `libpq`.
 - **Pure-Rust MySQL Wire Protocol (10)**: Native TCP client implementation supporting SHA-1 authentication handshakes, prepared statement parameter bindings, and result set parsing.
-- **Thread-Safe Connection Pooling (`DB`)**: Automatic connection pooling with max connection limits (`maxConns`), health checks (`db.ping()`), and deterministic cleanup (`db.close()`).
+- **Thread-Safe Connection Pooling (`DB`)**: Automatic connection pooling with strict active connection bounding via `Condvar` synchronization, health checks (`db.ping()`), and deterministic cleanup (`db.close()`).
 - **ACID Transactions (`Tx`)**: Full transaction lifecycle management (`db.begin()`, `tx.commit()`, `tx.rollback()`) with polymorphic connection borrowing.
 - **Strongly-Typed Field Extractors (`Rows`)**: Fast cursor-based iteration (`rows.next()`), typed value retrieval (`getInt`, `getString`, `getFloat`, `getBool`), and direct map/record decoding (`rows.toRecord()`, `rows.toList()`).
 
@@ -1369,7 +1369,7 @@ while (rows.next()) {
 
 ### 🐘 Native PostgreSQL Driver (`postgres` / `pg`)
 
-Pure-Rust TCP client implementing the PostgreSQL 3.0 wire protocol:
+Pure-Rust TCP client implementing the PostgreSQL 3.0 wire protocol with native **SCRAM-SHA-256**, MD5, and Cleartext authentication:
 
 ```aura
 import { open } from "std/database/postgres";
@@ -2032,6 +2032,13 @@ Aura v0.8.0 introduces extensive defense-in-depth security hardening across the 
 | **Formal Type Unwrapping** | Undefined unwrapping of non-monadic types with `?` | Strict typechecker inference (`E0302`) unwrapping `Result<T, E> -> T` and `Option<T> -> T`, rejecting arbitrary types. |
 | **Fiber Concurrency Boundary** | Data races and raw pointer escapes across fibers | Static verification on `spawn` expressions rejecting raw pointers (`*T`, `E0401`) captured inside concurrent closures. |
 | **Garbage Collector** | Recursion stack overflow on deep object graphs | Iterative mark worklist (`Vec<usize>`) replacing recursive call frames in GC tracing. |
+| **Adaptive Memory GC** | Memory leak & continuous Stop-The-World stalls | Atomic subtraction of reclaimed bytes in sweep phase with adaptive threshold doubling (`(live * 2).max(8MB)`), preventing infinite GC trigger loops. |
+| **PostgreSQL Authentication** | Incompatible modern PG auth & credential interception | Pure-Rust `SCRAM-SHA-256` authentication (RFC 7677 / RFC 5802) via standalone SHA-256, HMAC-SHA-256, and PBKDF2, supporting PostgreSQL 14+, Neon, Supabase, and AWS RDS without `libpq`. |
+| **Database Pool Limiting** | Connection starvation and socket exhaustion under spikes | Strict `active_conns` counting in `AuraDbPool` with `Condvar` synchronization (15s timeout), preventing database collapse under concurrent load. |
+| **Typechecker Scopes** | $O(N^2)$ memory bloat from recursive scope cloning | $O(1)$ scope entry with `Arc<TypeEnv>` and thread-safe singleton initialization (`OnceLock`) of the standard built-in type catalog. |
+| **CLI Runner Isolation** | Race conditions & residual files in `aura run` | Unique process/timestamp-tagged temporary scripts with RAII `CleanupGuard` guaranteeing immediate cleanup upon termination. |
+| **HTTP Concurrency Scaling** | Thread contention & OS overhead with static worker pools | Dynamic worker pool sizing based on `std::thread::available_parallelism()`, optimizing socket acceptance latency. |
+| **Playground API Hardening** | JSON injection & control character corruption | Fully typed JSON parsing and serialization backed by `serde_json` replacing manual substring extractors. |
 | **Security & Quality Linter** | SQL injection and exposed credentials | Integrated static analysis tool (`aura lint`) detecting unparameterized SQL templates (`SEC001`), hardcoded credentials (`SEC002`), and unused mutability (`LINT001`). |
 
 ---
@@ -2046,13 +2053,13 @@ Aura v0.8.0 introduces extensive defense-in-depth security hardening across the 
 - [x] **Method-Oriented Programming**: Pure data structs, receiver methods (`fn (r: Recv) Method()`), case-based Go visibility, and structural duck typing without `implements`.
 - [x] **Native Cranelift Backend**: Direct native machine code emission for macOS (Mach-O) and Linux (ELF) with static runtime (`libaura_runtime.a`).
 - [x] **Golang Backend & Transpilation**: Idiomatic Go code generation (`aurac emit-go`) and `--target go` cross-compilation.
-- [x] **Standard Library & Databases**: Ultra-high-performance HTTP ServeMux server (**126k+ req/s**), `/metrics` Prometheus endpoint, OpenTelemetry `traceparent`, Swagger UI, and native drivers for PostgreSQL, MySQL, MongoDB, and Redis.
+- [x] **Standard Library & Databases**: Ultra-high-performance HTTP ServeMux server (**126k+ req/s**), dynamic worker scaling, `/metrics` Prometheus endpoint, OpenTelemetry `traceparent`, Swagger UI, and native drivers for PostgreSQL (with `SCRAM-SHA-256`, MD5, and Cleartext), MySQL, MongoDB, and Redis with bounded `Condvar` connection pool synchronization.
 - [x] **Decentralized Package Manager**: `aura.mod`, cryptographic `aura.lock`, offline vendoring, and integrity checks (`auramod` / `aurac mod`).
 - [x] **C/Rust FFI Generator (`aurabindgen`)**: Automatic conversion of `.h` headers into safe Aura interfaces.
-- [x] **Production-Grade Tooling**: Official LSP server (`auralsp`), terminal step debugger (`aurac step`), V8 DAP server (`aurac debug`), test runner (`auratest`), and opinionated formatter (`aurafmt`).
-- [x] **Rust 2024 Modernization & Toolchain Optimization**: Centralized Cargo workspace dependencies and lints, deduplicated crate tree (`object 0.39`), Thin LTO release profile (`[profile.release]`), `RwLock` + `FxHashMap` concurrent runtime GC, zero-overhead static scheduler, zero-alloc HTTP metric formatting, and structured `TypeError` diagnostics.
-- [x] **Security & Runtime Hardening (v0.8.0)**: TLAB lock-free GC allocations, binary search GC marking, fiber stack canaries, constant-time JWT verification (`timingSafeEqual` / `hmac.Equal`), JSON DoS depth limiting (depth <= 64), Slowloris socket timeouts, HTTP security headers (`nosniff`, `SAMEORIGIN`), Stop-The-World GC synchronization, SQL injection prevention ($1..$N, ?), compile-time match exhaustiveness, supply-chain package sanitization, static immutability enforcement (`let mut`), Cranelift modulo zero safety (`SIGFPE` guard), formal static type unwrapping for `?`, fiber boundary raw pointer safety (`spawn`), iterative GC worklist, raw string literals (`r"..."`), and integrated static security linter (`aura lint`).
-- [x] **Quality Suite & Tests**: **269+ automated tests passing successfully** across the repository.
+- [x] **Production-Grade Tooling**: Official LSP server (`auralsp`), terminal step debugger (`aurac step`), V8 DAP server (`aurac debug`), test runner (`auratest`), opinionated formatter (`aurafmt`), and type-safe `serde_json` Web Playground.
+- [x] **Rust 2024 Modernization & Toolchain Optimization**: Centralized Cargo workspace dependencies and lints, deduplicated crate tree (`object 0.39`), Thin LTO release profile (`[profile.release]`), `RwLock` + `FxHashMap` concurrent runtime GC, zero-overhead static scheduler, zero-alloc HTTP metric formatting, $O(1)$ scope entry with `Arc<TypeEnv>`, and structured `TypeError` diagnostics.
+- [x] **Security & Runtime Hardening (v0.8.0)**: TLAB lock-free GC allocations, adaptive memory GC with dynamic thresholding, binary search GC marking, fiber stack canaries, constant-time JWT verification (`timingSafeEqual` / `hmac.Equal`), JSON DoS depth limiting (depth <= 64), Slowloris socket timeouts, HTTP security headers (`nosniff`, `SAMEORIGIN`), Stop-The-World GC synchronization, SQL injection prevention ($1..$N, ?), strict DB pool bounding, pure-Rust PostgreSQL `SCRAM-SHA-256` auth, compile-time match exhaustiveness, supply-chain package sanitization, isolated process-unique `aura run` temp execution with RAII cleanup, static immutability enforcement (`let mut`), Cranelift modulo zero safety (`SIGFPE` guard), formal static type unwrapping for `?`, fiber boundary raw pointer safety (`spawn`), iterative GC worklist, raw string literals (`r"..."`), and integrated static security linter (`aura lint`).
+- [x] **Quality Suite & Tests**: **270+ automated tests passing successfully** across the repository.
 - [ ] **WebAssembly Backend (WASM/WASI)**: WebAssembly binary emission for serverless edge microservices.
 - [ ] **Advanced LLVM Optimizations**: Optional LTO optimization pipeline and SIMD vectorization for compute-intensive workloads.
 

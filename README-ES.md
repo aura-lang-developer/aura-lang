@@ -1324,9 +1324,9 @@ Aura incorpora un subsistema de bases de datos nativas de alto rendimiento fuert
 
 #### Puntos Destacados de la Arquitectura
 - **Motor SQLite Embebido**: Motor C de SQLite 3 integrado estáticamente, con soporte de bases de datos en memoria (`:memory:`) y en ficheros de disco.
-- **Protocolo de Red PostgreSQL 3.0 (Pure-Rust)**: Cliente TCP nativo con soporte de autenticación Cleartext y MD5, consultas parametrizadas (extended query) y decodificación de filas en streaming.
+- **Protocolo de Red PostgreSQL 3.0 (Pure-Rust)**: Cliente TCP nativo con soporte de autenticación Cleartext, MD5 y `SCRAM-SHA-256` moderna (RFC 7677 / RFC 5802 para PostgreSQL 14+, Supabase y Neon), consultas parametrizadas (`$1..$N`) y decodificación de filas en streaming sin requerir `libpq`.
 - **Protocolo de Red MySQL 10 (Pure-Rust)**: Cliente TCP nativo con soporte de handshake y autenticación SHA-1 scramble, binding de parámetros en sentencias preparadas y parseo de conjuntos de resultados.
-- **Connection Pooling Concurrente y Seguro (`DB`)**: Pool de conexiones automático con límites máximos configurables (`maxConns`), comprobación de salud (`db.ping()`) y limpieza determinista (`db.close()`).
+- **Connection Pooling Concurrente y Seguro (`DB`)**: Pool de conexiones automático con límite estricto de conexiones activas sincronizado mediante `Condvar` (timeout de 15s), comprobación de salud (`db.ping()`) y limpieza determinista (`db.close()`).
 - **Transacciones ACID (`Tx`)**: Control completo del ciclo de vida transaccional (`db.begin()`, `tx.commit()`, `tx.rollback()`) reutilizando de forma polimórfica la conexión activa.
 - **Extractores de Columnas Fuertemente Tipados (`Rows`)**: Iteración rápida con cursor (`rows.next()`), lectura con tipo (`getInt`, `getString`, `getFloat`, `getBool`) y conversión directa a registros/mapas (`rows.toRecord()`, `rows.toList()`).
 
@@ -1368,7 +1368,7 @@ while (rows.next()) {
 
 ### 🐘 Controlador Nativo de PostgreSQL (`postgres` / `pg`)
 
-Cliente TCP pure-Rust con el protocolo de red PostgreSQL 3.0:
+Cliente TCP pure-Rust con el protocolo de red PostgreSQL 3.0 con soporte nativo de **SCRAM-SHA-256**, MD5 y Cleartext:
 
 ```aura
 import { open } from "std/database/postgres";
@@ -2031,6 +2031,13 @@ Aura v0.8.0 incorpora mejoras críticas de seguridad y blindaje en profundidad a
 | **Desenvolvimiento Estático Seguro** | Desenvolvimiento indefinido con `?` en tipos no mónadas | Inferencia estricta en el typechecker (`E0302`) que desenvuelve `Result<T, E> -> T` y `Option<T> -> T`, rechazando tipos arbitrarios. |
 | **Frontera de Concurrencia (Fibers)** | Carreras de datos y escape de punteros crudos entre fibras | Verificación estática en expresiones `spawn` que rechaza punteros crudos (`*T`, `E0401`) capturados dentro del bloque concurrente. |
 | **Recolector de Basura** | Desbordamiento de pila por recursión en grafos profundos | Worklist iterativa sobre heap (`Vec<usize>`) reemplazando frames recursivos en el trazado de punteros del GC. |
+| **GC con Memoria Adaptativa** | Fuga de memoria y pausas continuas Stop-The-World | Sustracción atómica de bytes liberados en la fase de barrido y umbral dinámico duplicado (`(live * 2).max(8MB)`), previniendo bucles continuos de recolección. |
+| **Autenticación PostgreSQL** | Incompatibilidad con auth moderna e intercepción | Autenticación pure-Rust `SCRAM-SHA-256` (RFC 7677 / RFC 5802) mediante SHA-256, HMAC-SHA-256 y PBKDF2, soportando PostgreSQL 14+, Neon, Supabase y AWS RDS sin `libpq`. |
+| **Límite en Pool de Bases de Datos** | Agotamiento y colapso de sockets en picos de carga | Conteo estricto de `active_conns` en `AuraDbPool` con sincronización `Condvar` (timeout de 15s), previniendo caídas de bases de datos bajo tráfico concurrente. |
+| **Optimización de Scopes de Tipos** | Consumo de memoria $O(N^2)$ por clonado recursivo de scopes | Entrada a scope en $O(1)$ con `Arc<TypeEnv>` e inicialización estática singleton (`OnceLock`) del catálogo de tipos estándar. |
+| **Aislamiento en CLI Runner** | Condiciones de carrera y ficheros huérfanos en `aura run` | Scripts temporales con etiquetas únicas por proceso y tiempo con guardia RAII `CleanupGuard` que garantiza limpieza determinista al finalizar. |
+| **Escalado de Concurrencia HTTP** | Contención de hilos y sobrecarga de SO con pools fijos | Dimensionamiento dinámico del pool de workers según `std::thread::available_parallelism()`, optimizando la latencia de aceptación de sockets. |
+| **Playground Blindado** | Inyección JSON y corrupción por caracteres de control | Parseo y serialización fuertemente tipada con `serde_json` eliminando extractores de cadenas manuales propensos a fallos. |
 | **Linter Estático de Seguridad y Calidad** | Inyecciones SQL y credenciales expuestas | Herramienta de análisis estático integrada (`aura lint`) que detecta plantillas SQL sin parametrizar (`SEC001`), credenciales hardcodeadas (`SEC002`) y mutabilidad no utilizada (`LINT001`). |
 
 ---
@@ -2045,13 +2052,13 @@ Aura v0.8.0 incorpora mejoras críticas de seguridad y blindaje en profundidad a
 - [x] **Programación Orientada a Métodos**: Structs puros de datos, métodos con receptor (`fn (r: Recv) Method()`), visibilidad Go por mayúsculas/minúsculas y duck typing estructural sin `implements`.
 - [x] **Backend Nativo Cranelift**: Emisión directa de código máquina nativo para macOS (Mach-O) y Linux (ELF) con runtime estático (`libaura_runtime.a`).
 - [x] **Backend y Transpilación Golang**: Generación de código idiomático Go (`aurac emit-go`) y compilación cruzada `--target go`.
-- [x] **Librería Estándar y Bases de Datos**: Servidor HTTP ServeMux de ultra alto rendimiento (**126k+ req/s**), métricas Prometheus `/metrics`, OpenTelemetry `traceparent`, Swagger UI y controladores nativos para PostgreSQL, MySQL, MongoDB y Redis.
+- [x] **Librería Estándar y Bases de Datos**: Servidor HTTP ServeMux de ultra alto rendimiento (**126k+ req/s**), escalado dinámico de workers, métricas Prometheus `/metrics`, OpenTelemetry `traceparent`, Swagger UI y controladores nativos para PostgreSQL (con `SCRAM-SHA-256`, MD5 y Cleartext), MySQL, MongoDB y Redis con pool de conexiones limitado por `Condvar`.
 - [x] **Gestor de Paquetes Descentralizado**: `aura.mod`, lockfile criptográfico `aura.lock`, vendoring offline y verificación de integridad (`auramod` / `aurac mod`).
 - [x] **Generador FFI C/Rust (`aurabindgen`)**: Conversión automática de cabeceras `.h` a interfaces Aura seguras.
-- [x] **Herramientas de Grado de Producción**: Servidor LSP oficial (`auralsp`), depurador interactivo de terminal (`aurac step`), servidor DAP V8 (`aurac debug`), suite de pruebas (`auratest`) y formateador opinado (`aurafmt`).
-- [x] **Modernización y Optimización Rust 2024**: Dependencias y lints de Cargo centralizados en el workspace, árbol de crates deduplicado (`object 0.39`), perfil de release con Thin LTO (`[profile.release]`), GC concurrente del runtime con `RwLock` + `FxHashMap`, scheduler estático de costo cero, formateo de métricas HTTP zero-alloc y diagnósticos estructurados con `TypeError`.
-- [x] **Seguridad y Blindaje del Runtime (v0.8.0)**: Asignaciones TLAB lock-free en el GC, marcado de punteros en GC con búsqueda binaria, canarios de integridad en pilas de fibras, validación JWT en tiempo constante (`timingSafeEqual` / `hmac.Equal`), límite de anidamiento JSON (profundidad <= 64), sockets HTTP con timeouts anti-Slowloris, cabeceras automáticas de seguridad (`nosniff`, `SAMEORIGIN`), sincronización Stop-The-World en el GC, prevención de inyección SQL ($1..$N, ?), sanitización en gestor de paquetes, inmutabilidad forzada por defecto (`let mut`), protección aritmética de módulo cero (`SIGFPE`), desenvolvimiento formal para `?`, seguridad en frontera de fibras (`spawn`), worklist iterativa en GC, literales de cadena cruda (`r"..."`) y linter estático integrado (`aura lint`).
-- [x] **Suite de Calidad y Tests**: **269+ pruebas automatizadas pasando con éxito** en el repositorio.
+- [x] **Herramientas de Grado de Producción**: Servidor LSP oficial (`auralsp`), depurador interactivo de terminal (`aurac step`), servidor DAP V8 (`aurac debug`), suite de pruebas (`auratest`), formateador opinado (`aurafmt`) y Web Playground tipado con `serde_json`.
+- [x] **Modernización y Optimización Rust 2024**: Dependencias y lints de Cargo centralizados en el workspace, árbol de crates deduplicado (`object 0.39`), perfil de release con Thin LTO (`[profile.release]`), GC concurrente del runtime con `RwLock` + `FxHashMap`, scheduler estático de costo cero, formateo de métricas HTTP zero-alloc, scopes en $O(1)$ con `Arc<TypeEnv>` y diagnósticos estructurados con `TypeError`.
+- [x] **Seguridad y Blindaje del Runtime (v0.8.0)**: Asignaciones TLAB lock-free en el GC, GC adaptativo con umbral dinámico, marcado de punteros en GC con búsqueda binaria, canarios de integridad en pilas de fibras, validación JWT en tiempo constante (`timingSafeEqual` / `hmac.Equal`), límite de anidamiento JSON (profundidad <= 64), sockets HTTP con timeouts anti-Slowloris, cabeceras automáticas de seguridad (`nosniff`, `SAMEORIGIN`), sincronización Stop-The-World en el GC, prevención de inyección SQL ($1..$N, ?), control estricto de pools de bases de datos, autenticación PostgreSQL `SCRAM-SHA-256` pure-Rust, sanitización en gestor de paquetes, aislamiento de scripts temporales en `aura run` con limpieza RAII, inmutabilidad forzada por defecto (`let mut`), protección aritmética de módulo cero (`SIGFPE`), desenvolvimiento formal para `?`, seguridad en frontera de fibras (`spawn`), worklist iterativa en GC, literales de cadena cruda (`r"..."`) y linter estático integrado (`aura lint`).
+- [x] **Suite de Calidad y Tests**: **270+ pruebas automatizadas pasando con éxito** en el repositorio.
 - [ ] **Backend WebAssembly (WASM/WASI)**: Emisión de binarios WebAssembly para microservicios serverless en el edge.
 - [ ] **Optimizaciones Avanzadas LLVM**: Pipeline opcional de optimización LTO y vectorización SIMD para cargas de cómputo intensivo.
 
