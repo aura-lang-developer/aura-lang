@@ -6,6 +6,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.1] - 2026-10-19
+
+### 🐘 Native PostgreSQL SCRAM-SHA-256 Auth, Adaptive Memory GC & Runtime Hardening
+
+Aura v0.8.1 is a stability, performance, and security hardening release delivering native pure-Rust PostgreSQL `SCRAM-SHA-256` authentication without `libpq`, adaptive Stop-The-World garbage collection, bounded database pool concurrency with `Condvar` synchronization, $O(1)$ typechecker scope resolution with thread-safe builtins caching, isolated process-unique `aura run` temporary execution, dynamic HTTP worker thread scaling, and type-safe playground API serialization with `serde_json`.
+
+#### 1. Native Database Drivers & Cryptography
+- **Pure-Rust PostgreSQL SCRAM-SHA-256 Authentication (RFC 7677 / RFC 5802)**: Implemented complete SASL authentication handshake (message type 10) in `crates/aura-runtime/src/postgres_client.rs` supporting modern PostgreSQL 14+, Neon, Supabase, and AWS RDS without external `libpq` dependencies.
+- **Standalone Cryptographic Primitives**: Added pure-Rust implementations of SHA-256, HMAC-SHA-256, PBKDF2 (4096+ iterations), and chunk-exact 4-byte Base64 encoding/decoding (RFC 4648) with zero external C dependencies.
+- **Strict Database Connection Pool Bounding (`Condvar`)**: Upgraded `AuraDbPool` in `crates/aura-runtime/src/db.rs` with `active_conns` counting and `Condvar` synchronization (15-second acquisition timeout), preventing connection starvation and socket exhaustion under high concurrent loads.
+
+#### 2. Garbage Collector & Memory Performance
+- **Adaptive Memory GC & Sweep De-allocation Fix**: Fixed memory leak where reclaimed bytes were not subtracted from `TOTAL_ALLOCATED_BYTES` during the GC sweep phase (`crates/aura-runtime/src/gc.rs`).
+- **Dynamic STW Threshold Scaling**: Replaced static `GC_THRESHOLD_BYTES` with an adaptive atomic threshold `(live * 2).max(MIN_GC_THRESHOLD_BYTES)`, eliminating continuous Stop-The-World execution pauses under heavy allocation workloads.
+
+#### 3. Compiler Typechecker & Scopes
+- **$O(1)$ Type Environment Scope Transitions**: Replaced recursive `Box<TypeEnv>` cloning with `Option<Arc<TypeEnv>>` parent pointers (`src/typechecker.rs`), eliminating quadratic memory allocations when traversing deeply nested block scopes.
+- **Builtins Catalog Singleton (`OnceLock`)**: Cached the standard built-in type environment (3,400+ lines of definitions) using `OnceLock<Arc<TypeEnv>>`, speeding up compilation across all files.
+
+#### 4. Developer Tooling & CLI
+- **Isolated Process-Unique Script Execution**: Enhanced `aura run` in `src/cli.rs` to generate timestamp- and PID-isolated temporary files (`.tmp.{pid}_{micros}.mjs`), eliminating race conditions in parallel executions.
+- **RAII Cleanup Guard**: Introduced `CleanupGuard` with a deterministic `Drop` implementation to guarantee temporary script cleanup even during abnormal termination or panics.
+- **Type-Safe Playground API (`serde_json`)**: Replaced manual substring extractors in `src/playground.rs` with strongly typed `serde_json` request/response schemas, preventing JSON injection and control character corruption.
+
+#### 5. Native Cranelift Backend
+- **Universal Runtime Library Resolution (`libaura_runtime.a`)**: Expanded search paths in `src/codegen_cranelift.rs` to check `AURA_RUNTIME_LIB`, executable directory (`current_exe().parent()`), user home (`~/.aura/lib/`), and standard system locations (`/usr/local/lib/aura/`, `/usr/lib/aura/`).
+
+#### 6. HTTP Server Concurrency
+- **Dynamic Worker Scaling**: Replaced static 256 worker threads in `crates/aura-runtime/src/http.rs` with dynamic sizing based on `std::thread::available_parallelism()` (clamped between 4 and 64 threads), reducing context-switching overhead and optimizing socket latency.
+
+#### 7. Test Suite & Quality Verification
+- Added cryptographic verification unit tests in `crates/aura-runtime/src/postgres_client.rs` verifying RFC 7677 test vectors (`StoredKey = a07156c3493aec5e8b30542f283009d2c210b21ada2ca3f061dfd440162cea2c`).
+- 100% test pass rate across unit, runtime, integration, and E2E suites (**270+ passing tests**).
+
+---
+
 ## [0.8.0] - 2026-10-18
 
 ### 🛡️ Language Security Invariants, Raw Strings & Static Linter
