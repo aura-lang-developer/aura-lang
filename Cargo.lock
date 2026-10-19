@@ -37,6 +37,7 @@ dependencies = [
  "cranelift-object",
  "object",
  "rustc-hash",
+ "serde_json",
  "target-lexicon",
 ]
 

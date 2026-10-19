@@ -733,4 +733,36 @@ mod tests {
         );
         aura_json_free(doc2);
     }
+
+    #[test]
+    fn test_postgres_scram_sha256_cryptography() {
+        use crate::postgres_client::{base64_decode, base64_encode, hmac_sha256, pbkdf2_hmac_sha256, sha256_hash};
+
+        // 1. Test Base64 encode/decode
+        let sample = b"hello aura postgres";
+        let b64 = base64_encode(sample);
+        let decoded = base64_decode(&b64).expect("Base64 decode must succeed");
+        assert_eq!(decoded, sample);
+
+        // 2. Test SHA-256 standard NIST vector for "abc"
+        // ba7816bf 8f01cfea 414140de 5dae2223 b00361a3 96177a9c b410ff61 f20015ad
+        let hash = sha256_hash(b"abc");
+        let hex: String = hash.iter().map(|b| format!("{:02x}", b)).collect();
+        assert_eq!(hex, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+
+        // 3. Test HMAC-SHA256
+        let hmac = hmac_sha256(b"key", b"The quick brown fox jumps over the lazy dog");
+        let hmac_hex: String = hmac.iter().map(|b| format!("{:02x}", b)).collect();
+        assert_eq!(hmac_hex, "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8");
+
+        // 4. Test RFC 7677 SCRAM-SHA-256 vector
+        // password="pencil", salt="W22ZaJ0SNY7soNVgvFoSnQ==", iterations=4096
+        let rfc_salt = base64_decode("W22ZaJ0SNY7soNVgvFoSnQ==").unwrap();
+        let salted_pw = pbkdf2_hmac_sha256(b"pencil", &rfc_salt, 4096);
+        let client_key = hmac_sha256(&salted_pw, b"Client Key");
+        let stored_key = sha256_hash(&client_key);
+        let stored_key_hex: String = stored_key.iter().map(|b| format!("{:02x}", b)).collect();
+        // RFC 7677 Section 3: StoredKey matches exact SHA-256 PBKDF2 derivative
+        assert_eq!(stored_key_hex, "a07156c3493aec5e8b30542f283009d2c210b21ada2ca3f061dfd440162cea2c");
+    }
 }

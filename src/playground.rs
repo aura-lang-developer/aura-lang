@@ -124,34 +124,32 @@ fn handle_client(mut stream: TcpStream) {
 
 pub fn handle_compile_api(source: &str) -> String {
     match compile(source, &[]) {
-        Ok(res) => {
-            format!(
-                r#"{{"success":true,"js":"{}","dts":"{}"}}"#,
-                escape_json_str(&res.js_code),
-                escape_json_str(&res.dts_code)
-            )
-        }
-        Err(e) => {
-            format!(r#"{{"success":false,"error":"{}"}}"#, escape_json_str(&e))
-        }
+        Ok(res) => serde_json::json!({
+            "success": true,
+            "js": res.js_code,
+            "dts": res.dts_code,
+        })
+        .to_string(),
+        Err(e) => serde_json::json!({
+            "success": false,
+            "error": e,
+        })
+        .to_string(),
     }
 }
 
 pub fn handle_format_api(source: &str) -> String {
     match format_aura(source) {
-        Ok(formatted) => {
-            format!(
-                r#"{{"success":true,"formatted":"{}"}}"#,
-                escape_json_str(&formatted)
-            )
-        }
-
-        Err(e) => {
-            format!(
-                r#"{{"success":false,"error":"{}"}}"#,
-                escape_json_str(&e.to_string())
-            )
-        }
+        Ok(formatted) => serde_json::json!({
+            "success": true,
+            "formatted": formatted,
+        })
+        .to_string(),
+        Err(e) => serde_json::json!({
+            "success": false,
+            "error": e.to_string(),
+        })
+        .to_string(),
     }
 }
 
@@ -159,21 +157,30 @@ pub fn handle_ast_api(source: &str) -> String {
     let mut lexer = Lexer::new(source);
     let tokens = match lexer.tokenize() {
         Ok(t) => t,
-        Err(e) => return format!(r#"{{"success":false,"error":"{}"}}"#, escape_json_str(&e)),
+        Err(e) => {
+            return serde_json::json!({
+                "success": false,
+                "error": e,
+            })
+            .to_string();
+        }
     };
 
     let mut parser = Parser::new(tokens);
     match parser.parse_module() {
         Ok(module) => {
             let ast_debug = format!("{:#?}", module);
-            format!(
-                r#"{{"success":true,"ast":"{}"}}"#,
-                escape_json_str(&ast_debug)
-            )
+            serde_json::json!({
+                "success": true,
+                "ast": ast_debug,
+            })
+            .to_string()
         }
-        Err(e) => {
-            format!(r#"{{"success":false,"error":"{}"}}"#, escape_json_str(&e))
-        }
+        Err(e) => serde_json::json!({
+            "success": false,
+            "error": e,
+        })
+        .to_string(),
     }
 }
 
@@ -185,12 +192,17 @@ pub fn handle_hover_api(source: &str, line: u32, column: u32) -> String {
     };
 
     if let Some(hover) = doc.hover(&pos) {
-        format!(
-            r#"{{"success":true,"hover":"{}"}}"#,
-            escape_json_str(&hover.contents)
-        )
+        serde_json::json!({
+            "success": true,
+            "hover": hover.contents,
+        })
+        .to_string()
     } else {
-        r#"{"success":true,"hover":null}"#.to_string()
+        serde_json::json!({
+            "success": true,
+            "hover": serde_json::Value::Null,
+        })
+        .to_string()
     }
 }
 
@@ -228,71 +240,21 @@ fn send_404_response(stream: &mut TcpStream) {
 }
 
 fn extract_code_param(body: &str) -> String {
-    if let Some(code) = extract_json_str(body, "code") {
-        return code;
+    if let Ok(v) = serde_json::from_str::<serde_json::Value>(body)
+        && let Some(code) = v.get("code").and_then(|c| c.as_str())
+    {
+        return code.to_string();
     }
     body.to_string()
 }
 
 fn extract_int_param(body: &str, field: &str) -> Option<i64> {
-    let pattern = format!("\"{}\"", field);
-    let field_pos = body.find(&pattern)?;
-    let after_field = &body[field_pos + pattern.len()..];
-    let colon_pos = after_field.find(':')?;
-    let after_colon = &after_field[colon_pos + 1..].trim_start();
-    let num_str: String = after_colon
-        .chars()
-        .take_while(|c| c.is_ascii_digit() || *c == '-')
-        .collect();
-    num_str.parse::<i64>().ok()
-}
-
-fn extract_json_str(json: &str, field: &str) -> Option<String> {
-    let pattern = format!("\"{}\"", field);
-    let field_pos = json.find(&pattern)?;
-    let after_field = &json[field_pos + pattern.len()..];
-    let colon_pos = after_field.find(':')?;
-    let after_colon = &after_field[colon_pos + 1..].trim_start();
-
-    if let Some(stripped) = after_colon.strip_prefix('"') {
-        let mut s = String::new();
-        let mut escaped = false;
-        for c in stripped.chars() {
-            if escaped {
-                match c {
-                    'n' => s.push('\n'),
-                    'r' => s.push('\r'),
-                    't' => s.push('\t'),
-                    '"' => s.push('"'),
-                    '\\' => s.push('\\'),
-                    _ => s.push(c),
-                }
-                escaped = false;
-            } else if c == '\\' {
-                escaped = true;
-            } else if c == '"' {
-                return Some(s);
-            } else {
-                s.push(c);
-            }
-        }
+    if let Ok(v) = serde_json::from_str::<serde_json::Value>(body)
+        && let Some(num) = v.get(field).and_then(|n| n.as_i64())
+    {
+        return Some(num);
     }
     None
-}
-
-fn escape_json_str(s: &str) -> String {
-    let mut out = String::with_capacity(s.len() + 16);
-    for c in s.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            _ => out.push(c),
-        }
-    }
-    out
 }
 
 #[cfg(test)]

@@ -12,7 +12,7 @@ use rusqlite::types::{Value, ValueRef};
 use rusqlite::{Connection as SqliteConnection, params_from_iter};
 use std::slice;
 use std::str;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 
 pub enum DbBackend {
     Sqlite(SqliteConnection),
@@ -30,6 +30,8 @@ pub struct AuraDbPool {
     pub max_conns: usize,
     pub conns: Mutex<Vec<AuraDbConn>>,
     pub is_closed: Mutex<bool>,
+    pub active_conns: Mutex<usize>,
+    pub cond: Condvar,
 }
 
 pub struct AuraDbRows {
@@ -60,6 +62,8 @@ impl AuraDbPool {
             max_conns: if max_conns == 0 { 10 } else { max_conns },
             conns: Mutex::new(Vec::new()),
             is_closed: Mutex::new(false),
+            active_conns: Mutex::new(0),
+            cond: Condvar::new(),
         });
 
         // Initialize at least 1 connection to verify configuration
@@ -112,23 +116,76 @@ impl AuraDbPool {
     }
 
     pub fn acquire(&self) -> Result<AuraDbConn, String> {
-        if *self.is_closed.lock().unwrap() {
-            return Err("Database pool is closed".to_string());
-        }
+        let timeout = std::time::Duration::from_secs(15);
+        let start = std::time::Instant::now();
 
-        if let Some(conn) = self.conns.lock().unwrap().pop() {
-            return Ok(conn);
-        }
+        loop {
+            if *self.is_closed.lock().unwrap() {
+                return Err("Database pool is closed".to_string());
+            }
 
-        self.create_connection()
+            // 1. Try taking an idle connection from the pool
+            {
+                let mut conns = self.conns.lock().unwrap();
+                if let Some(conn) = conns.pop() {
+                    let mut active = self.active_conns.lock().unwrap();
+                    *active += 1;
+                    return Ok(conn);
+                }
+            }
+
+            // 2. If no idle connection, check if under max_conns limit to create a new one
+            {
+                let mut active = self.active_conns.lock().unwrap();
+                if *active < self.max_conns {
+                    *active += 1;
+                    drop(active);
+                    match self.create_connection() {
+                        Ok(conn) => return Ok(conn),
+                        Err(e) => {
+                            let mut active = self.active_conns.lock().unwrap();
+                            *active = active.saturating_sub(1);
+                            self.cond.notify_one();
+                            return Err(e);
+                        }
+                    }
+                }
+            }
+
+            // 3. Otherwise wait on Condvar until a connection is returned
+            let elapsed = start.elapsed();
+            if elapsed >= timeout {
+                return Err(format!(
+                    "Database pool timeout ({}s) waiting for available connection (max_conns={})",
+                    timeout.as_secs(),
+                    self.max_conns
+                ));
+            }
+
+            let remaining = timeout - elapsed;
+            let conns = self.conns.lock().unwrap();
+            let (guard, timeout_res) = self.cond.wait_timeout(conns, remaining).unwrap();
+            drop(guard);
+            if timeout_res.timed_out() {
+                return Err(format!(
+                    "Database pool timeout ({}s) waiting for available connection (max_conns={})",
+                    timeout.as_secs(),
+                    self.max_conns
+                ));
+            }
+        }
     }
 
     pub fn release(&self, conn: AuraDbConn) {
-        if let Ok(mut conns) = self.conns.lock() {
-            if conns.len() < self.max_conns {
-                conns.push(conn);
-            }
+        let mut conns = self.conns.lock().unwrap();
+        let mut active = self.active_conns.lock().unwrap();
+        *active = active.saturating_sub(1);
+        if conns.len() < self.max_conns {
+            conns.push(conn);
         }
+        drop(conns);
+        drop(active);
+        self.cond.notify_one();
     }
 }
 

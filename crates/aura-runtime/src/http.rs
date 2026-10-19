@@ -237,7 +237,9 @@ pub extern "C" fn aura_http_listen_and_serve(
 
     let mux_arc = Arc::new(unsafe { &*mux });
 
-    let num_workers = 256;
+    let num_workers = std::thread::available_parallelism()
+        .map(|n| (n.get() * 2).clamp(4, 64))
+        .unwrap_or(16);
     let (tx, rx) = std::sync::mpsc::sync_channel::<TcpStream>(8192);
     let rx_arc = Arc::new(std::sync::Mutex::new(rx));
 

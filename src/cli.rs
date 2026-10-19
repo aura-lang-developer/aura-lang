@@ -660,8 +660,20 @@ pub fn run_cli(args: &[String]) {
                         return;
                     }
 
-                    let tmp_js = format!("{}.tmp.mjs", filename);
+                    let run_id = format!("{}_{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_micros()).unwrap_or(0));
+                    let tmp_js = format!("{}.tmp.{}.mjs", filename, run_id);
                     let tmp_map = format!("{}.map", tmp_js);
+
+                    struct CleanupGuard {
+                        files: Vec<std::path::PathBuf>,
+                    }
+                    impl Drop for CleanupGuard {
+                        fn drop(&mut self) {
+                            for f in &self.files {
+                                let _ = fs::remove_file(f);
+                            }
+                        }
+                    }
 
                     match aura_lang::compile_backend_with_sourcemap(
                         &content,
@@ -690,17 +702,24 @@ pub fn run_cli(args: &[String]) {
                                 &content, base_path,
                             );
 
+                            let mut cleanup = CleanupGuard {
+                                files: vec![
+                                    std::path::PathBuf::from(&tmp_js),
+                                    std::path::PathBuf::from(&tmp_map),
+                                ],
+                            };
+                            for dep in &compiled_deps {
+                                cleanup.files.push(dep.clone());
+                            }
+
                             let mut cmd = Command::new("node");
                             cmd.arg("--enable-source-maps")
                                 .arg(&tmp_js)
                                 .args(&trailing_args);
                             let status = cmd.status();
 
-                            let _ = fs::remove_file(&tmp_js);
-                            let _ = fs::remove_file(&tmp_map);
-                            for dep in compiled_deps {
-                                let _ = fs::remove_file(dep);
-                            }
+                            // Explicitly trigger cleanup before reporting error
+                            drop(cleanup);
 
                             if let Err(e) = status {
                                 eprintln!("Failed to execute node: {}", e);

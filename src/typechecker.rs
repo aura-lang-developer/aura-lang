@@ -283,12 +283,14 @@ impl ConcreteType {
     }
 }
 
+static BUILTIN_ENV: std::sync::OnceLock<std::sync::Arc<TypeEnv>> = std::sync::OnceLock::new();
+
 #[derive(Debug)]
 pub struct TypeEnv {
     variables: HashMap<String, ConcreteType>,
     mutability: HashMap<String, bool>,
     types: HashMap<String, ConcreteType>,
-    parent: Option<Box<TypeEnv>>,
+    parent: Option<std::sync::Arc<TypeEnv>>,
 }
 
 impl Default for TypeEnv {
@@ -298,7 +300,22 @@ impl Default for TypeEnv {
 }
 
 impl TypeEnv {
+    pub fn get_builtin_env() -> std::sync::Arc<TypeEnv> {
+        BUILTIN_ENV
+            .get_or_init(|| std::sync::Arc::new(Self::create_builtin_env()))
+            .clone()
+    }
+
     pub fn new() -> Self {
+        Self {
+            variables: HashMap::new(),
+            mutability: HashMap::new(),
+            types: HashMap::new(),
+            parent: Some(Self::get_builtin_env()),
+        }
+    }
+
+    fn create_builtin_env() -> Self {
         let mut env = Self {
             variables: HashMap::new(),
             mutability: HashMap::new(),
@@ -3745,7 +3762,7 @@ impl TypeEnv {
             variables: HashMap::new(),
             mutability: HashMap::new(),
             types: HashMap::new(),
-            parent: Some(Box::new(self.clone())),
+            parent: Some(std::sync::Arc::new(self.clone())),
         }
     }
 

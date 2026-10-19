@@ -56,6 +56,7 @@ cranelift-object = { workspace = true }
 target-lexicon = { workspace = true }
 object = { workspace = true }
 rustc-hash = { workspace = true }
+serde_json = { workspace = true }
 
 [lints]
 workspace = true

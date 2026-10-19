@@ -3789,6 +3789,49 @@ pub fn build_native_binary_with_options(
 }
 
 fn find_or_build_runtime_lib() -> Result<PathBuf, String> {
+    // 1. Check explicit environment override
+    if let Ok(env_path) = std::env::var("AURA_RUNTIME_LIB") {
+        let p = PathBuf::from(env_path);
+        if p.exists() {
+            return Ok(p.canonicalize().unwrap_or(p));
+        }
+    }
+
+    // 2. Check adjacent to current compiler binary (e.g. /usr/local/bin/aura -> /usr/local/lib/aura/)
+    if let Ok(current_exe) = std::env::current_exe()
+        && let Some(exe_dir) = current_exe.parent()
+    {
+        let exe_candidates = [
+            exe_dir.join("libaura_runtime.a"),
+            exe_dir.join("../lib/libaura_runtime.a"),
+            exe_dir.join("../lib/aura/libaura_runtime.a"),
+        ];
+        for c in &exe_candidates {
+            if c.exists() {
+                return Ok(c.canonicalize().unwrap_or(c.clone()));
+            }
+        }
+    }
+
+    // 3. Check ~/.aura/lib/libaura_runtime.a and system paths
+    if let Some(home) = std::env::var_os("HOME") {
+        let home_lib = PathBuf::from(home).join(".aura").join("lib").join("libaura_runtime.a");
+        if home_lib.exists() {
+            return Ok(home_lib.canonicalize().unwrap_or(home_lib));
+        }
+    }
+
+    let system_candidates = [
+        PathBuf::from("/usr/local/lib/aura/libaura_runtime.a"),
+        PathBuf::from("/usr/lib/aura/libaura_runtime.a"),
+    ];
+    for c in &system_candidates {
+        if c.exists() {
+            return Ok(c.canonicalize().unwrap_or(c.clone()));
+        }
+    }
+
+    // 4. Check workspace build targets
     let release_candidates = [
         PathBuf::from("target/release/libaura_runtime.a"),
         PathBuf::from("../target/release/libaura_runtime.a"),
@@ -3828,5 +3871,5 @@ fn find_or_build_runtime_lib() -> Result<PathBuf, String> {
         }
     }
 
-    Err("Could not find or build libaura_runtime.a".to_string())
+    Err("Could not find or build libaura_runtime.a. Please run 'cargo build -p aura-runtime' or set AURA_RUNTIME_LIB.".to_string())
 }

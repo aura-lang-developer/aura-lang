@@ -96,7 +96,8 @@ static GC_TRIGGERED: AtomicBool = AtomicBool::new(false);
 static TOTAL_ALLOCATED_BYTES: AtomicUsize = AtomicUsize::new(0);
 static GC_COLLECTION_COUNT: AtomicUsize = AtomicUsize::new(0);
 
-const GC_THRESHOLD_BYTES: usize = 8 * 1024 * 1024; // 8 MB default GC threshold
+static GC_THRESHOLD_BYTES: AtomicUsize = AtomicUsize::new(8 * 1024 * 1024); // 8 MB default GC threshold
+const MIN_GC_THRESHOLD_BYTES: usize = 8 * 1024 * 1024;
 const TLAB_BATCH_SIZE: usize = 64;
 
 thread_local! {
@@ -128,7 +129,8 @@ pub fn gc_alloc(user_size: usize, type_id: u32) -> *mut u8 {
 
     // Check if we should trigger GC
     let current_bytes = TOTAL_ALLOCATED_BYTES.fetch_add(aligned_total, Ordering::Relaxed);
-    if current_bytes > GC_THRESHOLD_BYTES {
+    let threshold = GC_THRESHOLD_BYTES.load(Ordering::Relaxed);
+    if current_bytes > threshold {
         GC_TRIGGERED.store(true, Ordering::Relaxed);
     }
 
@@ -218,6 +220,7 @@ pub fn collect_garbage() {
 
     // 5. Sweep Phase: reclaim unmarked
     let mut i = 0;
+    let mut reclaimed_bytes = 0usize;
     while i < allocs.len() {
         let hdr = allocs[i].0;
         if unsafe { !(*hdr).marked } {
@@ -231,10 +234,19 @@ pub fn collect_garbage() {
                 dealloc(hdr as *mut u8, layout);
             }
 
+            reclaimed_bytes += aligned;
             allocs.swap_remove(i);
         } else {
             i += 1;
         }
+    }
+
+    if reclaimed_bytes > 0 {
+        let prev = TOTAL_ALLOCATED_BYTES.fetch_sub(reclaimed_bytes, Ordering::Relaxed);
+        let live_bytes = prev.saturating_sub(reclaimed_bytes);
+        // Adaptive threshold: 2x current live bytes, bounded below by MIN_GC_THRESHOLD_BYTES
+        let new_threshold = (live_bytes.saturating_mul(2)).max(MIN_GC_THRESHOLD_BYTES);
+        GC_THRESHOLD_BYTES.store(new_threshold, Ordering::Relaxed);
     }
 
     GC_COLLECTION_COUNT.fetch_add(1, Ordering::Relaxed);
