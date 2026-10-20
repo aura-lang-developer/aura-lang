@@ -931,6 +931,17 @@ fn procesarTransaccion(cuentaId: Int, monto: Float, forzarFallo: Bool): Result<S
 
 ### 11. Métodos con Receptor, Visibilidad e Interfaces Implícitas
 
+Aura sigue el **modelo de visibilidad por capitalización de Golang**, por lo que la palabra clave `export` es **opcional** al declarar funciones, métodos, estructuras e interfaces:
+
+1. **Inicial en Mayúscula (`PascalCase`) — Pública / Exportada Automáticamente**:
+   Cualquier función, método con receptor, estructura o interfaz cuyo nombre comience con mayúscula (por ejemplo, `fn Multiply(a: Int, b: Int): Int`, `fn TestMultiply(t: *testing.T)`, `fn BenchmarkMultiply(b: *testing.B)`, `fn ExampleMultiply()`) se **exporta automáticamente** sin necesidad de escribir `export`.
+2. **Inicial en Minúscula (`camelCase`) — Privada al Módulo / Paquete**:
+   Las funciones declaradas en minúscula sin `export` (por ejemplo, `fn helper(x: Int): Int` o `fn verifyPin(...)`) permanecen privadas dentro del archivo o paquete actual.
+   - `fn main()` se reconoce y ejecuta automáticamente como punto de entrada del programa sin requerir `export`.
+   - Las funciones de prueba en minúscula (`fn test_addition(t: TestingT)`) también son descubiertas y ejecutadas automáticamente por `aura test` / `auratest` sin requerir `export`.
+3. **Palabra clave `export` explícita (Opcional)**:
+   Solo es necesaria si deseas forzar que un símbolo cuyo nombre comienza con **minúscula** (`export fn multiply(a: Int, b: Int): Int`) sea público e importable desde otros módulos.
+
 Siguiendo el diseño idiomático de **Golang**, las estructuras de datos no anidan métodos en su definición. Los métodos se declaran externamente asociando un receptor (_receiver_):
 
 ```aura
@@ -1148,28 +1159,28 @@ Los archivos que cumplen con las siguientes convenciones de nomenclatura son des
 
 #### B. Formato de Pruebas Estilo Golang (`*testing.T`, `*testing.B`, Table-Driven Tests y Examples)
 
-Aura permite escribir suites de pruebas utilizando exactamente las mismas convenciones de Go (`package`, `import "testing"`, `*testing.T`, `*testing.B`, `t.Run`, `t.Errorf`, `t.Fatalf`, bucle `b.N` y ejemplos con `// Output:`), además de los métodos de aserción de `TestingT`:
+Aura permite escribir suites de pruebas utilizando exactamente las mismas convenciones de Go (`package`, `import "testing"`, `*testing.T`, `*testing.B`, `t.Run`, `t.Errorf`, `t.Fatalf`, bucle `b.N` y ejemplos con `// Output:`), además de los métodos de aserción de `TestingT`. Nota que `export` es totalmente opcional: las funciones que inician con mayúscula (`Test...`, `Benchmark...`, `Example...`, `Multiply`) se exportan automáticamente siguiendo las reglas de visibilidad de Go:
 
 ```aura
 package math_test
 
 import "testing"
 
-export fn multiply(a: Int, b: Int): Int => a * b
+fn Multiply(a: Int, b: Int): Int => a * b
 
-// 1. Prueba estándar estilo Go con *testing.T, t.Errorf y t.Logf
-export fn TestMultiply(t: *testing.T) => {
+// 1. Prueba estándar estilo Go con *testing.T, t.Errorf y t.Logf (sin necesidad de 'export')
+fn TestMultiply(t: *testing.T) => {
     t.Helper();
-    let got = multiply(6, 7);
+    let got = Multiply(6, 7);
     let want = 42;
     if (got != want) {
-        t.Errorf("multiply(6, 7) = %d; want %d", got, want);
+        t.Errorf("Multiply(6, 7) = %d; want %d", got, want);
     }
-    t.Logf("multiply(6, 7) verified: %d", got);
+    t.Logf("Multiply(6, 7) verified: %d", got);
 }
 
 // 2. Table-Driven Tests estilo Go con t.Run(nombre, fn(t: *testing.T) => { ... })
-export fn TestMultiplyTableDriven(t: *testing.T) => {
+fn TestMultiplyTableDriven(t: *testing.T) => {
     let tests = [
         { name: "positive", a: 3, b: 4, want: 12 },
         { name: "by_zero", a: 99, b: 0, want: 0 },
@@ -1179,16 +1190,16 @@ export fn TestMultiplyTableDriven(t: *testing.T) => {
     for tc in tests {
         t.Run(tc.name, fn(t: *testing.T) => {
             t.Parallel();
-            let got = multiply(tc.a, tc.b);
+            let got = Multiply(tc.a, tc.b);
             if (got != tc.want) {
-                t.Fatalf("multiply(%d, %d) = %d; want %d", tc.a, tc.b, got, tc.want);
+                t.Fatalf("Multiply(%d, %d) = %d; want %d", tc.a, tc.b, got, tc.want);
             }
         });
     }
 }
 
 // 3. Ciclo de vida y entorno: t.TempDir, t.Setenv, t.Cleanup
-export fn TestLifecycleAndEnv(t: *testing.T) => {
+fn TestLifecycleAndEnv(t: *testing.T) => {
     let dir = t.TempDir();
     t.Setenv("AURA_GO_TEST_MODE", "enabled");
     t.Cleanup(fn() => {
@@ -1197,23 +1208,23 @@ export fn TestLifecycleAndEnv(t: *testing.T) => {
 }
 
 // 4. Benchmark estilo Go con *testing.B y bucle explícito `b.N`
-export fn BenchmarkMultiplyGoStyle(b: *testing.B) => {
+fn BenchmarkMultiplyGoStyle(b: *testing.B) => {
     b.ReportAllocs();
     b.ResetTimer();
     for (let mut i = 0; i < b.N; i = i + 1) {
-        multiply(123, 456);
+        Multiply(123, 456);
     }
 }
 
 // 5. Función Example verificable mediante comentario // Output:
-export fn ExampleMultiply() => {
-    println(multiply(8, 9));
+fn ExampleMultiply() => {
+    println(Multiply(8, 9));
     // Output:
     // 72
 }
 
 // 6. Aserciones integradas en TestingT y pruebas asíncronas
-export async fn test_async_service(t: TestingT) => {
+async fn test_async_service(t: TestingT) => {
     let result = await fetchUserData(101);
     t.assertTrue(result.isOk(), "la consulta de usuario debe ser exitosa");
 }

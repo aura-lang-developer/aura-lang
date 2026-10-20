@@ -2,28 +2,28 @@ package math_test
 
 import "testing"
 
-export fn multiply(a: Int, b: Int): Int => a * b
+fn Multiply(a: Int, b: Int): Int => a * b
 
-export fn divide(a: Int, b: Int): Result<Int, String> => {
+fn divide(a: Int, b: Int): Result<Int, String> => {
     if (b == 0) {
         return Err("division by zero");
     }
     Ok(a / b)
 }
 
-// 1. Standard Go-style test with *testing.T, t.Logf, t.Errorf, t.Fatalf
-export fn TestMultiply(t: *testing.T) => {
+// 1. Standard Go-style test with *testing.T, t.Logf, t.Errorf, t.Fatalf (no 'export' needed)
+fn TestMultiply(t: *testing.T) => {
     t.Helper();
-    let got = multiply(6, 7);
+    let got = Multiply(6, 7);
     let want = 42;
     if (got != want) {
-        t.Errorf("multiply(6, 7) = %d; want %d", got, want);
+        t.Errorf("Multiply(6, 7) = %d; want %d", got, want);
     }
-    t.Logf("multiply(6, 7) verified: %d", got);
+    t.Logf("Multiply(6, 7) verified: %d", got);
 }
 
 // 2. Go-style Table-Driven Tests with t.Run(name, fn(t: *testing.T) => { ... })
-export fn TestMultiplyTableDriven(t: *testing.T) => {
+fn TestMultiplyTableDriven(t: *testing.T) => {
     let tests = [
         { name: "positive", a: 3, b: 4, want: 12 },
         { name: "by_zero", a: 99, b: 0, want: 0 },
@@ -33,16 +33,16 @@ export fn TestMultiplyTableDriven(t: *testing.T) => {
     for tc in tests {
         t.Run(tc.name, fn(t: *testing.T) => {
             t.Parallel();
-            let got = multiply(tc.a, tc.b);
+            let got = Multiply(tc.a, tc.b);
             if (got != tc.want) {
-                t.Fatalf("multiply(%d, %d) = %d; want %d", tc.a, tc.b, got, tc.want);
+                t.Fatalf("Multiply(%d, %d) = %d; want %d", tc.a, tc.b, got, tc.want);
             }
         });
     }
 }
 
 // 3. Go-style lifecycle helpers: t.Cleanup, t.TempDir, t.Setenv
-export fn TestLifecycleAndEnv(t: *testing.T) => {
+fn TestLifecycleAndEnv(t: *testing.T) => {
     let dir = t.TempDir();
     if (dir == "") {
         t.Fatal("expected non-empty TempDir path");
@@ -55,17 +55,17 @@ export fn TestLifecycleAndEnv(t: *testing.T) => {
 }
 
 // 4. Go-style Benchmark with *testing.B and explicit `b.N` loop
-export fn BenchmarkMultiplyGoStyle(b: *testing.B) => {
+fn BenchmarkMultiplyGoStyle(b: *testing.B) => {
     b.ReportAllocs();
     b.ResetTimer();
     for (let mut i = 0; i < b.N; i = i + 1) {
-        multiply(123, 456);
+        Multiply(123, 456);
     }
 }
 
 // 5. Go-style Example function with // Output: verification
-export fn ExampleMultiply() => {
-    println(multiply(8, 9));
+fn ExampleMultiply() => {
+    println(Multiply(8, 9));
     // Output:
     // 72
 }
