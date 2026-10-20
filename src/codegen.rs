@@ -421,6 +421,7 @@ const __aura_import = async (m) => {
         self.write_line("  return val != null && typeof val !== \"string\" && !Array.isArray(val) && (typeof val.next === \"function\" || typeof val[Symbol.iterator] === \"function\");");
         self.write_line("};");
         self.write_line("export const __aura_iter = (coll) => {");
+        self.write_line("  if (typeof coll === \"number\") return { *[Symbol.iterator]() { for (let i = 0; i < coll; i++) yield i; } };");
         self.write_line("  if (Array.isArray(coll) || typeof coll === \"string\") return coll;");
         self.write_line("  if (coll && (typeof coll[Symbol.iterator] === \"function\" || typeof coll[Symbol.asyncIterator] === \"function\")) return coll;");
         self.write_line("  if (coll && typeof coll.next === \"function\") return iter(coll);");
@@ -3045,6 +3046,11 @@ const __aura_import = async (m) => {
             || imp.source == "net/url"
             || imp.source == "os"
             || imp.source == "time"
+            || imp.source == "testing"
+            || imp.source == "std/testing"
+            || imp.source == "fmt"
+            || imp.source == "sync"
+            || imp.source == "context"
         {
             let mut bindings = Vec::new();
             for item in &imp.items {

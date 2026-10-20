@@ -295,7 +295,7 @@ fn process_test_file(path: &Path) -> Result<Option<TestFile>, String> {
         Err(e) => return Err(format!("Parse error in '{}': {}", path.display(), e)),
     };
 
-    let default_kind = determine_test_kind(path);
+        let default_kind = determine_test_kind(path);
     let mut functions = Vec::new();
     let mut has_top_level_assertions = false;
 
@@ -306,15 +306,20 @@ fn process_test_file(path: &Path) -> Result<Option<TestFile>, String> {
                     continue;
                 }
                 let name = &func.name;
+                if name == "TestMain" {
+                    continue;
+                }
                 let is_bench = name.starts_with("benchmark_")
                     || name.starts_with("Benchmark")
                     || name.starts_with("bench_")
                     || name.starts_with("bench");
+                let is_example = name.starts_with("Example") || name.starts_with("example_");
                 let is_test = name.starts_with("test_")
                     || name.starts_with("Test")
                     || name.starts_with("test")
                     || name.starts_with("it_")
-                    || name.starts_with("spec_");
+                    || name.starts_with("spec_")
+                    || is_example;
 
                 if is_bench {
                     functions.push(TestFunction {
@@ -373,6 +378,68 @@ fn process_test_file(path: &Path) -> Result<Option<TestFile>, String> {
 // HARNESS CODE GENERATION
 // -----------------------------------------------------------------------------
 
+/// Extracts the expected `// Output:` or `// Unordered output:` comment block for Go-style `ExampleXxx` functions.
+fn extract_example_output(source: &str, fn_name: &str) -> Option<(String, bool)> {
+    let pattern = format!("fn {}", fn_name);
+    let start_idx = source.find(&pattern)?;
+    let rest = &source[start_idx..];
+    let open_brace = rest.find('{')?;
+    let body_slice = &rest[open_brace + 1..];
+
+    let mut depth = 1usize;
+    let mut end_offset = body_slice.len();
+    for (idx, ch) in body_slice.char_indices() {
+        if ch == '{' {
+            depth += 1;
+        } else if ch == '}' {
+            depth -= 1;
+            if depth == 0 {
+                end_offset = idx;
+                break;
+            }
+        }
+    }
+
+    let body_text = &body_slice[..end_offset];
+    let mut collecting = false;
+    let mut unordered = false;
+    let mut output_lines = Vec::new();
+
+    for line in body_text.lines() {
+        let trimmed = line.trim();
+        if !collecting {
+            let lower = trimmed.to_lowercase();
+            if lower.starts_with("// output:") {
+                collecting = true;
+                unordered = false;
+                let after = trimmed["// output:".len()..].trim();
+                if !after.is_empty() {
+                    output_lines.push(after.to_string());
+                }
+            } else if lower.starts_with("// unordered output:") {
+                collecting = true;
+                unordered = true;
+                let after = trimmed["// unordered output:".len()..].trim();
+                if !after.is_empty() {
+                    output_lines.push(after.to_string());
+                }
+            }
+        } else if let Some(stripped) = trimmed.strip_prefix("//") {
+            let clean = stripped.strip_prefix(' ').unwrap_or(stripped);
+            output_lines.push(clean.to_string());
+        } else if !trimmed.is_empty() {
+            collecting = false;
+            output_lines.clear();
+        }
+    }
+
+    if collecting {
+        Some((output_lines.join("\n"), unordered))
+    } else {
+        None
+    }
+}
+
 /// Builds an isolated JavaScript test harness for executing discovered tests in Node.js.
 pub fn generate_test_harness(
     test_file: &TestFile,
@@ -383,7 +450,10 @@ pub fn generate_test_harness(
 
     // Headers & runtime environment
     harness.push_str("// --- Aura Isolated Test Harness (Auto-generated) ---\n");
-    harness.push_str("import { performance } from 'perf_hooks';\n\n");
+    harness.push_str("import { performance } from 'perf_hooks';\n");
+    harness.push_str("import * as __aura_fs from 'fs';\n");
+    harness.push_str("import * as __aura_os from 'os';\n");
+    harness.push_str("import * as __aura_path from 'path';\n\n");
 
     // Coverage Tracker if coverage is enabled
     if config.coverage {
@@ -410,31 +480,198 @@ globalThis.__aura_cov = function(lineId, stmtId) {
     harness.push_str(compiled_js);
     harness.push_str("\n\n");
 
-    // Testing Context (TestingT) Implementation
+    let subtest_filter_js = if let Some(ref rp) = config.run_pattern {
+        if let Some(slash_idx) = rp.find('/') {
+            format!("\"{}\"", rp[slash_idx + 1..].escape_default())
+        } else {
+            "null".to_string()
+        }
+    } else {
+        "null".to_string()
+    };
+
+    // Testing Context (TestingT, BenchmarkB, TestingM) Implementation (Go testing package compatible)
     harness.push_str(
         r#"
+function __aura_format_val(v) {
+  if (v === null || v === undefined) return String(v);
+  if (typeof v === 'object') {
+    try { return JSON.stringify(v); } catch (_) { return String(v); }
+  }
+  return String(v);
+}
+
+function __aura_sprintf(fmt, ...args) {
+  if (typeof fmt !== 'string') return [fmt, ...args].map(__aura_format_val).join(' ');
+  let idx = 0;
+  return fmt.replace(/%([+#0-9.]*)([vsqdtbxXfgGeE%T])/g, (match, flags, verb) => {
+    if (verb === '%') return '%';
+    if (idx >= args.length) return match;
+    const val = args[idx++];
+    switch (verb) {
+      case 's': return String(val);
+      case 'q': return JSON.stringify(String(val));
+      case 'd': return String(Math.trunc(Number(val)));
+      case 'x': return Math.trunc(Number(val)).toString(16);
+      case 'X': return Math.trunc(Number(val)).toString(16).toUpperCase();
+      case 'b': return Math.trunc(Number(val)).toString(2);
+      case 't': return Boolean(val) ? 'true' : 'false';
+      case 'T': return val === null ? 'nil' : Array.isArray(val) ? 'List' : typeof val;
+      case 'f':
+      case 'g':
+      case 'G':
+      case 'e':
+      case 'E': {
+        const num = Number(val);
+        const precMatch = flags && flags.match(/\.(\d+)/);
+        if (precMatch) return num.toFixed( parseInt(precMatch[1], 10) );
+        return String(num);
+      }
+      case 'v':
+      default:
+        return __aura_format_val(val);
+    }
+  });
+}
+
 class TestingT {
-  constructor(name) {
-    this.name = name;
+  constructor(name, subFilter = null, kind = "UNIT", resultsSink = null) {
+    this._name = name;
     this.logs = [];
-    this.failed = false;
+    this._failed = false;
     this.failureReason = null;
-    this.skipped = false;
+    this._skipped = false;
     this.skipReason = null;
+    this._cleanups = [];
+    this._pendingSubtests = [];
+    this._subFilter = subFilter;
+    this._kind = kind;
+    this._resultsSink = resultsSink;
+  }
+  Name() { return this._name; }
+  name() { return this._name; }
+  Helper() {}
+  helper() {}
+  Parallel() {}
+  parallel() {}
+  Failed() { return this._failed; }
+  failed() { return this._failed; }
+  Skipped() { return this._skipped; }
+  skipped() { return this._skipped; }
+  Cleanup(fn) { if (typeof fn === 'function') this._cleanups.push(fn); }
+  cleanup(fn) { this.Cleanup(fn); }
+  async _runCleanups() {
+    for (let i = this._cleanups.length - 1; i >= 0; i--) {
+      try {
+        const r = this._cleanups[i]();
+        if (r && typeof r.then === 'function') await r;
+      } catch (e) {
+        this._failed = true;
+        if (!this.failureReason) this.failureReason = e && e.message ? e.message : String(e);
+      }
+    }
+  }
+  TempDir() {
+    const dir = __aura_fs.mkdtempSync(__aura_path.join(__aura_os.tmpdir(), 'aura-test-'));
+    this.Cleanup(() => {
+      try { __aura_fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {}
+    });
+    return dir;
+  }
+  tempDir() { return this.TempDir(); }
+  Setenv(key, val) {
+    const hadKey = Object.prototype.hasOwnProperty.call(process.env, key);
+    const prev = process.env[key];
+    process.env[key] = String(val);
+    this.Cleanup(() => {
+      if (hadKey) process.env[key] = prev;
+      else delete process.env[key];
+    });
+  }
+  setenv(key, val) { this.Setenv(key, val); }
+  Log(...args) {
+    this.logs.push(args.map(__aura_format_val).join(' '));
   }
   log(...args) {
-    this.logs.push(args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '));
+    this.Log(...args);
   }
-  fail(reason = 'Test explicitly failed') {
-    this.failed = true;
+  Logf(fmt, ...args) {
+    this.logs.push(__aura_sprintf(fmt, ...args));
+  }
+  logf(fmt, ...args) {
+    this.Logf(fmt, ...args);
+  }
+  Fail() {
+    this._failed = true;
+    if (!this.failureReason) this.failureReason = 'Test failed';
+  }
+  fail(reason) {
+    this._failed = true;
+    if (reason === undefined) {
+      if (!this.failureReason) this.failureReason = 'Test failed';
+      return;
+    }
     this.failureReason = String(reason);
     throw new Error(this.failureReason);
   }
-  skip(reason = 'Test skipped') {
-    this.skipped = true;
-    this.skipReason = String(reason);
+  FailNow() {
+    this._failed = true;
+    if (!this.failureReason) this.failureReason = 'Test failed via FailNow';
+    throw { __aura_fatal: true, reason: this.failureReason };
+  }
+  failNow() { this.FailNow(); }
+  Error(...args) {
+    const msg = args.map(__aura_format_val).join(' ');
+    this.logs.push(msg);
+    this._failed = true;
+    if (!this.failureReason) this.failureReason = msg || 'Test failed';
+  }
+  error(...args) { this.Error(...args); }
+  Errorf(fmt, ...args) {
+    const msg = __aura_sprintf(fmt, ...args);
+    this.logs.push(msg);
+    this._failed = true;
+    if (!this.failureReason) this.failureReason = msg || 'Test failed';
+  }
+  errorf(fmt, ...args) { this.Errorf(fmt, ...args); }
+  Fatal(...args) {
+    const msg = args.map(__aura_format_val).join(' ');
+    this.logs.push(msg);
+    this._failed = true;
+    this.failureReason = msg || 'Test fatally failed';
+    throw { __aura_fatal: true, reason: this.failureReason };
+  }
+  fatal(...args) { this.Fatal(...args); }
+  Fatalf(fmt, ...args) {
+    const msg = __aura_sprintf(fmt, ...args);
+    this.logs.push(msg);
+    this._failed = true;
+    this.failureReason = msg || 'Test fatally failed';
+    throw { __aura_fatal: true, reason: this.failureReason };
+  }
+  fatalf(fmt, ...args) { this.Fatalf(fmt, ...args); }
+  Skip(...args) {
+    const reason = args.length > 0 ? args.map(__aura_format_val).join(' ') : 'Test skipped';
+    this._skipped = true;
+    this.skipReason = reason;
+    if (args.length > 0) this.logs.push(reason);
     throw { __aura_skip: true, reason: this.skipReason };
   }
+  skip(...args) { this.Skip(...args); }
+  Skipf(fmt, ...args) {
+    const reason = __aura_sprintf(fmt, ...args);
+    this._skipped = true;
+    this.skipReason = reason;
+    this.logs.push(reason);
+    throw { __aura_skip: true, reason: this.skipReason };
+  }
+  skipf(fmt, ...args) { this.Skipf(fmt, ...args); }
+  SkipNow() {
+    this._skipped = true;
+    if (!this.skipReason) this.skipReason = 'Test skipped';
+    throw { __aura_skip: true, reason: this.skipReason };
+  }
+  skipNow() { this.SkipNow(); }
   assert(cond, msg = 'Assertion failed') {
     if (!cond) this.fail(msg);
   }
@@ -474,49 +711,207 @@ class TestingT {
     }
   }
   async step(stepName, fn) {
-    this.log(`> step: ${stepName}`);
+    this.Log(`> step: ${stepName}`);
     return await fn();
   }
-  async run(subName, fn) {
-    const subT = new TestingT(`${this.name}/${subName}`);
-    try {
-      await fn(subT);
-    } catch (err) {
-      if (err && err.__aura_skip) return;
-      this.fail(`Subtest '${subName}' failed: ${err.message || err}`);
+  Run(subName, fn) {
+    const cleanSub = String(subName).replace(/\s+/g, '_');
+    const fullName = `${this._name}/${cleanSub}`;
+    if (this._subFilter && !cleanSub.includes(this._subFilter) && !String(subName).includes(this._subFilter)) {
+      return true;
     }
+    const subT = new TestingT(fullName, null, this._kind, this._resultsSink);
+    const subStart = performance.now();
+    const finalizeSub = () => {
+      const subEnd = performance.now();
+      let status = "Passed";
+      if (subT._failed) {
+        status = "Failed";
+        this._failed = true;
+        if (!this.failureReason) {
+          this.failureReason = subT.failureReason || `subtest ${cleanSub} failed`;
+        }
+      } else if (subT._skipped) {
+        status = "Skipped";
+      }
+      if (this._resultsSink) {
+        this._resultsSink.push({
+          name: fullName,
+          kind: this._kind,
+          status: status,
+          failureReason: subT.failureReason,
+          skipReason: subT.skipReason,
+          durationMs: subEnd - subStart,
+          logs: subT.logs
+        });
+      }
+      return !subT._failed;
+    };
+    try {
+      const res = fn(subT);
+      if (res && typeof res.then === 'function') {
+        const p = res.then(
+          async () => {
+            await Promise.all(subT._pendingSubtests);
+            await subT._runCleanups();
+            return finalizeSub();
+          },
+          async (err) => {
+            if (err && err.__aura_skip) {
+              subT._skipped = true;
+              subT.skipReason = err.reason;
+            } else if (err && err.__aura_fatal) {
+              subT._failed = true;
+              subT.failureReason = err.reason;
+            } else {
+              subT._failed = true;
+              subT.failureReason = err && err.message ? err.message : String(err);
+            }
+            await subT._runCleanups();
+            return finalizeSub();
+          }
+        );
+        this._pendingSubtests.push(p);
+        return p;
+      }
+    } catch (err) {
+      if (err && err.__aura_skip) {
+        subT._skipped = true;
+        subT.skipReason = err.reason;
+      } else if (err && err.__aura_fatal) {
+        subT._failed = true;
+        subT.failureReason = err.reason;
+      } else {
+        subT._failed = true;
+        subT.failureReason = err && err.message ? err.message : String(err);
+      }
+    }
+    for (let i = subT._cleanups.length - 1; i >= 0; i--) {
+      try { subT._cleanups[i](); } catch (e) {
+        subT._failed = true;
+        if (!subT.failureReason) subT.failureReason = e && e.message ? e.message : String(e);
+      }
+    }
+    return finalizeSub();
+  }
+  run(subName, fn) {
+    return this.Run(subName, fn);
   }
 }
 
-class BenchmarkB {
-  constructor(name) {
-    this.name = name;
-    this.n = 1;
+class BenchmarkB extends TestingT {
+  constructor(name, benchSink = null) {
+    super(name);
+    this._n = 1;
+    this._usedLoop = false;
     this.timerActive = true;
     this.startTime = 0;
     this.elapsedNs = 0;
     this.bytes = 0;
+    this.reportAllocsFlag = false;
+    this.metrics = {};
+    this._benchSink = benchSink;
   }
-  resetTimer() {
+  get N() {
+    this._usedLoop = true;
+    return this._n;
+  }
+  set N(v) {
+    this._n = v;
+  }
+  get n() {
+    this._usedLoop = true;
+    return this._n;
+  }
+  set n(v) {
+    this._n = v;
+  }
+  ResetTimer() {
     this.elapsedNs = 0;
     this.startTime = performance.now();
   }
-  startTimer() {
+  resetTimer() { this.ResetTimer(); }
+  StartTimer() {
     if (!this.timerActive) {
       this.startTime = performance.now();
       this.timerActive = true;
     }
   }
-  stopTimer() {
+  startTimer() { this.StartTimer(); }
+  StopTimer() {
     if (this.timerActive) {
       this.elapsedNs += (performance.now() - this.startTime) * 1e6;
       this.timerActive = false;
     }
   }
-  setBytes(n) {
+  stopTimer() { this.StopTimer(); }
+  SetBytes(n) {
     this.bytes = n;
   }
-  reportAllocs() {}
+  setBytes(n) { this.SetBytes(n); }
+  ReportAllocs() {
+    this.reportAllocsFlag = true;
+  }
+  reportAllocs() { this.ReportAllocs(); }
+  ReportMetric(n, unit) {
+    this.metrics[unit] = n;
+  }
+  reportMetric(n, unit) { this.ReportMetric(n, unit); }
+  RunParallel(bodyFn) {
+    let i = 0;
+    const limit = this._n;
+    const pb = {
+      Next() { return (i++) < limit; },
+      next() { return (i++) < limit; }
+    };
+    bodyFn(pb);
+  }
+  runParallel(bodyFn) { this.RunParallel(bodyFn); }
+  Run(subName, fn) {
+    const cleanSub = String(subName).replace(/\s+/g, '_');
+    const fullName = `${this._name}/${cleanSub}`;
+    const subB = new BenchmarkB(fullName, this._benchSink);
+    let iters = 10;
+    let targetDurationMs = 150;
+    let startOverall = performance.now();
+    while (true) {
+      subB._n = iters;
+      subB._usedLoop = false;
+      subB.ResetTimer();
+      const runStart = performance.now();
+      for (let i = 0; i < iters; i++) {
+        fn(subB);
+        if (subB._usedLoop) break;
+      }
+      const runElapsed = performance.now() - runStart;
+      const totalElapsed = performance.now() - startOverall;
+      if (totalElapsed >= targetDurationMs || iters >= 1000000) {
+        const totalNs = subB.elapsedNs > 0 ? subB.elapsedNs : (runElapsed * 1e6);
+        const nsPerOp = totalNs / iters;
+        if (this._benchSink) {
+          this._benchSink.push({
+            name: fullName,
+            iterations: iters,
+            nsPerOp: nsPerOp,
+            bytesPerOp: subB.bytes > 0 ? subB.bytes : null,
+            durationMs: totalElapsed
+          });
+        }
+        break;
+      }
+      iters = Math.max(iters * 2, Math.floor(iters * (targetDurationMs / Math.max(totalElapsed, 1))));
+    }
+    return !subB._failed;
+  }
+  run(subName, fn) { return this.Run(subName, fn); }
+}
+
+class TestingM {
+  constructor(runFn) {
+    this._runFn = runFn;
+  }
+  Run() { return this._runFn(); }
+  run() { return this._runFn(); }
 }
 "#,
     );
@@ -525,31 +920,40 @@ class BenchmarkB {
     harness.push_str("\n// --- Test Suite Execution Coordinator ---\n");
     harness.push_str("async function __aura_main_runner() {\n");
     harness.push_str("  const results = [];\n");
-    harness.push_str("  const benchResults = [];\n\n");
+    harness.push_str("  const benchResults = [];\n");
+    harness.push_str(&format!("  const __subFilter = {};\n\n", subtest_filter_js));
+    harness.push_str("  async function __aura_execute_suite() {\n");
 
     for f in &test_file.functions {
         let fn_name = &f.name;
         let display_name = &f.display_name;
         let is_bench = f.kind == TestKind::Benchmark;
+        let example_spec = if fn_name.starts_with("Example") || fn_name.starts_with("example_") {
+            extract_example_output(&test_file.source, fn_name)
+        } else {
+            None
+        };
 
         if is_bench {
             harness.push_str(&format!(
                 r#"  // Benchmark: {name}
   if (typeof {name} === 'function') {{
     try {{
-      const b = new BenchmarkB("{name}");
+      const b = new BenchmarkB("{name}", benchResults);
       let iters = 10;
       let targetDurationMs = 250;
       let startOverall = performance.now();
       
-      // Adaptive benchmark loop
+      // Adaptive benchmark loop (supports both Go `for i < b.N` and single-op benchmarks)
       while (true) {{
-        b.n = iters;
-        b.resetTimer();
+        b._n = iters;
+        b._usedLoop = false;
+        b.ResetTimer();
         const runStart = performance.now();
         for (let i = 0; i < iters; i++) {{
           const p = {name}(b);
           if (p && typeof p.then === 'function') await p;
+          if (b._usedLoop) break;
         }}
         const runElapsed = performance.now() - runStart;
         
@@ -575,11 +979,73 @@ class BenchmarkB {
 "#,
                 name = fn_name
             ));
+        } else if let Some((expected_out, is_unordered)) = example_spec {
+            let expected_escaped = expected_out
+                .replace('\\', "\\\\")
+                .replace('"', "\\\"")
+                .replace('\n', "\\n")
+                .replace('\r', "");
+            harness.push_str(&format!(
+                r#"  // Example: {display}
+  {{
+    const tStart = performance.now();
+    let status = "Passed";
+    let failureReason = null;
+    const capturedLines = [];
+    const origLog = console.log;
+    console.log = (...args) => {{
+      capturedLines.push(args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '));
+    }};
+    try {{
+      if (typeof {name} === 'function') {{
+        const res = {name}();
+        if (res && typeof res.then === 'function') await res;
+      }}
+      const gotOut = capturedLines.join('\n').trim();
+      const wantOut = "{expected}".trim();
+      const unordered = {unordered};
+      let matches = false;
+      if (unordered) {{
+        const gotSorted = gotOut.split('\n').map(s => s.trim()).filter(Boolean).sort().join('\n');
+        const wantSorted = wantOut.split('\n').map(s => s.trim()).filter(Boolean).sort().join('\n');
+        matches = (gotSorted === wantSorted);
+      }} else {{
+        matches = (gotOut === wantOut);
+      }}
+      if (!matches) {{
+        status = "Failed";
+        failureReason = `got:\n${{gotOut}}\nwant:\n${{wantOut}}`;
+      }}
+    }} catch (err) {{
+      status = "Failed";
+      failureReason = err && err.message ? err.message : String(err);
+    }} finally {{
+      console.log = origLog;
+    }}
+    const tEnd = performance.now();
+    results.push({{
+      name: "{display}",
+      kind: "{kind}",
+      status: status,
+      failureReason: failureReason,
+      skipReason: null,
+      durationMs: tEnd - tStart,
+      logs: []
+    }});
+  }}
+"#,
+                name = fn_name,
+                display = display_name,
+                kind = f.kind,
+                expected = expected_escaped,
+                unordered = if is_unordered { "true" } else { "false" }
+            ));
         } else {
             harness.push_str(&format!(
                 r#"  // Test: {display}
   {{
-    const t = new TestingT("{display}");
+    const subResults = [];
+    const t = new TestingT("{display}", __subFilter, "{kind}", subResults);
     const tStart = performance.now();
     let status = "Passed";
     let failureReason = null;
@@ -593,17 +1059,25 @@ class BenchmarkB {
           await res;
         }}
       }}
-      if (t.failed) {{
+      if (t._pendingSubtests.length > 0) {{
+        await Promise.all(t._pendingSubtests);
+      }}
+      await t._runCleanups();
+      if (t._failed) {{
         status = "Failed";
         failureReason = t.failureReason;
-      }} else if (t.skipped) {{
+      }} else if (t._skipped) {{
         status = "Skipped";
         skipReason = t.skipReason;
       }}
     }} catch (err) {{
+      await t._runCleanups();
       if (err && err.__aura_skip) {{
         status = "Skipped";
         skipReason = err.reason;
+      }} else if (err && err.__aura_fatal) {{
+        status = "Failed";
+        failureReason = err.reason;
       }} else {{
         status = "Failed";
         failureReason = err && err.message ? err.message : String(err);
@@ -619,6 +1093,9 @@ class BenchmarkB {
       durationMs: tEnd - tStart,
       logs: t.logs
     }});
+    for (const sr of subResults) {{
+      results.push(sr);
+    }}
   }}
 "#,
                 name = fn_name,
@@ -628,9 +1105,25 @@ class BenchmarkB {
         }
     }
 
-    // Output JSON payload at end of runner
+    // Output JSON payload at end of runner (supporting optional TestMain)
     harness.push_str(
         r#"
+    return results.some(r => r.status === "Failed") ? 1 : 0;
+  }
+
+  let __suiteProm = null;
+  if (typeof TestMain === 'function') {
+    const m = new TestingM(() => {
+      __suiteProm = __aura_execute_suite();
+      return 0;
+    });
+    const tmRes = TestMain(m);
+    if (tmRes && typeof tmRes.then === 'function') await tmRes;
+    if (__suiteProm) await __suiteProm;
+  } else {
+    await __aura_execute_suite();
+  }
+
   const payload = {
     results: results,
     benchmarks: benchResults,
@@ -733,7 +1226,12 @@ pub fn run_tests(config: &TestConfig) -> Result<TestSummary, String> {
 
             // Run filter (-run <regex>)
             if let Some(ref rp) = config.run_pattern {
-                if rp == "." || rp == ".*" || f.display_name.contains(rp) || f.name.contains(rp) {
+                let top_rp = rp.split('/').next().unwrap_or(rp.as_str());
+                if rp == "."
+                    || rp == ".*"
+                    || f.display_name.contains(top_rp)
+                    || f.name.contains(top_rp)
+                {
                     matching_funcs.push(f.clone());
                 }
             } else {
@@ -842,10 +1340,11 @@ pub fn run_tests(config: &TestConfig) -> Result<TestSummary, String> {
                 }
             } else {
                 for tr in file_results {
-                    if let TestStatus::Failed(_) = &tr.status {
+                    let is_failed = matches!(&tr.status, TestStatus::Failed(_));
+                    if is_failed {
                         has_failure = true;
                     }
-                    if config.verbose && !config.json {
+                    if !config.json && (config.verbose || is_failed) {
                         print_test_case_verbose(&tr);
                     }
                     all_test_results.push(tr);
@@ -1076,21 +1575,42 @@ fn parse_runner_output(
 }
 
 fn print_test_case_verbose(tr: &TestCaseResult) {
+    let depth = tr.name.matches('/').count();
+    let indent = "    ".repeat(depth);
     println!("=== RUN   {}", tr.name);
     for log in &tr.logs {
-        println!("    {}", log);
+        println!("{}    {}", indent, log);
     }
     match &tr.status {
         TestStatus::Passed => {
-            println!("--- PASS: {} ({:.3}s)", tr.name, tr.duration.as_secs_f64());
+            println!(
+                "{}--- PASS: {} ({:.3}s)",
+                indent,
+                tr.name,
+                tr.duration.as_secs_f64()
+            );
         }
         TestStatus::Failed(err) => {
-            println!("--- FAIL: {} ({:.3}s)", tr.name, tr.duration.as_secs_f64());
-            println!("    {}", err);
+            println!(
+                "{}--- FAIL: {} ({:.3}s)",
+                indent,
+                tr.name,
+                tr.duration.as_secs_f64()
+            );
+            if !err.is_empty() && !tr.logs.iter().any(|l| l == err) {
+                println!("{}    {}", indent, err);
+            }
         }
         TestStatus::Skipped(reason) => {
-            println!("--- SKIP: {} ({:.3}s)", tr.name, tr.duration.as_secs_f64());
-            println!("    Reason: {}", reason);
+            println!(
+                "{}--- SKIP: {} ({:.3}s)",
+                indent,
+                tr.name,
+                tr.duration.as_secs_f64()
+            );
+            if !reason.is_empty() && !tr.logs.iter().any(|l| l == reason) {
+                println!("{}    Reason: {}", indent, reason);
+            }
         }
     }
 }

@@ -168,12 +168,17 @@ impl Parser {
 
     pub fn parse_module(&mut self) -> Result<Module, String> {
         let mut module_name = None;
-        if self.match_token(&TokenKind::Module) {
+        let is_pkg = matches!(self.peek(), TokenKind::Ident(s) if s == "package");
+        if is_pkg || self.match_token(&TokenKind::Module) {
+            if is_pkg {
+                self.advance();
+            }
             let mut name = self.expect_ident()?;
             while self.match_token(&TokenKind::Dot) {
                 name.push('.');
                 name.push_str(&self.expect_ident()?);
             }
+            self.match_token(&TokenKind::Semicolon);
             module_name = Some(name);
         }
 
@@ -303,6 +308,49 @@ impl Parser {
 
     fn parse_import(&mut self) -> Result<ImportDecl, String> {
         self.expect(TokenKind::Import)?;
+
+        // Go-style single import: `import "testing"`
+        if let TokenKind::String(s) = self.peek().clone() {
+            self.advance();
+            self.match_token(&TokenKind::Semicolon);
+            return Ok(ImportDecl {
+                source: s,
+                items: Vec::new(),
+            });
+        }
+
+        // Go-style grouped import: `import ( "testing" ... )`
+        if self.match_token(&TokenKind::LParen) {
+            let mut first_source = String::new();
+            let mut items = Vec::new();
+            while self.peek() != &TokenKind::RParen && self.peek() != &TokenKind::Eof {
+                let mut alias = None;
+                if let TokenKind::Ident(id) = self.peek().clone() {
+                    self.advance();
+                    alias = Some(id);
+                }
+                if let TokenKind::String(s) = self.advance() {
+                    if first_source.is_empty() {
+                        first_source = s.clone();
+                    }
+                    let pkg_name = s.rsplit('/').next().unwrap_or(&s).to_string();
+                    items.push(ImportItem {
+                        name: pkg_name,
+                        alias,
+                    });
+                } else {
+                    break;
+                }
+                self.match_token(&TokenKind::Semicolon);
+            }
+            self.expect(TokenKind::RParen)?;
+            self.match_token(&TokenKind::Semicolon);
+            return Ok(ImportDecl {
+                source: first_source,
+                items,
+            });
+        }
+
         self.expect(TokenKind::LBrace)?;
 
         let mut items = Vec::new();
@@ -607,8 +655,12 @@ impl Parser {
                 Ok(Type::SendChannel(Box::new(inner)))
             }
             TokenKind::Ident(s) => {
-                let name = s.clone();
+                let mut name = s.clone();
                 self.advance();
+                while self.match_token(&TokenKind::Dot) {
+                    let member = self.expect_ident()?;
+                    name = format!("{}.{}", name, member);
+                }
 
                 let mut type_args = Vec::new();
                 if self.match_token(&TokenKind::Less) {
@@ -1506,14 +1558,59 @@ impl Parser {
             TokenKind::For => {
                 self.advance();
                 let has_paren = self.match_token(&TokenKind::LParen);
+
+                // Go/C-style 3-clause loop: `for (let mut i = 0; i < b.N; i = i + 1) { ... }`
+                if self.peek() == &TokenKind::Let {
+                    let init_stmt = self.parse_statement()?;
+                    let condition = self.parse_expr()?;
+                    self.expect(TokenKind::Semicolon)?;
+                    let step_stmt = self.parse_statement()?;
+                    if has_paren {
+                        let _ = self.match_token(&TokenKind::RParen);
+                    }
+                    let body = self.parse_block_expr()?;
+                    let mut loop_stmts = match body {
+                        Expr::Block(stmts) => stmts,
+                        other => vec![Statement::Expr(other)],
+                    };
+                    loop_stmts.push(step_stmt);
+                    return Ok(Expr::Block(vec![
+                        init_stmt,
+                        Statement::Expr(Expr::While {
+                            label: None,
+                            condition: Box::new(condition),
+                            body: Box::new(Expr::Block(loop_stmts)),
+                        }),
+                    ]));
+                }
+
                 let mut index_name = None;
-                let mut var_name = self.expect_ident()?;
+                let var_name = self.expect_ident()?;
+                let mut second_var = None;
                 if self.match_token(&TokenKind::Comma) {
-                    index_name = Some(var_name);
-                    var_name = self.expect_ident()?;
+                    second_var = Some(self.expect_ident()?);
                 }
                 let closed_paren_before_in = has_paren && self.match_token(&TokenKind::RParen);
-                self.expect(TokenKind::In)?;
+                let is_colon_eq_range = self.peek() == &TokenKind::Colon
+                    && self.peek_next() == &TokenKind::Equal;
+                if is_colon_eq_range {
+                    self.advance(); // :
+                    self.advance(); // =
+                    if matches!(self.peek(), TokenKind::Ident(s) if s == "range") {
+                        self.advance();
+                    }
+                } else {
+                    self.expect(TokenKind::In)?;
+                    if matches!(self.peek(), TokenKind::Ident(s) if s == "range") {
+                        self.advance();
+                    }
+                }
+                let final_var_name = if let Some(sec) = second_var {
+                    index_name = Some(var_name);
+                    sec
+                } else {
+                    var_name
+                };
                 let iterable = self.parse_expr()?;
                 if has_paren && !closed_paren_before_in {
                     self.expect(TokenKind::RParen)?;
@@ -1522,7 +1619,7 @@ impl Parser {
                 Ok(Expr::ForIn {
                     label: None,
                     index_name,
-                    var_name,
+                    var_name: final_var_name,
                     iterable: Box::new(iterable),
                     body: Box::new(body),
                 })

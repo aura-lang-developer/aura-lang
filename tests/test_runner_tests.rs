@@ -194,3 +194,74 @@ export fn test_skipped_case(t: TestingT) => {
 
     let _ = fs::remove_file(temp_file);
 }
+
+#[test]
+fn test_golang_style_tests_subtests_benchmarks_and_examples() {
+    let mut config = TestConfig::default();
+    config.paths = vec![PathBuf::from("examples/tests/golang_style_test.aura")];
+    config.verbose = true;
+    config.bench_pattern = Some(".".to_string());
+
+    let summary = run_tests(&config).expect("Go-style test suite should execute");
+    assert!(summary.success, "All Go-style tests and examples should pass");
+    assert!(
+        summary
+            .test_results
+            .iter()
+            .any(|r| r.name == "TestMultiplyTableDriven/positive"),
+        "Should record individual subtest TestMultiplyTableDriven/positive"
+    );
+    assert!(
+        summary
+            .test_results
+            .iter()
+            .any(|r| r.name == "ExampleMultiply"),
+        "Should execute and verify ExampleMultiply output"
+    );
+    assert!(
+        summary
+            .benchmark_results
+            .iter()
+            .any(|b| b.name == "BenchmarkMultiplyGoStyle"),
+        "Should run Go-style benchmark with b.N loop"
+    );
+}
+
+#[test]
+fn test_golang_errorf_continues_and_fatalf_stops_subtest() {
+    let source = r#"
+package calc_test
+import "testing"
+
+export fn TestErrorVsFatal(t: *testing.T) => {
+    t.Run("sub_errorf_continues", fn(t: *testing.T) => {
+        t.Errorf("first error %d", 1);
+        t.Errorf("second error %d", 2);
+    });
+    t.Run("sub_passing_sibling", fn(t: *testing.T) => {
+        t.Logf("sibling still runs!");
+    });
+}
+"#;
+    let temp_file = PathBuf::from("target/go_error_fatal_test.aura");
+    fs::write(&temp_file, source).unwrap();
+
+    let mut config = TestConfig::default();
+    config.paths = vec![temp_file.clone()];
+
+    let summary = run_tests(&config).expect("Runner should execute");
+    assert!(!summary.success, "Suite should fail because sub_errorf_continues failed");
+    let sibling = summary
+        .test_results
+        .iter()
+        .find(|r| r.name == "TestErrorVsFatal/sub_passing_sibling")
+        .expect("Sibling subtest should still execute after previous subtest failure");
+    assert_eq!(
+        sibling.status,
+        aura_lang::testing::TestStatus::Passed,
+        "Sibling subtest should pass"
+    );
+
+    let _ = fs::remove_file(temp_file);
+}
+

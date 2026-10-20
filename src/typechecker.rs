@@ -1123,7 +1123,43 @@ impl TypeEnv {
             },
         );
 
-        // Testing & Assertion Primitives (Go-test style)
+        // Testing & Assertion Primitives (Go-test style: testing.T, testing.B, testing.M, testing.TB)
+        let variadic_any_fn = ConcreteType::Function {
+            params: vec![
+                ConcreteType::Any,
+                ConcreteType::Any,
+                ConcreteType::Any,
+                ConcreteType::Any,
+                ConcreteType::Any,
+                ConcreteType::Any,
+            ],
+            return_type: Box::new(ConcreteType::Unit),
+        };
+        let format_any_fn = ConcreteType::Function {
+            params: vec![
+                ConcreteType::String,
+                ConcreteType::Any,
+                ConcreteType::Any,
+                ConcreteType::Any,
+                ConcreteType::Any,
+                ConcreteType::Any,
+                ConcreteType::Any,
+            ],
+            return_type: Box::new(ConcreteType::Unit),
+        };
+        let unit_to_unit_fn = ConcreteType::Function {
+            params: vec![],
+            return_type: Box::new(ConcreteType::Unit),
+        };
+        let unit_to_bool_fn = ConcreteType::Function {
+            params: vec![],
+            return_type: Box::new(ConcreteType::Bool),
+        };
+        let unit_to_string_fn = ConcreteType::Function {
+            params: vec![],
+            return_type: Box::new(ConcreteType::String),
+        };
+
         let mut t_methods = HashMap::new();
         t_methods.insert(
             "assert".to_string(),
@@ -1174,27 +1210,40 @@ impl TypeEnv {
                 return_type: Box::new(ConcreteType::Unit),
             },
         );
-        t_methods.insert(
-            "fail".to_string(),
-            ConcreteType::Function {
-                params: vec![ConcreteType::Any],
-                return_type: Box::new(ConcreteType::Unit),
-            },
-        );
-        t_methods.insert(
-            "log".to_string(),
-            ConcreteType::Function {
-                params: vec![ConcreteType::Any],
-                return_type: Box::new(ConcreteType::Unit),
-            },
-        );
-        t_methods.insert(
-            "skip".to_string(),
-            ConcreteType::Function {
-                params: vec![ConcreteType::Any],
-                return_type: Box::new(ConcreteType::Unit),
-            },
-        );
+        // Go testing.TB / testing.T methods (PascalCase & camelCase)
+        for name in ["Error", "error", "Fatal", "fatal", "Log", "log", "Skip", "skip", "Fail", "fail"] {
+            t_methods.insert(name.to_string(), variadic_any_fn.clone());
+        }
+        for name in ["Errorf", "errorf", "Fatalf", "fatalf", "Logf", "logf", "Skipf", "skipf"] {
+            t_methods.insert(name.to_string(), format_any_fn.clone());
+        }
+        for name in ["FailNow", "failNow", "SkipNow", "skipNow", "Parallel", "parallel", "Helper", "helper"] {
+            t_methods.insert(name.to_string(), unit_to_unit_fn.clone());
+        }
+        for name in ["Failed", "failed", "Skipped", "skipped"] {
+            t_methods.insert(name.to_string(), unit_to_bool_fn.clone());
+        }
+        for name in ["Name", "name", "TempDir", "tempDir"] {
+            t_methods.insert(name.to_string(), unit_to_string_fn.clone());
+        }
+        for name in ["Cleanup", "cleanup"] {
+            t_methods.insert(
+                name.to_string(),
+                ConcreteType::Function {
+                    params: vec![ConcreteType::Any],
+                    return_type: Box::new(ConcreteType::Unit),
+                },
+            );
+        }
+        for name in ["Setenv", "setenv"] {
+            t_methods.insert(
+                name.to_string(),
+                ConcreteType::Function {
+                    params: vec![ConcreteType::String, ConcreteType::String],
+                    return_type: Box::new(ConcreteType::Unit),
+                },
+            );
+        }
         t_methods.insert(
             "step".to_string(),
             ConcreteType::Function {
@@ -1202,63 +1251,105 @@ impl TypeEnv {
                 return_type: Box::new(ConcreteType::Any),
             },
         );
-        t_methods.insert(
-            "run".to_string(),
-            ConcreteType::Function {
-                params: vec![ConcreteType::String, ConcreteType::Any],
-                return_type: Box::new(ConcreteType::Any),
-            },
-        );
-        let testing_t_type = ConcreteType::Record(t_methods);
+        for name in ["Run", "run"] {
+            t_methods.insert(
+                name.to_string(),
+                ConcreteType::Function {
+                    params: vec![ConcreteType::String, ConcreteType::Any],
+                    return_type: Box::new(ConcreteType::Bool),
+                },
+            );
+        }
+        let testing_t_type = ConcreteType::Record(t_methods.clone());
         env.types
             .insert("TestingT".to_string(), testing_t_type.clone());
         env.types
             .insert("TestingContext".to_string(), testing_t_type.clone());
+        env.types
+            .insert("TB".to_string(), testing_t_type.clone());
         env.types.insert("T".to_string(), testing_t_type);
 
-        let mut b_methods = HashMap::new();
+        let mut b_methods = t_methods;
+        b_methods.insert("N".to_string(), ConcreteType::Int);
         b_methods.insert("n".to_string(), ConcreteType::Int);
-        b_methods.insert(
-            "resetTimer".to_string(),
-            ConcreteType::Function {
-                params: vec![],
-                return_type: Box::new(ConcreteType::Unit),
-            },
-        );
-        b_methods.insert(
-            "startTimer".to_string(),
-            ConcreteType::Function {
-                params: vec![],
-                return_type: Box::new(ConcreteType::Unit),
-            },
-        );
-        b_methods.insert(
-            "stopTimer".to_string(),
-            ConcreteType::Function {
-                params: vec![],
-                return_type: Box::new(ConcreteType::Unit),
-            },
-        );
-        b_methods.insert(
-            "setBytes".to_string(),
-            ConcreteType::Function {
-                params: vec![ConcreteType::Int],
-                return_type: Box::new(ConcreteType::Unit),
-            },
-        );
-        b_methods.insert(
-            "reportAllocs".to_string(),
-            ConcreteType::Function {
-                params: vec![],
-                return_type: Box::new(ConcreteType::Unit),
-            },
-        );
+        for name in [
+            "ResetTimer",
+            "resetTimer",
+            "StartTimer",
+            "startTimer",
+            "StopTimer",
+            "stopTimer",
+            "ReportAllocs",
+            "reportAllocs",
+        ] {
+            b_methods.insert(name.to_string(), unit_to_unit_fn.clone());
+        }
+        for name in ["SetBytes", "setBytes"] {
+            b_methods.insert(
+                name.to_string(),
+                ConcreteType::Function {
+                    params: vec![ConcreteType::Int],
+                    return_type: Box::new(ConcreteType::Unit),
+                },
+            );
+        }
+        for name in ["ReportMetric", "reportMetric"] {
+            b_methods.insert(
+                name.to_string(),
+                ConcreteType::Function {
+                    params: vec![ConcreteType::Float, ConcreteType::String],
+                    return_type: Box::new(ConcreteType::Unit),
+                },
+            );
+        }
+        for name in ["RunParallel", "runParallel"] {
+            b_methods.insert(
+                name.to_string(),
+                ConcreteType::Function {
+                    params: vec![ConcreteType::Any],
+                    return_type: Box::new(ConcreteType::Unit),
+                },
+            );
+        }
         let benchmark_b_type = ConcreteType::Record(b_methods);
         env.types
             .insert("BenchmarkB".to_string(), benchmark_b_type.clone());
         env.types
             .insert("BenchmarkContext".to_string(), benchmark_b_type.clone());
         env.types.insert("B".to_string(), benchmark_b_type);
+
+        let mut m_methods = HashMap::new();
+        for name in ["Run", "run"] {
+            m_methods.insert(
+                name.to_string(),
+                ConcreteType::Function {
+                    params: vec![],
+                    return_type: Box::new(ConcreteType::Int),
+                },
+            );
+        }
+        let testing_m_type = ConcreteType::Record(m_methods);
+        env.types
+            .insert("TestingM".to_string(), testing_m_type.clone());
+        env.types.insert("M".to_string(), testing_m_type);
+
+        let mut pb_methods = HashMap::new();
+        for name in ["Next", "next"] {
+            pb_methods.insert(name.to_string(), unit_to_bool_fn.clone());
+        }
+        let testing_pb_type = ConcreteType::Record(pb_methods);
+        env.types
+            .insert("TestingPB".to_string(), testing_pb_type.clone());
+        env.types.insert("PB".to_string(), testing_pb_type);
+
+        let mut testing_pkg_fields = HashMap::new();
+        testing_pkg_fields.insert("Short".to_string(), unit_to_bool_fn.clone());
+        testing_pkg_fields.insert("Verbose".to_string(), unit_to_bool_fn.clone());
+        testing_pkg_fields.insert("CoverMode".to_string(), unit_to_string_fn.clone());
+        env.variables.insert(
+            "testing".to_string(),
+            ConcreteType::Record(testing_pkg_fields),
+        );
 
         // Global assertion helpers
         env.variables.insert(
@@ -4048,6 +4139,8 @@ impl TypeChecker {
                         || imp.source == "net/url"
                         || imp.source == "os"
                         || imp.source == "time"
+                        || imp.source == "testing"
+                        || imp.source == "std/testing"
                     {
                         for item in &imp.items {
                             let target_name = item.alias.as_ref().unwrap_or(&item.name);
@@ -4353,8 +4446,10 @@ impl TypeChecker {
                         type_args.iter().map(|t| self.resolve_ast_type(t)).collect();
                     let resolved_args = resolved_args?;
                     let lookup = self.env.lookup_type(custom).or_else(|| {
-                        if custom.starts_with("http.") {
-                            self.env.lookup_type(&custom["http.".len()..])
+                        if let Some(rest) = custom.strip_prefix("http.") {
+                            self.env.lookup_type(rest)
+                        } else if let Some(rest) = custom.strip_prefix("testing.") {
+                            self.env.lookup_type(rest)
                         } else {
                             None
                         }
@@ -5880,6 +5975,9 @@ impl TypeChecker {
                         }
                         ConcreteType::String => {
                             loop_env.insert_var(var_name.clone(), ConcreteType::String);
+                        }
+                        ConcreteType::Int => {
+                            loop_env.insert_var(var_name.clone(), ConcreteType::Int);
                         }
                         _ => {
                             loop_env.insert_var(var_name.clone(), ConcreteType::Any);
