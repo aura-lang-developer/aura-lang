@@ -209,9 +209,9 @@ Verify your installation:
 
 ```bash
 aura --version
-# Output: aura 0.8.1
+# Output: aura 0.8.2
 aurac --version
-# Output: aurac 0.8.1
+# Output: aurac 0.8.2
 ```
 
 ### 3. Compilation and Execution Modes
@@ -1133,91 +1133,132 @@ aurac build app.aura -o app --dts ./node_modules/@types/node/index.d.ts
 
 ### 18. Testing Directives, Assertions, and Benchmarking
 
-Aura provides a built-in testing, benchmarking, and code-coverage framework inspired by the Go testing model, powered by `auratest` or directly via the compiler using `aurac --test` (or `aurac test`).
+Aura provides a built-in testing, benchmarking, and code-coverage framework with **full Golang `testing` (`go test`) parity**, powered by `auratest` or directly via the compiler using `aura test` / `aurac --test`.
 
 #### A. Test Discovery and Categorization Directives
 
 Files matching the following naming conventions are automatically discovered:
 - **Test files**: `*_test.aura`, `.test.aura`, `_spec.aura`, `test_*.aura`, or any `.aura` file located in a `tests/` directory.
 - **Automatic Categorization**:
-  - **Unit Tests (`UNIT`)**: Default for test files, or matching `*_unit_test.aura`.
+  - **Unit Tests (`UNIT`)**: Default for test files, or matching `*_unit_test.aura` (`fn TestXxx(t: *testing.T)` or `fn test_xxx(t: TestingT)`).
   - **Integration Tests (`INTEGRATION`)**: Files containing `_integration_test.aura` or located under an `integration/` directory.
   - **End-to-End Tests (`E2E`)**: Files containing `_e2e_test.aura` or located under an `e2e/` directory.
-  - **Benchmarks (`BENCHMARK`)**: Functions beginning with `benchmark_`, `Benchmark`, or `bench_`.
+  - **Examples (`EXAMPLE`)**: Functions beginning with `Example` (e.g., `fn ExampleMultiply()`) that verify standard output against trailing `// Output:` or `// Unordered output:` comments.
+  - **Benchmarks (`BENCHMARK`)**: Functions beginning with `Benchmark`, `benchmark_`, or `bench_` (`fn BenchmarkXxx(b: *testing.B)` or `fn benchmark_xxx(b: BenchmarkB)`).
+  - **Suite Lifecycle (`TestMain`)**: Optional `fn TestMain(m: *testing.M)` entrypoint calling `m.Run()`.
 
-#### B. Test and Benchmark Function Signatures
+#### B. Golang `testing` Format (`*testing.T`, `*testing.B`, Table-Driven Tests & Examples)
 
-Test functions must be exported and can either accept a test context (`TestingT`) or run parameter-free:
+Aura supports writing tests using the exact same conventions as Go (`package`, `import "testing"`, `*testing.T`, `*testing.B`, `t.Run`, `t.Errorf`, `t.Fatalf`, `b.N`, and `// Output:` examples) as well as Aura's built-in `TestingT` assertion helpers:
 
 ```aura
-// 1. Standard unit test taking TestingT
-export fn test_addition(t: TestingT) => {
-    let sum = 10 + 25;
-    t.assertEqual(sum, 35, "10 + 25 must equal 35");
-    t.assertTrue(sum > 30, "sum should be greater than 30");
+package math_test
+
+import "testing"
+
+export fn multiply(a: Int, b: Int): Int => a * b
+
+// 1. Standard Go-style test with *testing.T, t.Errorf, and t.Logf
+export fn TestMultiply(t: *testing.T) => {
+    t.Helper();
+    let got = multiply(6, 7);
+    let want = 42;
+    if (got != want) {
+        t.Errorf("multiply(6, 7) = %d; want %d", got, want);
+    }
+    t.Logf("multiply(6, 7) verified: %d", got);
 }
 
-// 2. Async test for fibers, channels, and network calls
+// 2. Go-style Table-Driven Tests with t.Run(name, fn(t: *testing.T) => { ... })
+export fn TestMultiplyTableDriven(t: *testing.T) => {
+    let tests = [
+        { name: "positive", a: 3, b: 4, want: 12 },
+        { name: "by_zero", a: 99, b: 0, want: 0 },
+        { name: "negative", a: -5, b: 6, want: -30 },
+    ];
+
+    for tc in tests {
+        t.Run(tc.name, fn(t: *testing.T) => {
+            t.Parallel();
+            let got = multiply(tc.a, tc.b);
+            if (got != tc.want) {
+                t.Fatalf("multiply(%d, %d) = %d; want %d", tc.a, tc.b, got, tc.want);
+            }
+        });
+    }
+}
+
+// 3. Lifecycle & environment helpers: t.TempDir, t.Setenv, t.Cleanup
+export fn TestLifecycleAndEnv(t: *testing.T) => {
+    let dir = t.TempDir();
+    t.Setenv("AURA_GO_TEST_MODE", "enabled");
+    t.Cleanup(fn() => {
+        t.Log("cleanup executed in LIFO order");
+    });
+}
+
+// 4. Go-style Benchmark with *testing.B and explicit `b.N` loop
+export fn BenchmarkMultiplyGoStyle(b: *testing.B) => {
+    b.ReportAllocs();
+    b.ResetTimer();
+    for (let mut i = 0; i < b.N; i = i + 1) {
+        multiply(123, 456);
+    }
+}
+
+// 5. Go-style Verifiable Example with // Output: comment
+export fn ExampleMultiply() => {
+    println(multiply(8, 9));
+    // Output:
+    // 72
+}
+
+// 6. Aura assertion helpers on TestingT & async tests
 export async fn test_async_service(t: TestingT) => {
     let result = await fetchUserData(101);
     t.assertTrue(result.isOk(), "fetching user must succeed");
 }
-
-// 3. Subtests (t.run) and logical test steps (t.step)
-export fn test_order_lifecycle(t: TestingT) => {
-    t.step("Verify inventory", fn() => {
-        t.assertTrue(checkStock("SKU-100"));
-    });
-
-    t.run("VIP customer discount", fn(subT: TestingT) => {
-        let total = calculateTotal({ isVip: true }, 100.0);
-        subT.assertEqual(total, 80.0, "VIPs receive a 20% discount");
-    });
-
-    t.run("Standard customer price", fn(subT: TestingT) => {
-        let total = calculateTotal({ isVip: false }, 100.0);
-        subT.assertEqual(total, 100.0, "Regular customers pay full price");
-    });
-}
-
-// 4. Benchmark function with adaptive timing
-export fn benchmark_factorial(b: BenchmarkB) => {
-    b.resetTimer();
-    factorial(15, 1);
-}
 ```
 
-#### C. Testing Context Directives (`TestingT`)
+#### C. Testing Context Directives (`*testing.T` / `TestingT`)
 
-The `t: TestingT` context provides standard assertion, logging, and lifecycle directives:
+The `t: *testing.T` (or `t: TestingT`) context supports both Go's `testing.T` / `testing.TB` methods and Aura's assertion helpers:
 
 | Method / Directive | Description |
 | :----------------- | :---------- |
+| `t.Error(...args)` / `t.Errorf(fmt, ...args)` | Logs an error message and marks the test as failed while continuing execution (Go semantics). |
+| `t.Fatal(...args)` / `t.Fatalf(fmt, ...args)` | Logs an error message, marks the test as failed, and immediately stops the current test/subtest. |
+| `t.Fail()` / `t.FailNow()` | Marks the test as failed (`Fail` continues; `FailNow` aborts the current test/subtest immediately). |
+| `t.Log(...args)` / `t.Logf(fmt, ...args)` | Records formatted diagnostic messages (`%d`, `%s`, `%q`, `%v`, `%.2f`, `%t`, `%x`, `%T`). |
+| `t.Run(subName, fn(t: *testing.T))` | Runs an isolated subtest (`TestParent/SubName`), returning `true` if the subtest passed. |
+| `t.Skip(...args)` / `t.Skipf(fmt, ...args)` / `t.SkipNow()` | Skips the current test or subtest and records the skip reason. |
+| `t.Cleanup(fn)` | Registers a cleanup function executed in LIFO order when the test/subtest completes. |
+| `t.TempDir()` | Creates a unique temporary directory that is automatically removed via `Cleanup` when the test finishes. |
+| `t.Setenv(key, value)` | Sets an environment variable for the duration of the test and restores its original value on cleanup. |
+| `t.Parallel()` / `t.Helper()` | Marks a test as safe for parallel execution or marks the calling function as a test helper. |
+| `t.Name()` / `t.Failed()` / `t.Skipped()` | Returns the current test/subtest name, failure state (`Bool`), or skip state (`Bool`). |
 | `t.assertEqual(actual, expected, msg?)` | Asserts deep structural equality between two values. |
 | `t.assertNotEqual(actual, expected, msg?)` | Asserts that two values are not deeply equal. |
-| `t.assertTrue(condition, msg?)` | Asserts that `condition === true`. |
-| `t.assertFalse(condition, msg?)` | Asserts that `condition === false`. |
-| `t.assertDeepEqual(actual, expected, msg?)` | Alias for deep structural assertion. |
+| `t.assertTrue(condition, msg?)` / `t.assertFalse(condition, msg?)` | Asserts that `condition` is `true` or `false`. |
 | `t.assertThrows(fn, expectedErr?)` | Asserts that calling `fn()` throws or panics with an optional error substring. |
-| `t.step(name, fn)` | Encapsulates a distinct logical step with timing logs. |
-| `t.run(subName, fn)` | Spawns an isolated subtest with its own `TestingT` scope. |
-| `t.log(...args)` | Records formatted diagnostic messages in the test output. |
-| `t.skip(reason)` | Skips the current test at runtime with an explanation. |
-| `t.fail(reason)` | Immediately marks the test as failed. |
 
 Global assertions are also available directly without `t`: `assert(cond, msg)`, `assertTrue(cond, msg)`, `assertFalse(cond, msg)`, `assertEqual(a, b, msg)`, and `assertNotEqual(a, b, msg)`.
 
-#### D. Benchmark Context Directives (`BenchmarkB`)
+#### D. Benchmark Context Directives (`*testing.B` / `BenchmarkB`)
 
-The `b: BenchmarkB` context manages adaptive iteration counts and throughput metrics:
+The `b: *testing.B` (or `b: BenchmarkB`) context inherits all `testing.TB` methods and manages adaptive iteration counts and throughput metrics:
 
 | Method / Directive | Description |
 | :----------------- | :---------- |
-| `b.n` | Target iteration count adaptively calibrated by the benchmark runner. |
-| `b.resetTimer()` | Resets the elapsed time and start timestamp (use after expensive setup). |
-| `b.startTimer()` | Resumes timer measurement. |
-| `b.stopTimer()` | Pauses timer measurement during non-benchmark teardown/allocations. |
-| `b.setBytes(n)` | Informs the runner of bytes processed per op to compute MB/s throughput. |
+| `b.N` / `b.n` | Target iteration count adaptively calibrated by the benchmark runner (`for (let mut i = 0; i < b.N; i = i + 1)` or `for i in b.N`). |
+| `b.ResetTimer()` / `b.resetTimer()` | Resets the elapsed time and start timestamp (use after expensive setup). |
+| `b.StartTimer()` / `b.startTimer()` | Resumes timer measurement. |
+| `b.StopTimer()` / `b.stopTimer()` | Pauses timer measurement during non-benchmark teardown/allocations. |
+| `b.ReportAllocs()` / `b.reportAllocs()` | Enables allocation statistics reporting for the benchmark. |
+| `b.SetBytes(n)` / `b.setBytes(n)` | Informs the runner of bytes processed per op to compute MB/s throughput. |
+| `b.ReportMetric(n, unit)` | Reports a custom user-defined benchmark metric with the given unit. |
+| `b.Run(subName, fn(b: *testing.B))` | Runs an isolated sub-benchmark (`BenchmarkParent/SubName`). |
+| `b.RunParallel(fn(pb: *testing.PB))` | Executes a benchmark body in parallel using `while (pb.Next()) { ... }`. |
 
 #### E. Conditional Testing with Build Tags
 
@@ -1738,8 +1779,9 @@ aurac --test examples/tests/math_unit_test.aura
 aurac --test -v ./...
 aurac examples/tests/math_unit_test.aura --test -v
 
-# Filter tests by regular expression (-run <pattern>)
+# Filter tests or subtests by pattern (-run <pattern> or -run <Parent>/<Subtest>)
 aurac --test -run TestUserAuthentication ./...
+aurac --test -v -run TestMultiplyTableDriven/positive examples/tests/golang_style_test.aura
 aurac examples/tests/math_unit_test.aura --test -run test_addition
 
 # Filter tests by category (--unit, --integration, --e2e)

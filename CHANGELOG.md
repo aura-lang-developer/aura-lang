@@ -6,6 +6,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.2] - 2026-10-20
+
+### 🧪 Full Golang `testing` (`go test`) Format Parity, Table-Driven Subtests & Verifiable Examples
+
+Aura v0.8.2 introduces complete syntactic, semantic, and runner parity with Go's standard `testing` package (`*testing.T`, `*testing.B`, `*testing.M`, `*testing.TB`, `*testing.PB`), including table-driven subtests (`t.Run`), non-fatal vs. fatal failure semantics (`t.Errorf` vs. `t.Fatalf`), explicit `b.N` benchmark loops, verifiable `ExampleXxx()` functions with `// Output:` comments, and `TestMain(m: *testing.M)` suite orchestration.
+
+#### 1. Parser & Language Syntax Enhancements (`src/parser.rs`)
+- **Go Package Header & Import Declarations**: Added support for `package <name>` headers (alongside `module <name>`), single-string imports (`import "testing"`), and grouped import blocks (`import ( "testing" ... )`).
+- **Qualified Type Annotations**: Enabled dotted package-qualified type names (`testing.T`, `*testing.T`, `testing.B`, `*testing.B`, `testing.M`, `*testing.M`, `testing.TB`, `testing.PB`).
+- **C/Go 3-Clause & Range `for` Loops**: Added parser desugaring for 3-clause `for (let mut i = 0; i < b.N; i = i + 1) { ... }` loops as well as `for i in b.N` and `range` iteration syntax.
+
+#### 2. Static Typechecker (`src/typechecker.rs`)
+- **Complete `testing.T` / `testing.TB` Type Definitions**: Registered Go PascalCase and Aura camelCase methods for `Error`, `Errorf`, `Fatal`, `Fatalf`, `Fail`, `FailNow`, `Failed`, `Log`, `Logf`, `Skip`, `Skipf`, `SkipNow`, `Skipped`, `Run`, `Parallel`, `Cleanup`, `Helper`, `TempDir`, `Setenv`, and `Name`.
+- **Complete `testing.B`, `testing.M`, and `testing.PB` Types**: Added `b.N`, `ResetTimer`, `StartTimer`, `StopTimer`, `ReportAllocs`, `SetBytes`, `ReportMetric`, `Run`, `RunParallel`, `m.Run()`, and `pb.Next()`.
+
+#### 3. Test Runner & Isolated Harness (`src/testing.rs`)
+- **Subtest Execution & Hierarchical Filtering (`t.Run`)**: Isolated subtest execution recording individual `TestParent/Subtest` results, hierarchical indentation in verbose output (`=== RUN`, `--- PASS`, `--- FAIL`), and `-run Parent/Subtest` CLI filtering.
+- **Go Failure Semantics**: `t.Error` / `t.Errorf` mark the test failed while continuing execution; `t.Fatal` / `t.Fatalf` / `t.FailNow` immediately abort the current test or subtest while still allowing sibling subtests in table-driven loops to execute.
+- **Lifecycle & Environment Isolation**: Implemented LIFO `t.Cleanup(fn)` hooks, automatic temporary directory creation/removal via `t.TempDir()`, and automatic environment variable restoration via `t.Setenv(k, v)`.
+- **Dual-Mode Adaptive Benchmarks (`b.N`)**: Automatically detects whether a benchmark function iterates over `b.N` internally or executes a single operation per call.
+- **Verifiable `ExampleXxx()` Functions & `TestMain`**: Captures standard output in `Example*` functions to validate against trailing `// Output:` and `// Unordered output:` comments, and supports custom suite setup/teardown via `TestMain(m: *testing.M)`.
+
+---
+
 ## [0.8.1] - 2026-10-19
 
 ### 🐘 Native PostgreSQL SCRAM-SHA-256 Auth, Adaptive Memory GC & Runtime Hardening
