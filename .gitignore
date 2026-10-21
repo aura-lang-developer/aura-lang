@@ -8,3 +8,6 @@ projects/
 website/
 *.tar.gz
 *.sha256
+*.tmp
+*.tmp.mjs
+*.tmp.mjs.map
