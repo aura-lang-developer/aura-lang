@@ -5483,17 +5483,20 @@ const __aura_import = async (m) => {
                             }) => {
                                 let iter_js = self.expr_to_js_with_renames(iterable, renames);
                                 let b_js = self.block_or_expr_to_statements_js(body, renames);
+                                let is_for_async = self.expr_contains_async(iterable)
+                                    || self.expr_contains_async(body);
+                                let for_kw = if is_for_async { "for await" } else { "for" };
                                 let lbl_prefix = if let Some(lbl) = label {
                                     format!("{}: ", lbl)
                                 } else {
                                     "".to_string()
                                 };
                                 if let Some(idx) = index_name {
-                                    lines.push(format!("  let {} = 0; {}for (const {} of __aura_iter({})) {{ {}; {}++; }}", idx, lbl_prefix, var_name, iter_js, b_js, idx));
+                                    lines.push(format!("  let {} = 0; {}{} (const {} of __aura_iter({})) {{ {}; {}++; }}", idx, lbl_prefix, for_kw, var_name, iter_js, b_js, idx));
                                 } else {
                                     lines.push(format!(
-                                        "  {}for (const {} of __aura_iter({})) {{ {} }}",
-                                        lbl_prefix, var_name, iter_js, b_js
+                                        "  {}{} (const {} of __aura_iter({})) {{ {} }}",
+                                        lbl_prefix, for_kw, var_name, iter_js, b_js
                                     ));
                                 }
                             }
@@ -5830,6 +5833,9 @@ const __aura_import = async (m) => {
             }) => {
                 let iter_js = self.expr_to_js_with_renames(iterable, renames);
                 let b_js = self.block_or_expr_to_statements_js(body, renames);
+                let is_for_async = self.expr_contains_async(iterable)
+                    || self.expr_contains_async(body);
+                let for_kw = if is_for_async { "for await" } else { "for" };
                 let lbl_prefix = if let Some(lbl) = label {
                     format!("{}: ", lbl)
                 } else {
@@ -5837,13 +5843,13 @@ const __aura_import = async (m) => {
                 };
                 if let Some(idx) = index_name {
                     format!(
-                        "let {} = 0; {}for (const {} of __aura_iter({})) {{ {}; {}++; }}",
-                        idx, lbl_prefix, var_name, iter_js, b_js, idx
+                        "let {} = 0; {}{} (const {} of __aura_iter({})) {{ {}; {}++; }}",
+                        idx, lbl_prefix, for_kw, var_name, iter_js, b_js, idx
                     )
                 } else {
                     format!(
-                        "{}for (const {} of __aura_iter({})) {{ {} }}",
-                        lbl_prefix, var_name, iter_js, b_js
+                        "{}{} (const {} of __aura_iter({})) {{ {} }}",
+                        lbl_prefix, for_kw, var_name, iter_js, b_js
                     )
                 }
             }
