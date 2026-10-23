@@ -1,0 +1,252 @@
+// ==============================================================================
+// Aura Language: High-Performance Network Packet Router & System Diagnostics
+// ==============================================================================
+// Advanced Features demonstrated:
+// 1. Packed Structs (bit-level & zero-padding binary layouts)
+// 2. Foreign Function Interface (extern "C")
+// 3. Defer resource cleanup
+// 4. Result<T, E> & Option<T> pattern matching with exhaustive handling
+// 5. Functional Pipeline transformations (|>)
+// 6. Go-style Slices ([]T) and slicing expressions
+// 7. Receiver Methods on structs
+// ==============================================================================
+
+// --- 1. Extern "C" Foreign Function Declarations ---
+
+extern "C" {
+  fn abs(n: Int): Int;
+}
+
+// --- 2. Low-Level Packed Structs for Network Packets ---
+
+export packed struct EthernetFrame {
+  destMacHigh: Uint32,
+  destMacLow: Uint16,
+  srcMacHigh: Uint32,
+  srcMacLow: Uint16,
+  etherType: Uint16
+};
+
+export packed struct IPv4Header {
+  versionAndIhl: Uint8,
+  typeOfService: Uint8,
+  totalLength: Uint16,
+  packetId: Uint16,
+  flagsFragmentOffset: Uint16,
+  timeToLive: Uint8,
+  protocol: Uint8,
+  headerChecksum: Uint16,
+  srcIp: Uint32,
+  dstIp: Uint32
+};
+
+// --- 3. High-Level Routing Domain ---
+
+export type TransportProtocol =
+| ICMP
+| TCP(Uint16, Uint16)// srcPort, dstPort
+| UDP(Uint16, Uint16)
+| RawPayload(Int);
+
+export struct ParsedPacket {
+  id: Int,
+  srcAddress: String,
+  dstAddress: String,
+  ttl: Int,
+  protocol: TransportProtocol,
+  payloadSize: Int
+};
+
+export struct RouterTelemetry {
+  bytesProcessed: Int,
+  packetsDropped: Int,
+  routingTableEntries: Int
+};
+
+// --- 4. Pipeline Helpers & Formatting ---
+
+fn ipToString(ip: Uint32): String => {
+  // Convert 32-bit uint to IPv4 dot-decimal string representation
+  let o1 = ip % 256;
+  let o2 = (ip / 256) % 256;
+  let o3 = (ip / 65536) % 256;
+  let o4 = (ip / 16777216) % 256;
+  `${o4}.${o3}.${o2}.${o1}`
+}
+
+fn formatSignature(id: Int): String => {
+  `PKT-SIG#${id}:VALIDATED`
+}
+
+// --- 5. Receiver Methods on ParsedPacket ---
+
+fn(p: ParsedPacket)IsExpired(): Bool => {
+  p.ttl <= 1
+}
+
+fn(p: ParsedPacket)Route(): Result<String, String> => {
+  if p.IsExpired() {
+    return Err(`Packet #${p.id} dropped: TTL expired`);
+  }
+
+  match p.protocol {
+    ICMP => {
+      Ok(`Forwarded ICMP echo/reply to gateway -> ${p.dstAddress}`)
+    },
+    TCP(srcPort, dstPort) => {
+      if dstPort == 80 || dstPort == 443 {
+        Ok(`Accelerated HTTP/HTTPS TCP stream [${srcPort} -> ${dstPort}] to ${p.dstAddress}`)
+      }else {
+        Ok(`Routed standard TCP traffic [${srcPort} -> ${dstPort}] to ${p.dstAddress}`)
+      }
+    },
+    UDP(srcPort, dstPort) => {
+      if dstPort == 53 {
+        Ok(`Fast-path DNS lookup routed to resolver ${p.dstAddress}`)
+      }else {
+        Ok(`Routed UDP datagram to ${p.dstAddress}:${dstPort}`)
+      }
+    },
+    RawPayload(size) => {
+      Ok(`Routed raw packet (${size} bytes) to inspection ring-buffer`)
+    }
+  }
+}
+
+// --- 6. Packet Parsing Pipeline ---
+
+fn parseIpPacket(
+packetId: Int,
+rawHeader: IPv4Header,
+transport: TransportProtocol,
+bodyBytes: Int
+): Result<ParsedPacket, String> => {
+  println(`\n[Packet Engine] Ingesting IPv4 header ID #${rawHeader.packetId}...`);
+
+  // Defer cleanup log
+  defer {
+    println(`[Packet Engine:Defer] Finished processing frame for packet #${packetId}`);
+  };
+
+  // Validate TTL
+  let ttlVal = rawHeader.timeToLive;
+  if ttlVal == 0 {
+    return Err("Malformed packet: TTL is zero");
+  }
+
+  let srcStr = ipToString(rawHeader.srcIp);
+  let dstStr = ipToString(rawHeader.dstIp);
+
+  let parsed: ParsedPacket = {
+    id: packetId,
+    srcAddress: srcStr,
+    dstAddress: dstStr,
+    ttl: ttlVal,
+    protocol: transport,
+    payloadSize: bodyBytes
+  };
+
+  Ok(parsed)
+}
+
+// --- 7. Main Entrypoint ---
+
+export fn main(): Unit => {
+  println("==================================================================");
+  println("🌐 Aura Lang: Packed Structs, Low-Level Protocol & FFI Showcase");
+  println("==================================================================");
+
+  // 1. Bit-Level Network Calculations
+  println("\n--- 1. Bit-Level Header Inspection ---");
+  let sampleLength = 1500;
+  println(`Packet MTU baseline: ${sampleLength} bytes`);
+
+  // 2. Packed Structs instantiation
+  println("\n--- 2. Low-Level Binary Packed Structs ---");
+  let eth: EthernetFrame = {
+    destMacHigh: 305419896,
+    destMacLow: 4660,
+    srcMacHigh: 2882400000,
+    srcMacLow: 22136,
+    etherType: 2048// 0x0800: IPv4
+  };
+  println(`Packed EthernetFrame created (etherType: ${eth.etherType})`);
+
+  let ipHdr1: IPv4Header = {
+    versionAndIhl: 69, // 0x45 (v4, 5 words)
+    typeOfService: 0,
+    totalLength: 84,
+    packetId: 54321,
+    flagsFragmentOffset: 16384, // Don't fragment
+    timeToLive: 64,
+    protocol: 6, // TCP
+    headerChecksum: 0,
+    srcIp: 3232235777, // 192.168.1.1
+    dstIp: 134744072// 8.8.8.8
+  };
+
+  let ipHdrExpired: IPv4Header = {
+    versionAndIhl: 69,
+    typeOfService: 0,
+    totalLength: 60,
+    packetId: 9999,
+    flagsFragmentOffset: 0,
+    timeToLive: 1, // Will expire
+    protocol: 17, // UDP
+    headerChecksum: 0,
+    srcIp: 168430090, // 10.10.10.10
+    dstIp: 134744072
+  };
+
+  // 3. Processing packets through routing engine
+  println("\n--- 3. Routing Engine & Pattern Matching ---");
+
+  let p1Res = parseIpPacket(1, ipHdr1, TCP(51234, 443), 1460);
+  match p1Res {
+    Ok(pkt) => {
+      let sig = pkt.id |> formatSignature;
+      println(`  Parsed [${pkt.srcAddress} -> ${pkt.dstAddress}] | Signature: ${sig}`);
+      match pkt.Route() {
+        Ok(msg) => println(`  ✓ ${msg}`),
+        Err(err) => println(`  ✗ ${err}`)
+      }
+    },
+    Err(err) => println(`Failed to parse packet 1: ${err}`)
+  }
+
+  let p2Res = parseIpPacket(2, ipHdrExpired, UDP(43120, 53), 512);
+  match p2Res {
+    Ok(pkt) => {
+      match pkt.Route() {
+        Ok(msg) => println(`  ✓ ${msg}`),
+        Err(err) => println(`  ✗ Handled: ${err}`)
+      }
+    },
+    Err(err) => println(`Failed to parse packet 2: ${err}`)
+  }
+
+  // 4. Go-style slices of packet telemetry
+  println("\n--- 4. Telemetry Slice & Sub-Slicing ---");
+  let mut packets: []ParsedPacket = [];
+
+  match p1Res {
+    Ok(pkt) => {
+      packets = append(packets, pkt);
+    },
+    Err(_) => ()
+  }
+
+  match p2Res {
+    Ok(pkt) => {
+      packets = append(packets, pkt);
+    },
+    Err(_) => ()
+  }
+
+  println(`Total routing telemetry buffer length: ${len(packets)}, capacity: ${cap(packets)}`);
+
+  let sub = packets[0: 1];
+  println(`Sub-slice packets[0:1] length: ${len(sub)}`);
+
+  println("\n✨ Low-level networking and FFI verification completed successfully!");
+}

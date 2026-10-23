@@ -1,0 +1,217 @@
+// ==============================================================================
+// Aura Language: Concurrent Worker Pool with Priority Queue & Dynamic Dispatch
+// ==============================================================================
+// Advanced Features demonstrated:
+// 1. Algebraic Data Types (Sum Types) with payload variants & pattern matching
+// 2. Structural Duck Typing / Interfaces
+// 3. Go-style CSP Concurrency: Channels, spawn, WaitGroup & Select multiplexing
+// 4. Resource cleanup: Defer & Errdefer
+// 5. Functional Pipeline transformations (|>)
+// 6. Go-style Slices & Sub-slicing
+// 7. Receiver Methods on structs (PascalCase public vs camelCase private)
+// ==============================================================================
+
+// --- 1. Domain Types & ADTs ---
+
+export type Priority =
+| Low
+| Normal
+| High
+| Critical;
+
+export type TaskPayload =
+| EmailNotification(String, String)
+| DatabaseSync(Int, String)
+| ImageResize(String, Int, Int)
+| HealthCheck;
+
+export type TaskItem = {
+  id: Int,
+  priority: Priority,
+  payload: TaskPayload,
+  retries: Int
+}
+
+export type TaskResult = {
+  taskId: Int,
+  workerId: Int,
+  success: Bool,
+  message: String
+}
+
+// --- 2. Interface (Structural Duck Typing) ---
+
+export interface Executable {
+  Execute(workerId: Int): Result<String, String>;
+  PriorityWeight(): Int;
+};
+
+// --- 3. Receiver Methods implementing Executable ---
+
+fn(t: TaskItem)PriorityWeight(): Int => {
+  match t.priority {
+    Critical => 4,
+    High => 3,
+    Normal => 2,
+    Low => 1
+  }
+}
+
+fn(t: TaskItem)Execute(workerId: Int): Result<String, String> => {
+  println(`  [Worker ${workerId}] Starting Task #${t.id} (Weight: ${t.PriorityWeight()})`);
+
+  match t.payload {
+    EmailNotification(to, subject) => {
+      println(`  [Worker ${workerId}] Dispatching email to <${to}>: "${subject}"`);
+      Ok("Email delivered")
+    },
+    DatabaseSync(batchId, table) => {
+      println(`  [Worker ${workerId}] Synchronizing batch ${batchId} on table '${table}'`);
+      Ok("Sync completed")
+    },
+    ImageResize(path, width, height) => {
+      if width <= 0 || height <= 0 {
+        return Err("Invalid image dimensions");
+      }
+      println(`  [Worker ${workerId}] Resized '${path}' to ${width}x${height}`);
+      Ok("Resize completed")
+    },
+    HealthCheck => {
+      println(`  [Worker ${workerId}] System health check OK`);
+      Ok("Healthy")
+    }
+  }
+}
+
+// --- 4. Pipeline Helpers ---
+
+fn isPriorityElevated(weight: Int): Bool => {
+  weight >= 3
+}
+
+fn tagProcessed(taskId: Int): String => {
+  `AUDIT_LOG::TASK_${taskId}`
+}
+
+// --- 5. Worker Routine ---
+
+fn runWorker(
+workerId: Int,
+jobsCh: RecvChannel<TaskItem>,
+resultsCh: SendChannel<TaskResult>,
+wg: WaitGroup
+): Task<Unit, String> => {
+  println(`[Worker ${workerId}] Online and ready for jobs.`);
+  defer {
+    println(`[Worker ${workerId}] Gracefully shutting down.`);
+    wg.done();
+  };
+
+  for task in jobsCh {
+    println(`[Worker ${workerId}] Dequeued Task #${task.id}`);
+
+    // errdefer ensures transactional error logging if operation fails
+    errdefer println(`[Worker ${workerId}] [ALERT] Task #${task.id} failed during execution!`);
+
+    let execResult = task.Execute(workerId);
+    match execResult {
+      Ok(msg) => {
+        let res: TaskResult = {
+          taskId: task.id,
+          workerId: workerId,
+          success: true,
+          message: msg
+        };
+        resultsCh <- res;
+      },
+      Err(err) => {
+        let res: TaskResult = {
+          taskId: task.id,
+          workerId: workerId,
+          success: false,
+          message: err
+        };
+        resultsCh <- res;
+      }
+    }
+  }
+}
+
+// --- 6. Main Entrypoint ---
+
+export fn main(): Task<Unit, String> => {
+  println("==================================================================");
+  println("🚀 Aura Lang: Advanced CSP Worker Pool & Interface Pipeline Demo");
+  println("==================================================================");
+
+  let jobsCh: Channel<TaskItem> = Channel.make<TaskItem>(10);
+  let resultsCh: Channel<TaskResult> = Channel.make<TaskResult>(10);
+  let cancelCh: Channel<String> = Channel.make<String>(1);
+  let wg = WaitGroup.new();
+
+  // 1. Spawning 3 concurrent workers
+  let numWorkers = 3;
+  let mut w = 1;
+  while w <= numWorkers {
+    wg.add(1);
+    let wid = w;
+    spawn {
+      runWorker(wid, jobsCh, resultsCh, wg);
+    };
+    w = w + 1;
+  }
+
+  // 2. Prepare slice of tasks
+  let tasks: []TaskItem = [
+  {id: 101, priority: High, payload: EmailNotification("dev@aura-lang.org", "Release 1.0"), retries: 0},
+  {id: 102, priority: Critical, payload: DatabaseSync(42, "user_transactions"), retries: 0},
+  {id: 103, priority: Low, payload: ImageResize("banner.png", 1920, 1080), retries: 0},
+  {id: 104, priority: Normal, payload: HealthCheck, retries: 0},
+  {id: 105, priority: High, payload: ImageResize("invalid.png", - 10, 0), retries: 0}
+  ];
+
+  println(`\nEnqueuing ${len(tasks)} tasks into channel...`);
+  for item in tasks {
+    jobsCh <- item;
+  }
+
+  // Close task channel to let workers finish
+  Channel.close(jobsCh);
+
+  // 3. Sub-slicing demonstration
+  let highPrioritySlice = tasks[0: 2];
+  println(`Inspecting first 2 high priority tasks: len=${len(highPrioritySlice)}`);
+
+  // 4. Multiplexed Results Collection with Select
+  println("\nCollecting worker results...");
+  let mut collected = 0;
+  let totalTasks = len(tasks);
+
+  while collected<totalTasks {
+    select {
+      case res = <-resultsCh => match res {
+        Some(r) => {
+          let status = if r.success {"SUCCESS"}else {"FAILED"};
+          let audit = r.taskId |> tagProcessed;
+          println(`[Collector] Task #${r.taskId} -> ${status} (${r.message}) | Worker: ${r.workerId} | Audit: ${audit}`);
+          collected = collected + 1;
+        },
+        None => {
+          println("[Collector] Results channel closed.");
+          collected = totalTasks;
+        }
+      },
+      case reason = <-cancelCh => match reason {
+        Some(msg) => println(`[Collector] Cancellation requested: ${msg}`),
+        None => println("[Collector] Cancel channel closed.")
+      },
+      default => ()
+    }
+  }
+
+  println("\nWaiting for all workers to finish cleanup...");
+  wg.wait();
+  Channel.close(resultsCh);
+
+  println("✨ Pipeline completed successfully!");
+}

@@ -1,0 +1,256 @@
+// ==============================================================================
+// Aura Language: Financial Ledger & Transaction Engine
+// ==============================================================================
+// Advanced Features demonstrated:
+// 1. errdefer & defer: Transactional rollbacks and deterministic cleanup
+// 2. Struct with Receiver Methods & Mutability (*Receiver)
+// 3. Option<T> & Result<T, E> with '?' propagation operator
+// 4. Tail-Call Optimization (TCO) for recursive ledger auditing
+// 5. Algebraic Data Types (Sum Types) with rich payload variants
+// 6. Pipeline Operator (|>) for audit hashing and transformation
+// 7. Go-Style Slices ([]T) with appending and range iteration
+// ==============================================================================
+
+// --- 1. Domain Types & Sum Types ---
+
+export type Currency =
+| USD
+| EUR
+| GBP
+| JPY;
+
+export type TransactionKind =
+| Deposit(Float)
+| Withdrawal(Float)
+| Transfer(String, Float)// targetAccount, amount
+| FeeAdjustment(Float, String);// fee, reason
+
+export type TxStatus =
+| Pending
+| Settled(String)// referenceId
+| Rejected(String);
+
+export struct TransactionRecord {
+  id: String,
+  timestampMs: Int,
+  kind: TransactionKind,
+  status: TxStatus
+};
+
+export struct LedgerAccount {
+  accountNumber: String,
+  owner: String,
+  currency: Currency,
+  balance: Float,
+  history: []TransactionRecord,
+  isLocked: Bool
+};
+
+// --- 2. String & Hash formatting helpers for Pipeline (|>) ---
+
+fn currencySymbol(c: Currency): String => {
+  match c {
+    USD => "$",
+    EUR => "€",
+    GBP => "£",
+    JPY => "¥"
+  }
+}
+
+fn formatChecksum(txId: String): String => {
+  `HASH[SHA256:${txId}:AUDITED]`
+}
+
+fn describeKind(k: TransactionKind): String => {
+  match k {
+    Deposit(amt) => `DEPOSIT +${amt}`,
+    Withdrawal(amt) => `WITHDRAWAL -${amt}`,
+    Transfer(dest, amt) => `TRANSFER -> ${dest} ($${amt})`,
+    FeeAdjustment(fee, rsn) => `FEE -${fee} (${rsn})`
+  }
+}
+
+// --- 3. Receiver Methods on LedgerAccount ---
+
+// Balance check
+fn(acc: * LedgerAccount)CanAfford(amount: Float): Bool => {
+  acc.balance >= amount
+}
+
+// Low-level atomic mutation protected by defer / errdefer
+fn(acc: * LedgerAccount)ApplyTransaction(
+txId: String,
+kind: TransactionKind,
+timestamp: Int
+): Result<Float, String> => {
+  println(`\n[Ledger Tx] Initiating transaction '${txId}' on account ${acc.accountNumber}...`);
+
+  // Defer is ALWAYS executed at exit
+  defer {
+    println(`[Ledger Tx:Defer] Transaction audit check completed. Final balance: $${acc.balance}`);
+  };
+
+  // errdefer triggers ONLY when an Err(...) is returned
+  errdefer {
+    println(`[Ledger Tx:ErrDefer] ⚠️ TRANSACTION REVERTED! No state changed for '${txId}'.`);
+  };
+
+  if acc.isLocked {
+    return Err("Account is currently frozen by compliance");
+  }
+
+  // Evaluate transaction rules
+  match kind {
+    Deposit(amount) => {
+      if amount <= 0.0 {
+        return Err("Deposit amount must be strictly positive");
+      }
+      acc.balance = acc.balance + amount;
+      let record: TransactionRecord = {
+        id: txId,
+        timestampMs: timestamp,
+        kind: kind,
+        status: Settled(`DEP-REF-${txId}`)
+      };
+      acc.history = append(acc.history, record);
+      Ok(acc.balance)
+    },
+    Withdrawal(amount) => {
+      if amount <= 0.0 {
+        return Err("Withdrawal amount must be greater than zero");
+      }
+      if (!acc.CanAfford(amount)) {
+        return Err(`Insufficient balance: available $${acc.balance}, requested $${amount}`);
+      }
+      acc.balance = acc.balance - amount;
+      let record: TransactionRecord = {
+        id: txId,
+        timestampMs: timestamp,
+        kind: kind,
+        status: Settled(`WTH-REF-${txId}`)
+      };
+      acc.history = append(acc.history, record);
+      Ok(acc.balance)
+    },
+    Transfer(targetAccount, amount) => {
+      if amount <= 0.0 {
+        return Err("Transfer amount must be strictly positive");
+      }
+      if (!acc.CanAfford(amount)) {
+        return Err(`Insufficient funds to transfer $${amount} to ${targetAccount}`);
+      }
+      acc.balance = acc.balance - amount;
+      let record: TransactionRecord = {
+        id: txId,
+        timestampMs: timestamp,
+        kind: kind,
+        status: Settled(`TRF-REF-${txId}`)
+      };
+      acc.history = append(acc.history, record);
+      println(`  Transferred $${amount} to remote account [${targetAccount}]`);
+      Ok(acc.balance)
+    },
+    FeeAdjustment(fee, reason) => {
+      if fee<0.0 {
+        return Err("Fee cannot be negative");
+      }
+      acc.balance = acc.balance - fee;
+      let record: TransactionRecord = {
+        id: txId,
+        timestampMs: timestamp,
+        kind: kind,
+        status: Settled(`FEE-REF-${txId}`)
+      };
+      acc.history = append(acc.history, record);
+      println(`  Applied maintenance fee for: ${reason}`);
+      Ok(acc.balance)
+    }
+  }
+}
+
+// --- 4. Tail-Call Optimization (TCO) Recursive Audit ---
+
+fn auditTransactionsRecursive(records: []TransactionRecord, index: Int, totalVolume: Float): Float => {
+  if index >= len(records) {
+    return totalVolume;
+  }
+
+  let tx = records[index];
+  let amt = match tx.kind {
+    Deposit(v) => v,
+    Withdrawal(v) => v,
+    Transfer(_, v) => v,
+    FeeAdjustment(v, _) => v
+  };
+
+  // Tail-call recursion
+  auditTransactionsRecursive(records, index + 1, totalVolume + amt)
+}
+
+// --- 5. Main Entrypoint ---
+
+export fn main(): Unit => {
+  println("==================================================================");
+  println("💳 Aura Lang: High-Assurance Financial Ledger & Transaction Engine");
+  println("==================================================================");
+
+  let initialHistory: []TransactionRecord = [];
+
+  let mut account: LedgerAccount = {
+    accountNumber: "US-992-817203",
+    owner: "Elena Rostova",
+    currency: USD,
+    balance: 500.0,
+    history: initialHistory,
+    isLocked: false
+  };
+
+  println(`Account holder: ${account.owner} | Balance: ${currencySymbol(account.currency)}${account.balance}`);
+
+  // Test successful transactions
+  let res1 = account.ApplyTransaction("TX-1001", Deposit(350.0), 1700000001);
+  match res1 {
+    Ok(b) => println(`✓ Success! New Balance: $${b}`),
+    Err(e) => println(`✗ Error: ${e}`)
+  }
+
+  let res2 = account.ApplyTransaction("TX-1002", Transfer("DE-881-9921", 200.0), 1700000002);
+  match res2 {
+    Ok(b) => println(`✓ Success! New Balance: $${b}`),
+    Err(e) => println(`✗ Error: ${e}`)
+  }
+
+  let res3 = account.ApplyTransaction("TX-1003", FeeAdjustment(15.0, "Monthly Service Charge"), 1700000003);
+  match res3 {
+    Ok(b) => println(`✓ Success! New Balance: $${b}`),
+    Err(e) => println(`✗ Error: ${e}`)
+  }
+
+  // Test failure triggering errdefer
+  println("\n--- Testing Rollback with Insufficient Balance ---");
+  let resFail = account.ApplyTransaction("TX-1004", Withdrawal(50000.0), 1700000004);
+  match resFail {
+    Ok(b) => println(`✓ Success! New Balance: $${b}`),
+    Err(e) => println(`✗ Handled Expected Error: ${e}`)
+  }
+
+  // TCO Recursive Audit calculation
+  println("\n--- Audit & Pipeline Verification ---");
+  let totalVolume = auditTransactionsRecursive(account.history, 0, 0.0);
+  println(`TCO Audited Total Transaction Volume: $${totalVolume}`);
+
+  // Slices & Pipeline demonstration
+  println(`\nInspecting ${len(account.history)} committed transaction records:`);
+  for item in account.history {
+    let auditHash = item.id |> formatChecksum;
+    println(`  • [${item.id}] ${describeKind(item.kind)} | Hash: ${auditHash}`);
+  }
+
+  // Sub-slice verification
+  if len(account.history) >= 2 {
+    let firstTwo = account.history[0: 2];
+    println(`\nSub-slice [0:2] verified with ${len(firstTwo)} records.`);
+  }
+
+  println("\n✨ Ledger verification and lifecycle completed successfully!");
+}
