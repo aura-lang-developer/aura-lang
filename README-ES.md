@@ -2064,6 +2064,21 @@ cargo test --test bootstrap_tests -- --test-threads=1
 
 Aura v0.8.1 incorpora mejoras críticas de seguridad y blindaje en profundidad a lo largo del compilador, el comprobador de tipos, el recolector de basura y el runtime nativo:
 
+### Vectores de Riesgo Evaluados y Resultados
+
+| Vector de Riesgo | Riesgo Potencial | Mecanismo de Defensa en Aura | Estado |
+| :--- | :--- | :--- | :--- |
+| **Data Races / Raw Pointer Captures** | Corrupción de memoria e inconsistencia en hilos | **Error `[E0401]`**: El typechecker rechaza en tiempo de compilación capturar punteros raw (`*T`) dentro de `spawn` o enviarlos a través de canales CSP. | 🟢 **Protegido** |
+| **Pattern Match Incompleto** | Panics en runtime o ramas no controladas | **Match Exhaustiveness**: Obliga a cubrir todas las variantes de `Option<T>`, `Result<T, E>` y Sum Types, o usar wildcard `_`. | 🟢 **Protegido** |
+| **Stack Overflow por Recursión** | Agotamiento del Call Stack en algoritmos recursivos | **TCO (Tail-Call Optimization)**: Convierte automáticamente llamadas recursivas en bucles iterativos `while (true)` con costo de pila $O(1)$. | 🟢 **Protegido** |
+| **Timing Attacks en Criptografía** | Filtración de tokens y claves por tiempo de respuesta | Codegen protegido con `crypto.timingSafeEqual` (JS/Node) y `hmac.Equal` (Go). | 🟢 **Protegido** |
+| **Fuga de Recursos / Transacciones Fallidas** | Bloqueo de descriptores y estados corruptos | **`defer` LIFO & `errdefer`**: Limpieza determinística garantizada y rollback automático en retornos `Err`. | 🟢 **Protegido** |
+| **DoS por Profundidad JSON (JSON Bomb)** | Desbordamiento de pila por payloads anidados | `MAX_JSON_DEPTH = 64` enforced en runtime (`crates/aura-runtime/src/json.rs`). | 🟢 **Protegido** |
+| **Fiber Buffer Overflow** | Corrupción del heap en fibras concurrentes | **Stack Canaries**: `verify_canary()` en el runtime para detectar sobreescrituras en las pilas de las fibras antes del reciclaje. | 🟢 **Protegido** |
+| **Channel Saturation & Leaks** | Bloqueo de goroutines/fibras por canales huérfanos | Canales CSP drenan búfer remanente y emiten `None` de forma segura tras cierre. | 🟢 **Protegido** |
+
+### Matriz Detallada de Mitigaciones por Subsistema
+
 | Subsistema / Capa | Vulnerabilidad Abordada | Mitigación y Blindaje Implementado |
 |---|---|---|
 | **Comprobador de Tipos** | Falta de exhaustividad en `match` | Validación estricta en tiempo de compilación para `Option<T>`, `Result<T, E>` y tipos algebraicos (ADTs de registro y tupla). Elimina cuelgues por ramas no controladas. |

@@ -2065,6 +2065,21 @@ cargo test --test bootstrap_tests -- --test-threads=1
 
 Aura v0.8.1 introduces extensive defense-in-depth security hardening across the compiler, typechecker, garbage collector, and native standard runtime:
 
+### Evaluated Risk Vectors and Results / Vectores de Riesgo Evaluados y Resultados
+
+| Risk Vector / Vector de Riesgo | Potential Risk / Riesgo Potencial | Aura Defense Mechanism / Mecanismo de Defensa en Aura | Status / Estado |
+| :--- | :--- | :--- | :--- |
+| **Data Races / Raw Pointer Captures** | Memory corruption and thread inconsistency | **Error `[E0401]`**: Typechecker rejects capturing raw pointers (`*T`) inside `spawn` closures or sending them across CSP channels at compile time. | 🟢 **Protected** |
+| **Incomplete Pattern Matching** | Runtime panics or unhandled execution branches | **Match Exhaustiveness**: Enforces complete branch coverage on `Option<T>`, `Result<T, E>`, and Sum Types, or explicit wildcard `_`. | 🟢 **Protected** |
+| **Recursion Stack Overflow** | Call stack exhaustion in recursive algorithms | **TCO (Tail-Call Optimization)**: Automatically converts recursive calls into zero-overhead iterative `while (true)` loops with $O(1)$ stack cost. | 🟢 **Protected** |
+| **Cryptographic Timing Attacks** | Token / key leakage through side-channel latency | Codegen protected with `crypto.timingSafeEqual` (JS/Node) and `hmac.Equal` (Go) for constant-time comparisons. | 🟢 **Protected** |
+| **Resource Leaks / Failed Transactions** | Descriptor starvation and corrupted application state | **LIFO `defer` & `errdefer`**: Guaranteed deterministic cleanup and automatic transactional rollback upon returning `Err`. | 🟢 **Protected** |
+| **JSON Depth DoS (JSON Bomb)** | Recursive call stack overflow via deeply nested payloads | Runtime enforcement of `MAX_JSON_DEPTH = 64` across parser entrypoints (`crates/aura-runtime/src/json.rs`). | 🟢 **Protected** |
+| **Fiber Buffer Overflow** | Fiber heap corruption under deep execution frames | **Stack Canaries**: `verify_canary()` in runtime detects stack buffer tampering before recycling fiber memory. | 🟢 **Protected** |
+| **Channel Saturation & Leaks** | Fiber deadlocks from orphaned or full CSP channels | CSP channels safely drain buffered items and emit clean `None` EOF values upon `Channel.close()`. | 🟢 **Protected** |
+
+### Detailed Subsystem Hardening Matrix
+
 | Subsystem / Layer | Vulnerability Addressed | Hardening & Mitigation Implemented |
 |---|---|---|
 | **Type Checker** | Incomplete pattern match exhaustiveness | Strict compile-time validation for `Option<T>`, `Result<T, E>`, and custom ADT sum types (record & tuple variants). Eliminates unhandled branch crashes. |
