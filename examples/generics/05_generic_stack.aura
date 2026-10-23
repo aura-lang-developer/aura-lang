@@ -1,0 +1,52 @@
+// ==============================================================================
+// 5. Generic Stack Data Structure
+// ==============================================================================
+// Demonstrates:
+// - Building a generic Stack ADT supporting polymorphic push/pop semantics
+// - Recursive traversal and depth counting over generic recursive types
+// - Operating on Stack<Int>, Stack<String>, etc.
+// ==============================================================================
+
+export type Stack<ElemType> =
+| EmptyStack
+| StackNode(ElemType, Stack<ElemType>);
+
+fn push<ElemType>(s: Stack<ElemType>, item: ElemType): Stack<ElemType> => {
+  StackNode(item, s)
+}
+
+fn depth<ElemType>(s: Stack<ElemType>, acc: Int = 0): Int => {
+  match s {
+    EmptyStack => acc,
+    StackNode(_, rest) => depth<ElemType>(rest, acc + 1)
+  }
+}
+
+export fn main(): Unit => {
+  println("--- 5. Generic Stack Data Structure ---");
+
+  // Stack of Integers
+  let mut intStack: Stack<Int> = EmptyStack;
+  intStack = push<Int>(intStack, 10);
+  intStack = push<Int>(intStack, 20);
+  intStack = push<Int>(intStack, 30);
+
+  println(`Int stack depth: ${depth<Int>(intStack, 0)}`);
+
+  match intStack {
+    StackNode(top, _) => println(`Top of int stack: ${top}`),
+    EmptyStack => println("Stack empty")
+  }
+
+  // Stack of Strings
+  let mut strStack: Stack<String> = EmptyStack;
+  strStack = push<String>(strStack, "Layer 1");
+  strStack = push<String>(strStack, "Layer 2");
+
+  println(`String stack depth: ${depth<String>(strStack, 0)}`);
+
+  match strStack {
+    StackNode(top, _) => println(`Top of string stack: ${top}`),
+    EmptyStack => println("Stack empty")
+  }
+}

@@ -1,0 +1,41 @@
+// ==============================================================================
+// 6. Generic Optional State & Option Extensions
+// ==============================================================================
+// Demonstrates:
+// - Creating a custom generic OptionalState<ItemType>
+// - Checking present state vs absent state
+// - Transforming contents with fallback defaults
+// ==============================================================================
+
+export type OptionalState<ItemType> =
+| Absent
+| Present(ItemType);
+
+fn getOrElse<ItemType>(state: OptionalState<ItemType>, defaultVal: ItemType): ItemType => {
+  match state {
+    Present(v) => v,
+    Absent => defaultVal
+  }
+}
+
+fn contains<ItemType>(state: OptionalState<ItemType>): Bool => {
+  match state {
+    Present(_) => true,
+    Absent => false
+  }
+}
+
+export fn main(): Unit => {
+  println("--- 6. Generic Optional State Demo ---");
+
+  let configuredPort: OptionalState<Int> = Present(8080);
+  let unsetHost: OptionalState<String> = Absent;
+
+  println(`configuredPort has value? ${contains<Int>(configuredPort)}`);
+  println(`unsetHost has value? ${contains<String>(unsetHost)}`);
+
+  let activePort = getOrElse<Int>(configuredPort, 3000);
+  let activeHost = getOrElse<String>(unsetHost, "127.0.0.1");
+
+  println(`Active Server Address: ${activeHost}:${activePort}`);
+}

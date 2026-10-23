@@ -1,0 +1,51 @@
+// ==============================================================================
+// 9. Generic Concurrency with Typed Channels & Fibers
+// ==============================================================================
+// Demonstrates:
+// - Declaring generic message envelope ADT: type Envelope<PayloadType>
+// - Creating typed Go-style channels: Channel.make<Envelope<DataType>>()
+// - Spawning fibers that produce and consume generic envelopes
+// ==============================================================================
+
+export type Message<DataType> =
+| Data(DataType)
+| EndOfStream;
+
+fn sendData<DataType>(ch: SendChannel<Message<DataType>>, item: DataType): Bool => {
+  ch <- Data(item)
+}
+
+export fn main(): Task<Unit, String> => {
+  println("--- 9. Generic CSP Concurrency Demo ---");
+
+  let ch: Channel<Message<String>> = Channel.make<Message<String>>(5);
+
+  // Spawn producer fiber sending generic messages
+  spawn {
+    sendData<String>(ch, "Initial generic handshake");
+    sendData<String>(ch, "Processing data chunk #1");
+    sendData<String>(ch, "Processing data chunk #2");
+    ch <- EndOfStream;
+  };
+
+  // Consume in main fiber
+  let mut keepReading = true;
+  while keepReading {
+    let msg = <-ch;
+    match msg {
+      Some(envelope) => match envelope {
+        Data(payload) => println(`[Fiber Consumer] Received payload: "${payload}"`),
+        EndOfStream => {
+          println("[Fiber Consumer] Received EndOfStream marker. Exiting.");
+          keepReading = false;
+        }
+      },
+      None => {
+        keepReading = false;
+      }
+    }
+  }
+
+  Channel.close(ch);
+  println("✓ Generic CSP Channel pipeline finished.");
+}

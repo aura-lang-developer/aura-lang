@@ -1,0 +1,54 @@
+// ==============================================================================
+// 7. Generic Binary Search Tree (BST)
+// ==============================================================================
+// Demonstrates:
+// - Recursive generic tree structures: Tree<ValType>
+// - Building and traversing hierarchical generic nodes
+// - Tree size and node verification
+// ==============================================================================
+
+export type Tree<ValType> =
+| Leaf
+| Node(ValType, Tree<ValType>, Tree<ValType>);
+
+fn makeLeaf<ValType>(): Tree<ValType> => {
+  Leaf
+}
+
+fn makeNode<ValType>(val: ValType, left: Tree<ValType>, right: Tree<ValType>): Tree<ValType> => {
+  Node(val, left, right)
+}
+
+fn treeSize<ValType>(t: Tree<ValType>): Int => {
+  match t {
+    Leaf => 0,
+    Node(_, left, right) => 1 + treeSize<ValType>(left) + treeSize<ValType>(right)
+  }
+}
+
+export fn main(): Unit => {
+  println("--- 7. Generic Binary Tree Demo ---");
+
+  // Numeric Tree
+  let numTree: Tree<Int> = makeNode<Int>(
+  50,
+  makeNode<Int>(25, Leaf, Leaf),
+  makeNode<Int>(75, Leaf, makeNode<Int>(100, Leaf, Leaf))
+  );
+
+  println(`Numeric tree total nodes: ${treeSize<Int>(numTree)}`);
+
+  // String Taxonomy Tree
+  let orgTree: Tree<String> = makeNode<String>(
+  "Root",
+  makeNode<String>("Engineering", Leaf, Leaf),
+  makeNode<String>("Operations", Leaf, Leaf)
+  );
+
+  println(`Org tree total nodes: ${treeSize<String>(orgTree)}`);
+
+  match orgTree {
+    Node(rootName, _, _) => println(`Tree root category: ${rootName}`),
+    Leaf => ()
+  }
+}

@@ -1,0 +1,45 @@
+// ==============================================================================
+// 8. Generic Pipeline & Transformation Functions
+// ==============================================================================
+// Demonstrates:
+// - Defining generic transformation pipeline wrappers
+// - Chaining polymorphic operations with the pipeline operator (|>)
+// - Multi-stage generic data flow
+// ==============================================================================
+
+fn wrapWithTag<ItemType>(item: ItemType, prefix: String): String => {
+  `[${prefix}] ${item}`
+}
+
+fn duplicate<ElemType>(item: ElemType): List<ElemType> => {
+  [item, item]
+}
+
+fn inspectStep<ValType>(val: ValType, stepName: String): ValType => {
+  println(`Step "${stepName}" processed`);
+  val
+}
+
+export fn main(): Unit => {
+  println("--- 8. Generic Pipeline Transformations Demo ---");
+
+  // Transforming integer through pipeline
+  let rawScore = 450;
+  let scoreMsg = rawScore
+  |> inspectStep<Int>("Score Validation")
+  |> wrapWithTag<Int>("VERIFIED_SCORE");
+
+  println(`Pipeline output 1: ${scoreMsg}`);
+
+  // Transforming string through pipeline
+  let username = "alex_dev";
+  let userTag = username
+  |> inspectStep<String>("Sanitize Username")
+  |> wrapWithTag<String>("USER_HANDLE");
+
+  println(`Pipeline output 2: ${userTag}`);
+
+  // Generic list duplication
+  let pair = duplicate<String>("Aura");
+  println(`Duplicated list elements count: ${len(pair)}`);
+}

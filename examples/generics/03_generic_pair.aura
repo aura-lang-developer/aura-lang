@@ -1,0 +1,42 @@
+// ==============================================================================
+// 3. Generic Pair & Tuple Structures
+// ==============================================================================
+// Demonstrates:
+// - Multi-parameter generic sum type: type KeyValuePair<KeyType, ValType>
+// - Generic mapping functions across pairs
+// - Destructuring and swapping values between generic fields
+// ==============================================================================
+
+export type KeyValuePair<KeyType, ValType> =
+| Pair(KeyType, ValType);
+
+fn makePair<KeyType, ValType>(k: KeyType, v: ValType): KeyValuePair<KeyType, ValType> => {
+  Pair(k, v)
+}
+
+fn swapPair<TypeA, TypeB>(p: KeyValuePair<TypeA, TypeB>): KeyValuePair<TypeB, TypeA> => {
+  match p {
+    Pair(a, b) => Pair(b, a)
+  }
+}
+
+export fn main(): Unit => {
+  println("--- 3. Generic Multi-Parameter Pair Demo ---");
+
+  let userPair: KeyValuePair<String, Int> = makePair<String, Int>("admin", 1001);
+
+  match userPair {
+    Pair(k, v) => println(`Original Pair -> Key: ${k}, Val: ${v}`)
+  }
+
+  let swappedPair: KeyValuePair<Int, String> = swapPair<String, Int>(userPair);
+
+  match swappedPair {
+    Pair(k, v) => println(`Swapped Pair  -> Key: ${k}, Val: ${v}`)
+  }
+
+  let coordPair: KeyValuePair<Float, Float> = makePair<Float, Float>(19.4326, - 99.1332);
+  match coordPair {
+    Pair(lat, lng) => println(`Coordinates   -> Lat: ${lat}, Lng: ${lng}`)
+  }
+}

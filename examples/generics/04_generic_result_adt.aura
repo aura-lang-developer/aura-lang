@@ -1,0 +1,57 @@
+// ==============================================================================
+// 4. Custom Generic Result/Outcome Pattern
+// ==============================================================================
+// Demonstrates:
+// - Building a domain-specific Outcome<SuccType, ErrType> sum type
+// - Generic helper functions: unwrapOr, isSuccess, mapSuccess
+// - Functional composition over generic outcomes
+// ==============================================================================
+
+export type Outcome<SuccType, ErrType> =
+| Success(SuccType)
+| Failure(ErrType);
+
+fn unwrapOr<SuccType, ErrType>(outcome: Outcome<SuccType, ErrType>, fallback: SuccType): SuccType => {
+  match outcome {
+    Success(val) => val,
+    Failure(_) => fallback
+  }
+}
+
+fn isSuccess<SuccType, ErrType>(outcome: Outcome<SuccType, ErrType>): Bool => {
+  match outcome {
+    Success(_) => true,
+    Failure(_) => false
+  }
+}
+
+fn divideSafe(numerator: Int, denominator: Int): Outcome<Int, String> => {
+  if denominator == 0 {
+    Failure("Division by zero error")
+  }else {
+    Success(numerator / denominator)
+  }
+}
+
+export fn main(): Unit => {
+  println("--- 4. Custom Generic Outcome Pattern ---");
+
+  let res1 = divideSafe(100, 5);
+  let res2 = divideSafe(100, 0);
+
+  println(`divideSafe(100, 5) success? ${isSuccess<Int, String>(res1)}`);
+  println(`divideSafe(100, 0) success? ${isSuccess<Int, String>(res2)}`);
+
+  let val1 = unwrapOr<Int, String>(res1, - 1);
+  let val2 = unwrapOr<Int, String>(res2, - 1);
+
+  println(`Result 1 unwrapped: ${val1}`);
+  println(`Result 2 unwrapped with default: ${val2}`);
+
+  // Using Outcome with different payload types
+  let textOutcome: Outcome<String, Int> = Success("Operation successful!");
+  let errorOutcome: Outcome<String, Int> = Failure(404);
+
+  println(`textOutcome: ${unwrapOr<String, Int>(textOutcome, "empty")}`);
+  println(`errorOutcome: ${unwrapOr<String, Int>(errorOutcome, "fallback on error")}`);
+}

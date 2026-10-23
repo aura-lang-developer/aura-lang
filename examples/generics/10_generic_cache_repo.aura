@@ -1,0 +1,56 @@
+// ==============================================================================
+// 10. Generic Cache & Key-Value Repository
+// ==============================================================================
+// Demonstrates:
+// - Building a generic cache entry sum type: Entry<ValType>
+// - Expiration state and payload handling
+// - Generic Lookup / Cache hit vs miss resolution
+// ==============================================================================
+
+export type CacheEntry<ValType> =
+| CacheMiss
+| Fresh(ValType, Int)// value, timestamp
+| Expired(ValType);
+
+fn createFreshEntry<ValType>(val: ValType, ts: Int): CacheEntry<ValType> => {
+  Fresh(val, ts)
+}
+
+fn resolveEntry<ValType>(entry: CacheEntry<ValType>, fallback: ValType): ValType => {
+  match entry {
+    Fresh(v, _) => v,
+    Expired(stale) => stale,
+    CacheMiss => fallback
+  }
+}
+
+fn isFresh<ValType>(entry: CacheEntry<ValType>): Bool => {
+  match entry {
+    Fresh(_, _) => true,
+    _ => false
+  }
+}
+
+export fn main(): Unit => {
+  println("--- 10. Generic Cache & Repository Demo ---");
+
+  // Cache entry storing string session tokens
+  let sessionCache: CacheEntry<String> = createFreshEntry<String>("sess_token_99812", 1700000);
+  println(`Session is fresh? ${isFresh<String>(sessionCache)}`);
+  let session = resolveEntry<String>(sessionCache, "anonymous");
+  println(`Resolved session token: ${session}`);
+
+  // Cache entry storing integer counters
+  let countCache: CacheEntry<Int> = CacheMiss;
+  println(`Counter cache is fresh? ${isFresh<Int>(countCache)}`);
+  let activeUsers = resolveEntry<Int>(countCache, 0);
+  println(`Resolved active users count (fallback on miss): ${activeUsers}`);
+
+  // Stale expired cache
+  let stalePrice: CacheEntry<Float> = Expired(199.99);
+  println(`Stale price is fresh? ${isFresh<Float>(stalePrice)}`);
+  let price = resolveEntry<Float>(stalePrice, 0.0);
+  println(`Resolved stale fallback price: $${price}`);
+
+  println("✓ Generic Cache repository completed successfully.");
+}

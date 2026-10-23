@@ -1,0 +1,45 @@
+// ==============================================================================
+// 2. Generic Container Types (Box & Wrapper)
+// ==============================================================================
+// Demonstrates:
+// - Defining generic single-variant ADT containers: type Box<T> = BoxVal(T)
+// - Generic constructor wrapping
+// - Pattern matching to extract enclosed values safely
+// ==============================================================================
+
+export type Container<ItemType> =
+| Empty
+| Full(ItemType);
+
+fn createBox<ItemType>(val: ItemType): Container<ItemType> => {
+  Full(val)
+}
+
+fn describeContainer<ItemType>(c: Container<ItemType>, fallbackStr: String): String => {
+  match c {
+    Full(_) => "Container is Full",
+    Empty => `Container is Empty (${fallbackStr})`
+  }
+}
+
+export fn main(): Unit => {
+  println("--- 2. Generic Containers (Box/Wrapper) ---");
+
+  let intBox: Container<Int> = createBox<Int>(42);
+  let strBox: Container<String> = createBox<String>("Config payload");
+  let emptyBox: Container<Float> = Empty;
+
+  println(`intBox status: ${describeContainer<Int>(intBox, "no int")}`);
+  println(`strBox status: ${describeContainer<String>(strBox, "no str")}`);
+  println(`emptyBox status: ${describeContainer<Float>(emptyBox, "float unassigned")}`);
+
+  match intBox {
+    Full(num) => println(`Extracted int: ${num}`),
+    Empty => ()
+  }
+
+  match strBox {
+    Full(txt) => println(`Extracted text: ${txt}`),
+    Empty => ()
+  }
+}

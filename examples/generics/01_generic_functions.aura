@@ -1,0 +1,32 @@
+// ==============================================================================
+// 1. Generic Functions & Identity Invariants
+// ==============================================================================
+// Demonstrates:
+// - Declaring generic type parameters <ValType> on top-level functions
+// - Polymorphic parameter and return types
+// - Calling generic functions with multiple distinct concrete types
+// ==============================================================================
+
+fn identity<ValType>(value: ValType): ValType => {
+  value
+}
+
+fn logAndReturn<ValType>(label: String, item: ValType): ValType => {
+  println(`[Inspect: ${label}]`);
+  item
+}
+
+export fn main(): Unit => {
+  println("--- 1. Generic Functions Demo ---");
+
+  let intVal: Int = identity<Int>(12345);
+  let strVal: String = identity<String>("Aura polymorphic string");
+  let boolVal: Bool = identity<Bool>(true);
+
+  println(`identity(Int): ${intVal}`);
+  println(`identity(String): ${strVal}`);
+  println(`identity(Bool): ${boolVal}`);
+
+  let auditedNumber = logAndReturn<Int>("User ID", 90210);
+  println(`Audited value: ${auditedNumber}`);
+}
