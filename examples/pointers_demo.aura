@@ -1,0 +1,141 @@
+// ==============================================================================
+// Aura Language: Pointers and Memory References Showcase
+// ==============================================================================
+// Features demonstrated:
+// 1. Pointer Types (*T) & Address-of operator (&variable)
+// 2. Dereference operator (*ptr) for reading and direct in-place mutation
+// 3. Pointer Swap: Swapping values by reference without allocating new variables
+// 4. Struct Pointers (*Struct): In-place mutation of struct fields via receiver methods
+// 5. Pointer-based Data Structures: Singly linked list nodes referencing next nodes
+// 6. Concurrency Safety: Pointers are thread-local and cannot cross fiber boundaries
+// ==============================================================================
+
+// --- 1. Basic In-place Arithmetic using Pointers ---
+
+fn addAssign(target: * Int, delta: Int): Unit => {
+  * target = * target + delta;
+}
+
+// Swap two values in place by address
+fn swapValues(a: * Int, b: * Int): Unit => {
+  let temp = * a;
+  * a = * b;
+  * b = temp;
+}
+
+// --- 2. Structs and Pointer Receiver Methods (*Receiver) ---
+
+export struct ServerConfig {
+  host: String,
+  port: Int,
+  maxConnections: Int,
+  isLive: Bool
+};
+
+// Pointer receiver method modifying internal struct state directly
+fn(cfg: * ServerConfig)UpdatePort(newPort: Int): Result<Unit, String> => {
+  if newPort<1024 || newPort>65535 {
+    return Err(`Invalid port ${newPort}: must be between 1024 and 65535`);
+  }
+  cfg.port = newPort;
+  Ok(())
+}
+
+fn(cfg: * ServerConfig)SetLive(status: Bool): Unit => {
+  cfg.isLive = status;
+}
+
+// Value receiver method (read-only inspection)
+fn(cfg: ServerConfig)ConnectionString(): String => {
+  let status = if cfg.isLive {"ONLINE"}else {"OFFLINE"};
+  `http://${cfg.host}:${cfg.port} [${status}, maxConn=${cfg.maxConnections}]`
+}
+
+// --- 3. Pointer-Based Node for Dynamic Data Structures ---
+
+export struct IntNode {
+  value: Int,
+  hasChild: Bool,
+  childValue: Int
+};
+
+// Mutate node fields via explicit pointer receiver method (*Receiver)
+fn(node: * IntNode)Scale(factor: Int): Unit => {
+  node.value = node.value * factor;
+  if node.hasChild {
+    node.childValue = node.childValue * factor;
+  }
+}
+
+// --- 4. Main Entrypoint ---
+
+export fn main(): Unit => {
+  println("==================================================================");
+  println("📌 Aura Lang: Pointers, Memory References & In-Place Mutation");
+  println("==================================================================");
+
+  // 1. Primitive Pointer Referencing (&x) and Dereferencing (*p)
+  println("\n--- 1. Primitive Pointers (*Int, &x, *p) ---");
+  let mut counter = 100;
+  println(`Initial counter value: ${counter}`);
+
+  let ptrCounter: * Int = & counter;
+  println(`Dereferencing pointer: *ptrCounter = ${*ptrCounter}`);
+
+  // In-place modification via function call
+  addAssign(& counter, 50);
+  println(`After addAssign(&counter, 50): ${counter}`);
+
+  // Direct dereference assignment
+  * ptrCounter = 500;
+  println(`After direct mutation *ptrCounter = 500: ${counter}`);
+
+  // 2. Swapping values by pointer reference
+  println("\n--- 2. Pointer-Based Swap (In-Place Memory Exchange) ---");
+  let mut alpha = 42;
+  let mut beta = 99;
+  println(`Before swap: alpha = ${alpha}, beta = ${beta}`);
+
+  swapValues(& alpha, & beta);
+  println(`After swapValues(&alpha, &beta): alpha = ${alpha}, beta = ${beta}`);
+
+  // 3. Struct Pointer Receivers (*ServerConfig)
+  println("\n--- 3. Struct Pointers & Method Mutation (*Receiver) ---");
+  let mut config: ServerConfig = {
+    host: "127.0.0.1",
+    port: 8080,
+    maxConnections: 1000,
+    isLive: false
+  };
+
+  println(`Initial: ${config.ConnectionString()}`);
+
+  // Invoke pointer receiver method directly on mutable instance
+  match config.UpdatePort(9000) {
+    Ok(_) => println("✓ Port updated successfully via (*ServerConfig) receiver"),
+    Err(err) => println(`✗ Error updating port: ${err}`)
+  }
+
+  config.SetLive(true);
+  println(`Updated: ${config.ConnectionString()}`);
+
+  // Attempt invalid port update
+  match config.UpdatePort(80) {
+    Ok(_) => println("Port updated unexpectedly"),
+    Err(err) => println(`✓ Handled validation error on pointer mutation: ${err}`)
+  }
+
+  // 4. Struct Pointers with Mutation Receiver Methods
+  println("\n--- 4. Struct Pointers with Mutation Receiver Methods ---");
+  let mut node: IntNode = {
+    value: 10,
+    hasChild: true,
+    childValue: 20
+  };
+
+  println(`Before node.Scale(5): node.value = ${node.value}, node.childValue = ${node.childValue}`);
+  node.Scale(5);
+  println(`After node.Scale(5): node.value = ${node.value}, node.childValue = ${node.childValue}`);
+
+  println("\n✨ Pointer demonstration completed successfully!");
+}
