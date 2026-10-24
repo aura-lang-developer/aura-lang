@@ -1,0 +1,15 @@
+// Example 005: Absolute Value
+// Computes absolute value using simple branching.
+
+fn absVal(n: Int): Int => {
+    if n < 0 {
+        0 - n
+    } else {
+        n
+    }
+}
+
+export fn main(): Unit => {
+    println(`abs(-45) = ${absVal(-45)}`);
+    println(`abs(120) = ${absVal(120)}`);
+}

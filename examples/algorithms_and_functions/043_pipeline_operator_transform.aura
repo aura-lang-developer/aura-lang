@@ -1,0 +1,15 @@
+// Example 043: Pipeline Operator (|>)
+// Uses pipeline syntax to chain data transformations cleanly.
+
+fn increment(n: Int): Int => {
+    n + 1
+}
+
+fn triple(n: Int): Int => {
+    n * 3
+}
+
+export fn main(): Unit => {
+    let value = 4 |> increment |> triple;
+    println(`(4 + 1) * 3 = ${value}`);
+}

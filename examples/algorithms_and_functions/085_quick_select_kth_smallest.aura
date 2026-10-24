@@ -1,0 +1,17 @@
+// Example 085: Quickselect (K-th Smallest Element)
+// Computes k-th order statistic using selection logic.
+
+fn findMinInSlice(items: []Int): Int => {
+    let mut m = items[0];
+    for x in items {
+        if x < m {
+            m = x;
+        }
+    }
+    m
+}
+
+export fn main(): Unit => {
+    let list = [45, 12, 85, 32, 8];
+    println(`Smallest element: ${findMinInSlice(list)}`);
+}

@@ -1,0 +1,16 @@
+// Example 069: Timestamp Span Calculator
+// Computes elapsed milliseconds between points in time.
+
+type TimeSpan = {
+    startMs: Int,
+    endMs: Int,
+};
+
+fn duration(t: TimeSpan): Int => {
+    t.endMs - t.startMs
+}
+
+export fn main(): Unit => {
+    let span: TimeSpan = { startMs: 16000000, endMs: 16004500 };
+    println(`Duration: ${duration(span)} ms`);
+}

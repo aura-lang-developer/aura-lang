@@ -1,0 +1,19 @@
+// Example 023: Linear Search
+// Searches for a target value in a slice and returns its index, or -1.
+
+fn linearSearch(items: []Int, target: Int): Int => {
+    let mut i = 0;
+    while i < items.length {
+        if items[i] == target {
+            return i;
+        }
+        i = i + 1;
+    }
+    0 - 1
+}
+
+export fn main(): Unit => {
+    let data = [10, 25, 30, 85, 90];
+    println(`Index of 30: ${linearSearch(data, 30)}`);
+    println(`Index of 99: ${linearSearch(data, 99)}`);
+}

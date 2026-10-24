@@ -1,0 +1,20 @@
+// Example 015: Palindrome Number
+// Checks if a number reads the same forwards and backwards.
+
+fn isPalindrome(n: Int): Bool => {
+    if n < 0 {
+        return false;
+    }
+    let mut val = n;
+    let mut rev = 0;
+    while val > 0 {
+        rev = rev * 10 + (val % 10);
+        val = val / 10;
+    }
+    rev == n
+}
+
+export fn main(): Unit => {
+    println(`12321 is palindrome: ${isPalindrome(12321)}`);
+    println(`12345 is palindrome: ${isPalindrome(12345)}`);
+}

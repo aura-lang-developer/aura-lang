@@ -1,0 +1,21 @@
+// Example 011: Primality Test
+// Determines whether an integer is prime.
+
+fn isPrime(n: Int): Bool => {
+    if n <= 1 {
+        return false;
+    }
+    let mut d = 2;
+    while d * d <= n {
+        if n % d == 0 {
+            return false;
+        }
+        d = d + 1;
+    }
+    true
+}
+
+export fn main(): Unit => {
+    println(`29 is prime: ${isPrime(29)}`);
+    println(`49 is prime: ${isPrime(49)}`);
+}

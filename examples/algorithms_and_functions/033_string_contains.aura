@@ -1,0 +1,12 @@
+// Example 033: Substring Search
+// Checks whether a string includes a given substring.
+
+fn hasSubstr(text: String, sub: String): Bool => {
+    text.includes(sub)
+}
+
+export fn main(): Unit => {
+    let phrase = "Aura combines TypeScript ergonomics with Rust safety";
+    println(`Contains 'safety': ${hasSubstr(phrase, "safety")}`);
+    println(`Contains 'Python': ${hasSubstr(phrase, "Python")}`);
+}

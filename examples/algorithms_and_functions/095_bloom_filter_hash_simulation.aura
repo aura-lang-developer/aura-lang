@@ -1,0 +1,25 @@
+// Example 095: Integer Set Membership Filter
+// Membership filter using an array of flags.
+
+type FilterSet = {
+    flags: []Bool,
+};
+
+fn addKey(f: FilterSet, key: Int): Unit => {
+    let idx = key % f.flags.length;
+    f.flags[idx] = true;
+}
+
+fn containsKey(f: FilterSet, key: Int): Bool => {
+    let idx = key % f.flags.length;
+    f.flags[idx]
+}
+
+export fn main(): Unit => {
+    let filter: FilterSet = { flags: [false, false, false, false, false, false, false, false] };
+    addKey(filter, 3);
+    addKey(filter, 7);
+
+    println(`Filter has 3: ${containsKey(filter, 3)}`);
+    println(`Filter has 5: ${containsKey(filter, 5)}`);
+}

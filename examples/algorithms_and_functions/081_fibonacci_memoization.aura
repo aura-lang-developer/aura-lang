@@ -1,0 +1,22 @@
+// Example 081: Fibonacci with Memoization Table
+// Top-down dynamic programming caching subproblems.
+
+fn fibMemo(n: Int, memo: []Int): Int => {
+    if n <= 0 {
+        return 0;
+    }
+    if n == 1 {
+        return 1;
+    }
+    if memo[n] != 0 {
+        return memo[n];
+    }
+    let res = fibMemo(n - 1, memo) + fibMemo(n - 2, memo);
+    memo[n] = res;
+    res
+}
+
+export fn main(): Unit => {
+    let memo: []Int = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    println(`fibMemo(10) = ${fibMemo(10, memo)}`);
+}

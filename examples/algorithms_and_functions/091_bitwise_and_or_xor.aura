@@ -1,0 +1,21 @@
+// Example 091: Binary Representation & Bit Extraction
+// Extracts binary digits using division and modulo arithmetic.
+
+fn toBinaryString(n: Int): String => {
+    if n == 0 {
+        return "0";
+    }
+    let mut temp = n;
+    let mut bits = "";
+    while temp > 0 {
+        let bit = temp % 2;
+        bits = `${bit}${bits}`;
+        temp = temp / 2;
+    }
+    bits
+}
+
+export fn main(): Unit => {
+    let num = 29;
+    println(`Binary of ${num}: ${toBinaryString(num)}`);
+}

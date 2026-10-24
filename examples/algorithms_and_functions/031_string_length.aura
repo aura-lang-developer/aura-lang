@@ -1,0 +1,11 @@
+// Example 031: String Length
+// Inspects string length and characters.
+
+fn getStringLen(s: String): Int => {
+    s.length
+}
+
+export fn main(): Unit => {
+    let msg = "Hello, Aura!";
+    println(`Length of '${msg}' is ${getStringLen(msg)}`);
+}

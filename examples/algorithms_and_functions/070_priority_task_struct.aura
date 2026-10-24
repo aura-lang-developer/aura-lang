@@ -1,0 +1,20 @@
+// Example 070: Priority Task Item
+// Checks task urgency based on priority integer.
+
+type TaskItem = {
+    id: Int,
+    title: String,
+    priority: Int,
+};
+
+fn isCritical(t: TaskItem): Bool => {
+    t.priority >= 9
+}
+
+export fn main(): Unit => {
+    let t1: TaskItem = { id: 1, title: "Database Migration", priority: 10 };
+    let t2: TaskItem = { id: 2, title: "Refactor Comments", priority: 3 };
+
+    println(`t1 is critical: ${isCritical(t1)}`);
+    println(`t2 is critical: ${isCritical(t2)}`);
+}

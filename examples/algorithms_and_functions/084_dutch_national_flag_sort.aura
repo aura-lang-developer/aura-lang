@@ -1,0 +1,31 @@
+// Example 084: Dutch National Flag (3-way Partition)
+// Sorts an array containing 0s, 1s, and 2s in linear time O(n).
+
+fn sortColors(items: []Int): []Int => {
+    let mut low = 0;
+    let mut mid = 0;
+    let mut high = items.length - 1;
+    while mid <= high {
+        if items[mid] == 0 {
+            let temp = items[low];
+            items[low] = items[mid];
+            items[mid] = temp;
+            low = low + 1;
+            mid = mid + 1;
+        } else if items[mid] == 1 {
+            mid = mid + 1;
+        } else {
+            let temp = items[mid];
+            items[mid] = items[high];
+            items[high] = temp;
+            high = high - 1;
+        }
+    }
+    items
+}
+
+export fn main(): Unit => {
+    let colors = [2, 0, 2, 1, 1, 0];
+    let sorted = sortColors(colors);
+    println(`Sorted 3-way partition: ${sorted}`);
+}

@@ -1,0 +1,11 @@
+// Example 072: CSP Channel Communication
+// Passing values safely between fibers via Channel.
+
+export fn main(): Unit => {
+    let ch = Channel.new(2);
+    spawn {
+        ch <- "Hello from concurrent worker";
+    };
+    let msg = <-ch;
+    println(`Received channel message: ${msg}`);
+}

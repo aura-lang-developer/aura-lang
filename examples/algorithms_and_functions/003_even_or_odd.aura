@@ -1,0 +1,13 @@
+// Example 003: Even or Odd Checker
+// Checks divisibility using the modulo operator.
+
+fn isEven(n: Int): Bool => {
+    n % 2 == 0
+}
+
+export fn main(): Unit => {
+    let num1 = 42;
+    let num2 = 17;
+    println(`${num1} is even: ${isEven(num1)}`);
+    println(`${num2} is even: ${isEven(num2)}`);
+}

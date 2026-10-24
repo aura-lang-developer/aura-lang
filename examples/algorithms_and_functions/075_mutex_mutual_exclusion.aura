@@ -1,0 +1,10 @@
+// Example 075: Mutex Mutual Exclusion
+// Protects critical sections using Mutex lock / unlock.
+
+export fn main(): Unit => {
+    let mu = Mutex.new();
+    mu.lock();
+    println("Critical section acquired with Mutex");
+    mu.unlock();
+    println("Critical section released cleanly");
+}

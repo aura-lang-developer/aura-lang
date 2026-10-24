@@ -1,0 +1,23 @@
+// Example 067: Student Grade Average
+// Averages grades stored in a struct slice.
+
+type Student = {
+    name: String,
+    scores: []Int,
+};
+
+fn averageScore(s: Student): Int => {
+    if s.scores.length == 0 {
+        return 0;
+    }
+    let mut total = 0;
+    for sc in s.scores {
+        total = total + sc;
+    }
+    total / s.scores.length
+}
+
+export fn main(): Unit => {
+    let alice: Student = { name: "Alice", scores: [88, 92, 95, 85] };
+    println(`${alice.name} average: ${averageScore(alice)}%`);
+}

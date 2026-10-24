@@ -1,0 +1,25 @@
+// Example 053: ADT Geometric Shapes & Exhaustive Match
+// Sum types for modeling polymorphic domains.
+
+type Shape =
+    | Circle(Int)
+    | Rectangle(Int, Int)
+    | Point;
+
+fn areaTimesHundred(s: Shape): Int => {
+    match s {
+        Circle(r) => 314 * r * r / 100,
+        Rectangle(w, h) => w * h,
+        Point => 0,
+    }
+}
+
+export fn main(): Unit => {
+    let c = Circle(10);
+    let r = Rectangle(4, 5);
+    let p = Point;
+
+    println(`Circle area ~ ${areaTimesHundred(c)}`);
+    println(`Rectangle area = ${areaTimesHundred(r)}`);
+    println(`Point area = ${areaTimesHundred(p)}`);
+}

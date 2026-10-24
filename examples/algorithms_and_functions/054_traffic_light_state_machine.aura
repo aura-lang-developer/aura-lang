@@ -1,0 +1,32 @@
+// Example 054: Traffic Light State Machine
+// Transitions states represented as sum types.
+
+type LightState =
+    | Red
+    | Yellow
+    | Green;
+
+fn nextLight(current: LightState): LightState => {
+    match current {
+        Red => Green,
+        Green => Yellow,
+        Yellow => Red,
+    }
+}
+
+fn lightName(current: LightState): String => {
+    match current {
+        Red => "RED",
+        Yellow => "YELLOW",
+        Green => "GREEN",
+    }
+}
+
+export fn main(): Unit => {
+    let mut light = Red;
+    println(`Current: ${lightName(light)}`);
+    light = nextLight(light);
+    println(`Next: ${lightName(light)}`);
+    light = nextLight(light);
+    println(`Next: ${lightName(light)}`);
+}

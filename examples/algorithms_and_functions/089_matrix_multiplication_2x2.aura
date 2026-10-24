@@ -1,0 +1,23 @@
+// Example 089: 2x2 Matrix Multiplication
+// Multiplies two 2x2 matrices: C = A * B.
+
+type Mat2 = {
+    a: Int, b: Int,
+    c: Int, d: Int,
+};
+
+fn multiplyMat2(m1: Mat2, m2: Mat2): Mat2 => {
+    {
+        a: m1.a * m2.a + m1.b * m2.c,
+        b: m1.a * m2.b + m1.b * m2.d,
+        c: m1.c * m2.a + m1.d * m2.c,
+        d: m1.c * m2.b + m1.d * m2.d,
+    }
+}
+
+export fn main(): Unit => {
+    let m1: Mat2 = { a: 1, b: 2, c: 3, d: 4 };
+    let m2: Mat2 = { a: 2, b: 0, c: 1, d: 2 };
+    let res = multiplyMat2(m1, m2);
+    println(`Mat mul: [${res.a}, ${res.b}; ${res.c}, ${res.d}]`);
+}

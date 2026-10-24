@@ -1,0 +1,20 @@
+// Example 028: In-place Slice Reversal
+// Two-pointer reversal of elements in a slice.
+
+fn reverseSlice(items: []Int): []Int => {
+    let mut left = 0;
+    let mut right = items.length - 1;
+    while left < right {
+        let temp = items[left];
+        items[left] = items[right];
+        items[right] = temp;
+        left = left + 1;
+        right = right - 1;
+    }
+    items
+}
+
+export fn main(): Unit => {
+    let numbers = [1, 2, 3, 4, 5, 6];
+    println(`Reversed: ${reverseSlice(numbers)}`);
+}

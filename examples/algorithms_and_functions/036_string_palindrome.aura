@@ -1,0 +1,20 @@
+// Example 036: Palindrome String Checker
+// Verifies if a string reads identically in reverse.
+
+fn isPalindromeStr(s: String): Bool => {
+    let mut left = 0;
+    let mut right = s.length - 1;
+    while left < right {
+        if s[left] != s[right] {
+            return false;
+        }
+        left = left + 1;
+        right = right - 1;
+    }
+    true
+}
+
+export fn main(): Unit => {
+    println(`'racecar' is palindrome: ${isPalindromeStr("racecar")}`);
+    println(`'golang' is palindrome: ${isPalindromeStr("golang")}`);
+}

@@ -1,0 +1,18 @@
+// Example 098: LRU Cache Access Tracker
+// Updates access order in a slice.
+
+fn recordAccess(items: []Int, key: Int): []Int => {
+    let mut newOrder: []Int = [key];
+    for x in items {
+        if x != key {
+            let _ = newOrder.push(x);
+        }
+    }
+    newOrder
+}
+
+export fn main(): Unit => {
+    let initial = [1, 2, 3, 4];
+    let updated = recordAccess(initial, 3);
+    println(`New LRU order: ${updated}`);
+}

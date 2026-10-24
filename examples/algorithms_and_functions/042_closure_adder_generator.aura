@@ -1,0 +1,12 @@
+// Example 042: Closure Adder Generator
+// Returns a closure capturing local scope.
+
+fn makeAdder(amount: Int): fn(Int) -> Int => {
+    fn(x: Int): Int => x + amount
+}
+
+export fn main(): Unit => {
+    let add10 = makeAdder(10);
+    println(`add10(5) = ${add10(5)}`);
+    println(`add10(25) = ${add10(25)}`);
+}

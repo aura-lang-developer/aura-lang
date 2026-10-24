@@ -1,0 +1,18 @@
+// Example 029: Slice Filter Even Numbers
+// Collects elements matching a predicate into a new slice.
+
+fn filterEvens(items: []Int): []Int => {
+    let mut result: []Int = [];
+    for x in items {
+        if x % 2 == 0 {
+            result.push(x);
+        }
+    }
+    result
+}
+
+export fn main(): Unit => {
+    let data = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    let evens = filterEvens(data);
+    println(`Evens: ${evens}`);
+}

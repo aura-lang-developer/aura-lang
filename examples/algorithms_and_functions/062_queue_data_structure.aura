@@ -1,0 +1,23 @@
+// Example 062: Queue Data Structure (FIFO)
+// Enqueue and inspect elements in FIFO order.
+
+type Queue = {
+    items: []Int,
+};
+
+fn enqueue(q: Queue, val: Int): Unit => {
+    let _ = q.items.push(val);
+}
+
+fn peekQueue(q: Queue): Int => {
+    q.items[0]
+}
+
+export fn main(): Unit => {
+    let mut q: Queue = { items: [] };
+    enqueue(q, 100);
+    enqueue(q, 200);
+    enqueue(q, 300);
+    println(`Queue length: ${q.items.length}`);
+    println(`Front: ${peekQueue(q)}`);
+}

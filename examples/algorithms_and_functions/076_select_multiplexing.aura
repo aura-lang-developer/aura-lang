@@ -1,0 +1,20 @@
+// Example 076: Select Multiplexing
+// Selects across ready channels or falls back to default.
+
+export fn main(): Unit => {
+    let ch1 = Channel.new(1);
+    let ch2 = Channel.new(1);
+    ch1 <- 42;
+
+    select {
+        case v1 = <-ch1 => {
+            println(`Received from ch1: ${v1}`);
+        },
+        case v2 = <-ch2 => {
+            println(`Received from ch2: ${v2}`);
+        },
+        default => {
+            println("No channel ready");
+        }
+    }
+}

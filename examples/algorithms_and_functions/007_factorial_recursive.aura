@@ -1,0 +1,14 @@
+// Example 007: Recursive Factorial
+// Calculates n! using recursion.
+
+fn factorialRec(n: Int): Int => {
+    if n <= 1 {
+        1
+    } else {
+        n * factorialRec(n - 1)
+    }
+}
+
+export fn main(): Unit => {
+    println(`Recursive Factorial(5) = ${factorialRec(5)}`);
+}

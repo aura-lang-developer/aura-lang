@@ -1,0 +1,16 @@
+// Example 014: Reverse Integer
+// Reverses decimal digits of an integer.
+
+fn reverseInt(n: Int): Int => {
+    let mut val = n;
+    let mut rev = 0;
+    while val > 0 {
+        rev = rev * 10 + (val % 10);
+        val = val / 10;
+    }
+    rev
+}
+
+export fn main(): Unit => {
+    println(`Reverse of 12345 is: ${reverseInt(12345)}`);
+}

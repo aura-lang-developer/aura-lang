@@ -1,0 +1,24 @@
+// Example 087: BFS Traversal Simulation
+// Level-order queue traversal over nodes.
+
+export fn main(): Unit => {
+    let queue: []Int = [1];
+    let mut visited: []Int = [];
+
+    let mut qIdx = 0;
+    while qIdx < queue.length {
+        let node = queue[qIdx];
+        let _ = visited.push(node);
+
+        if node == 1 {
+            let _ = queue.push(2);
+            let _ = queue.push(3);
+        } else if node == 2 {
+            let _ = queue.push(4);
+        }
+
+        qIdx = qIdx + 1;
+    }
+
+    println(`BFS order: ${visited}`);
+}

@@ -1,0 +1,15 @@
+// Example 046: Tail-Recursive Sum (TCO)
+// Aura compiles tail-recursive functions into iterative while loops with zero stack overhead.
+
+fn sumAcc(n: Int, acc: Int): Int => {
+    if n <= 0 {
+        acc
+    } else {
+        sumAcc(n - 1, acc + n)
+    }
+}
+
+export fn main(): Unit => {
+    let total = sumAcc(100, 0);
+    println(`Sum 1..100 = ${total}`);
+}

@@ -1,0 +1,21 @@
+// Example 064: Rectangle Struct & Calculations
+// Area and perimeter calculations on rectangular geometry.
+
+type Rect = {
+    width: Int,
+    height: Int,
+};
+
+fn area(r: Rect): Int => {
+    r.width * r.height
+}
+
+fn perimeter(r: Rect): Int => {
+    2 * (r.width + r.height)
+}
+
+export fn main(): Unit => {
+    let box1: Rect = { width: 15, height: 10 };
+    println(`Area: ${area(box1)}`);
+    println(`Perimeter: ${perimeter(box1)}`);
+}

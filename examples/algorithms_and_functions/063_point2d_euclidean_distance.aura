@@ -1,0 +1,19 @@
+// Example 063: 2D Point & Squared Distance
+// Struct representing cartesian coordinates and operations.
+
+type Point2D = {
+    x: Int,
+    y: Int,
+};
+
+fn distSquared(p1: Point2D, p2: Point2D): Int => {
+    let dx = p1.x - p2.x;
+    let dy = p1.y - p2.y;
+    dx * dx + dy * dy
+}
+
+export fn main(): Unit => {
+    let ptA: Point2D = { x: 0, y: 0 };
+    let ptB: Point2D = { x: 3, y: 4 };
+    println(`Distance squared between A and B: ${distSquared(ptA, ptB)}`);
+}

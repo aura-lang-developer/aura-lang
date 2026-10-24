@@ -1,0 +1,25 @@
+// Example 057: Command Action Dispatcher
+// Command pattern with ADT dispatch.
+
+type UserCommand =
+    | Login(String)
+    | Logout
+    | SendMessage(String);
+
+fn executeCommand(cmd: UserCommand): String => {
+    match cmd {
+        Login(user) => `Logged in user: ${user}`,
+        Logout => "User logged out successfully",
+        SendMessage(txt) => `Message sent: ${txt}`,
+    }
+}
+
+export fn main(): Unit => {
+    let c1 = Login("alice");
+    let c2 = SendMessage("Hello Aura!");
+    let c3 = Logout;
+
+    println(executeCommand(c1));
+    println(executeCommand(c2));
+    println(executeCommand(c3));
+}

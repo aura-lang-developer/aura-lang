@@ -1,0 +1,23 @@
+// Example 061: Stack Data Structure (LIFO)
+// Push and pop operations using slice backing.
+
+type Stack = {
+    items: []Int,
+};
+
+fn stackPush(s: Stack, val: Int): Unit => {
+    let _ = s.items.push(val);
+}
+
+fn stackSize(s: Stack): Int => {
+    s.items.length
+}
+
+export fn main(): Unit => {
+    let mut st: Stack = { items: [] };
+    stackPush(st, 10);
+    stackPush(st, 20);
+    stackPush(st, 30);
+    println(`Stack size: ${stackSize(st)}`);
+    println(`Top element: ${st.items[st.items.length - 1]}`);
+}

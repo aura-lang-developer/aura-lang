@@ -1,0 +1,16 @@
+// Example 050: Generic Pair Construction
+// Combines two values of distinct types into a typed struct.
+
+type Pair<KeyType, ValType> = {
+    first: KeyType,
+    second: ValType,
+};
+
+fn makePair<KeyType, ValType>(a: KeyType, b: ValType): Pair<KeyType, ValType> => {
+    { first: a, second: b }
+}
+
+export fn main(): Unit => {
+    let p = makePair<String, Int>("UserPort", 8080);
+    println(`Pair: key=${p.first}, value=${p.second}`);
+}

@@ -1,0 +1,21 @@
+// Example 058: Maybe / Option Unwrap Helper
+// Extracts value or supplies default fallback.
+
+type MaybeInt =
+    | Just(Int)
+    | Nothing;
+
+fn unwrapOr(m: MaybeInt, fallback: Int): Int => {
+    match m {
+        Just(v) => v,
+        Nothing => fallback,
+    }
+}
+
+export fn main(): Unit => {
+    let m1 = Just(42);
+    let m2 = Nothing;
+
+    println(`m1 unwrap: ${unwrapOr(m1, 0)}`);
+    println(`m2 unwrap: ${unwrapOr(m2, 100)}`);
+}

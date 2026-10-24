@@ -1,0 +1,24 @@
+// Example 086: Graph Adjacency Matrix Representation
+// Checks connectivity between nodes in a 4-vertex graph.
+
+type Graph4 = {
+    matrix: []Int,
+};
+
+fn hasEdge(g: Graph4, u: Int, v: Int): Bool => {
+    let idx = u * 4 + v;
+    g.matrix[idx] == 1
+}
+
+export fn main(): Unit => {
+    let g: Graph4 = {
+        matrix: [
+            0, 1, 0, 1,
+            1, 0, 1, 0,
+            0, 1, 0, 1,
+            1, 0, 1, 0
+        ],
+    };
+    println(`Edge (0, 1): ${hasEdge(g, 0, 1)}`);
+    println(`Edge (0, 2): ${hasEdge(g, 0, 2)}`);
+}

@@ -1,0 +1,16 @@
+// Example 073: Channel Multi-producer Fan-in
+// Multiple worker fibers sending to a shared channel.
+
+export fn main(): Unit => {
+    let ch = Channel.new(5);
+    spawn {
+        ch <- "Job A done";
+    };
+    spawn {
+        ch <- "Job B done";
+    };
+    let r1 = <-ch;
+    let r2 = <-ch;
+    println(`Result 1: ${r1}`);
+    println(`Result 2: ${r2}`);
+}

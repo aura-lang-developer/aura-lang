@@ -1,0 +1,18 @@
+// Example 004: Maximum of Three Numbers
+// Demonstrates conditionals to find the largest value.
+
+fn maxOfThree(a: Int, b: Int, c: Int): Int => {
+    let mut m = a;
+    if b > m {
+        m = b;
+    }
+    if c > m {
+        m = c;
+    }
+    m
+}
+
+export fn main(): Unit => {
+    let highest = maxOfThree(14, 89, 32);
+    println(`Maximum: ${highest}`);
+}

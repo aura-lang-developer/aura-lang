@@ -1,0 +1,32 @@
+// Example 017: Prime Counting up to Limit
+// Simple sieve-like counter for primes under N.
+
+fn isPrime(n: Int): Bool => {
+    if n <= 1 {
+        return false;
+    }
+    let mut d = 2;
+    while d * d <= n {
+        if n % d == 0 {
+            return false;
+        }
+        d = d + 1;
+    }
+    true
+}
+
+fn countPrimesUnder(limit: Int): Int => {
+    let mut count = 0;
+    let mut i = 2;
+    while i < limit {
+        if isPrime(i) {
+            count = count + 1;
+        }
+        i = i + 1;
+    }
+    count
+}
+
+export fn main(): Unit => {
+    println(`Primes under 50: ${countPrimesUnder(50)}`);
+}

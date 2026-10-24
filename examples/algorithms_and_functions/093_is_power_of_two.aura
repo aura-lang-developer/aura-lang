@@ -1,0 +1,22 @@
+// Example 093: Power of Two Checker
+// Checks whether an integer is an exact power of 2 using successive halving.
+
+fn isPowerOfTwo(n: Int): Bool => {
+    if n <= 0 {
+        return false;
+    }
+    let mut val = n;
+    while val > 1 {
+        if val % 2 != 0 {
+            return false;
+        }
+        val = val / 2;
+    }
+    true
+}
+
+export fn main(): Unit => {
+    println(`16 is power of two: ${isPowerOfTwo(16)}`);
+    println(`18 is power of two: ${isPowerOfTwo(18)}`);
+    println(`64 is power of two: ${isPowerOfTwo(64)}`);
+}

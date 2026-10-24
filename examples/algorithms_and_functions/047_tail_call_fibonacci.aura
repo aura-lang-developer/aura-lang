@@ -1,0 +1,16 @@
+// Example 047: Tail-Recursive Fibonacci (TCO)
+// Accumulator-based tail recursion for Fibonacci numbers.
+
+fn fibTail(n: Int, a: Int, b: Int): Int => {
+    if n <= 0 {
+        a
+    } else if n == 1 {
+        b
+    } else {
+        fibTail(n - 1, b, a + b)
+    }
+}
+
+export fn main(): Unit => {
+    println(`fibTail(10) = ${fibTail(10, 0, 1)}`);
+}

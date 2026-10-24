@@ -1,0 +1,23 @@
+// Example 090: Pascal's Triangle Row Generator
+// Generates n-th row of Pascal's triangle using combinatorial addition.
+
+fn pascalRow(rowIndex: Int): []Int => {
+    let mut row: []Int = [1];
+    let mut i = 0;
+    while i < rowIndex {
+        let mut nextRow: []Int = [1];
+        let mut j = 0;
+        while j < row.length - 1 {
+            let _ = nextRow.push(row[j] + row[j + 1]);
+            j = j + 1;
+        }
+        let _ = nextRow.push(1);
+        row = nextRow;
+        i = i + 1;
+    }
+    row
+}
+
+export fn main(): Unit => {
+    println(`Pascal row 4: ${pascalRow(4)}`);
+}

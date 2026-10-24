@@ -1,0 +1,23 @@
+// Example 097: Rate Limiter Token Bucket
+// Simple token bucket algorithm for API throttling.
+
+type TokenBucket = {
+    capacity: Int,
+    tokens: Int,
+};
+
+fn consumeToken(b: TokenBucket): Bool => {
+    if b.tokens > 0 {
+        b.tokens = b.tokens - 1;
+        true
+    } else {
+        false
+    }
+}
+
+export fn main(): Unit => {
+    let bucket: TokenBucket = { capacity: 2, tokens: 2 };
+    println(`Request 1 allowed: ${consumeToken(bucket)}`);
+    println(`Request 2 allowed: ${consumeToken(bucket)}`);
+    println(`Request 3 allowed: ${consumeToken(bucket)}`);
+}

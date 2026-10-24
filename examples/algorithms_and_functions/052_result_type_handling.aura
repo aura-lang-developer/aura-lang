@@ -1,0 +1,22 @@
+// Example 052: Result Type Handling
+// Handling success and error variants without exceptions.
+
+type MyResult =
+    | Ok(Int)
+    | Err(String);
+
+fn parsePositive(n: Int): MyResult => {
+    if n > 0 {
+        Ok(n)
+    } else {
+        Err("Number must be strictly positive")
+    }
+}
+
+export fn main(): Unit => {
+    let check = parsePositive(-5);
+    match check {
+        Ok(val) => println(`Valid positive: ${val}`),
+        Err(msg) => println(`Validation failed: ${msg}`),
+    }
+}

@@ -1,0 +1,29 @@
+// Example 051: Option Type with Some and None
+// Null-safe values using algebraic sum types.
+
+type MyOption =
+    | Some(Int)
+    | None;
+
+fn safeDivide(a: Int, b: Int): MyOption => {
+    if b == 0 {
+        None
+    } else {
+        Some(a / b)
+    }
+}
+
+export fn main(): Unit => {
+    let res1 = safeDivide(20, 4);
+    let res2 = safeDivide(20, 0);
+
+    match res1 {
+        Some(v) => println(`20 / 4 = ${v}`),
+        None => println("Cannot divide by zero"),
+    }
+
+    match res2 {
+        Some(v) => println(`Result: ${v}`),
+        None => println("Zero division prevented safely!"),
+    }
+}

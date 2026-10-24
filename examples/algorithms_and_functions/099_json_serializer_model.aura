@@ -1,0 +1,14 @@
+// Example 099: JSON Serialization Model
+// Serializes typed struct to JSON string with struct tags.
+
+type UserDto = {
+    id: Int,
+    name: String,
+    active: Bool,
+};
+
+export fn main(): Unit => {
+    let user: UserDto = { id: 101, name: "Alice", active: true };
+    let jsonStr = JSON.stringify(user);
+    println(`Serialized JSON: ${jsonStr}`);
+}

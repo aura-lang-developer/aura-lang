@@ -1,0 +1,11 @@
+// Example 071: Lightweight Fiber Spawn
+// Spawns concurrent fibers managed by the M:N scheduler.
+
+export fn main(): Unit => {
+    println("Main: starting fiber demo");
+    spawn {
+        println("Fiber: running in background!");
+    };
+    time.sleep(50);
+    println("Main: completed fiber demo");
+}

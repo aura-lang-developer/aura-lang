@@ -1,0 +1,30 @@
+// Example 026: Selection Sort
+// In-place comparison sort finding smallest element repeatedly.
+
+fn selectionSort(items: []Int): []Int => {
+    let n = items.length;
+    let mut i = 0;
+    while i < n - 1 {
+        let mut minIdx = i;
+        let mut j = i + 1;
+        while j < n {
+            if items[j] < items[minIdx] {
+                minIdx = j;
+            }
+            j = j + 1;
+        }
+        if minIdx != i {
+            let temp = items[i];
+            items[i] = items[minIdx];
+            items[minIdx] = temp;
+        }
+        i = i + 1;
+    }
+    items
+}
+
+export fn main(): Unit => {
+    let data = [29, 10, 14, 37, 13];
+    let sorted = selectionSort(data);
+    println(`Selection sorted: ${sorted}`);
+}

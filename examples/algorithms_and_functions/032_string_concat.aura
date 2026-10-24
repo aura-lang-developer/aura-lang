@@ -1,0 +1,11 @@
+// Example 032: String Concatenation & Template Strings
+// Demonstrates text combining and interpolation.
+
+fn greet(name: String, title: String): String => {
+    `${title} ${name}`
+}
+
+export fn main(): Unit => {
+    let welcome = greet("Ada Lovelace", "Dr.");
+    println(`Greeting: ${welcome}`);
+}

@@ -1,0 +1,19 @@
+// Example 016: Armstrong (Narcissistic) Number
+// Checks if sum of cubes of digits equals the original 3-digit number.
+
+fn isArmstrong3(n: Int): Bool => {
+    let mut temp = n;
+    let mut sum = 0;
+    while temp > 0 {
+        let d = temp % 10;
+        sum = sum + (d * d * d);
+        temp = temp / 10;
+    }
+    sum == n
+}
+
+export fn main(): Unit => {
+    println(`153 is Armstrong: ${isArmstrong3(153)}`);
+    println(`370 is Armstrong: ${isArmstrong3(370)}`);
+    println(`123 is Armstrong: ${isArmstrong3(123)}`);
+}

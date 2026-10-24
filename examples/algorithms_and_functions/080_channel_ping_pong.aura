@@ -1,0 +1,17 @@
+// Example 080: Channel Ping-Pong
+// Two channels exchanging tokens between concurrent fibers.
+
+export fn main(): Unit => {
+    let pingCh = Channel.new(1);
+    let pongCh = Channel.new(1);
+
+    spawn {
+        let msg = <-pingCh;
+        println(`Got ${msg}, replying Pong`);
+        pongCh <- "Pong";
+    };
+
+    pingCh <- "Ping";
+    let reply = <-pongCh;
+    println(`Main received: ${reply}`);
+}

@@ -1,0 +1,19 @@
+// Example 013: Sum of Digits
+// Extracts and sums individual decimal digits of an integer.
+
+fn sumDigits(n: Int): Int => {
+    let mut temp = n;
+    if temp < 0 {
+        temp = 0 - temp;
+    }
+    let mut total = 0;
+    while temp > 0 {
+        total = total + (temp % 10);
+        temp = temp / 10;
+    }
+    total
+}
+
+export fn main(): Unit => {
+    println(`Sum of digits in 98765: ${sumDigits(98765)}`);
+}

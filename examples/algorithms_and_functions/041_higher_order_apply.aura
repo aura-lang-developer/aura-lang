@@ -1,0 +1,15 @@
+// Example 041: Higher-Order Apply Function
+// Takes an integer and an operation function to transform the value.
+
+fn applyOp(x: Int, op: fn(Int) -> Int): Int => {
+    op(x)
+}
+
+fn square(n: Int): Int => {
+    n * n
+}
+
+export fn main(): Unit => {
+    let result = applyOp(7, square);
+    println(`applyOp(7, square) = ${result}`);
+}

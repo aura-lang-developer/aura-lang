@@ -1,0 +1,18 @@
+// Example 066: Inventory Product Tracker
+// Structs for tracking products and stock values.
+
+type Product = {
+    sku: String,
+    name: String,
+    priceCents: Int,
+    quantity: Int,
+};
+
+fn totalValue(p: Product): Int => {
+    p.priceCents * p.quantity
+}
+
+export fn main(): Unit => {
+    let laptop: Product = { sku: "TECH-101", name: "Developer Laptop", priceCents: 150000, quantity: 4 };
+    println(`Inventory value for ${laptop.name}: $${totalValue(laptop) / 100}`);
+}

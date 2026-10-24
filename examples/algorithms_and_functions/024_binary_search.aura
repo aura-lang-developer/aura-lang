@@ -1,0 +1,24 @@
+// Example 024: Binary Search
+// Finds index of target in a sorted slice in O(log n) time.
+
+fn binarySearch(items: []Int, target: Int): Int => {
+    let mut low = 0;
+    let mut high = items.length - 1;
+    while low <= high {
+        let mid = (low + high) / 2;
+        if items[mid] == target {
+            return mid;
+        } else if items[mid] < target {
+            low = mid + 1;
+        } else {
+            high = mid - 1;
+        }
+    }
+    0 - 1
+}
+
+export fn main(): Unit => {
+    let sorted = [2, 5, 8, 12, 16, 23, 38, 56, 72, 91];
+    println(`Binary search 23: index ${binarySearch(sorted, 23)}`);
+    println(`Binary search 100: index ${binarySearch(sorted, 100)}`);
+}

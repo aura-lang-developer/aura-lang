@@ -1,0 +1,21 @@
+// Example 012: Fast Power (Binary Exponentiation)
+// Computes base^exp in O(log exp) time.
+
+fn power(base: Int, exp: Int): Int => {
+    let mut b = base;
+    let mut e = exp;
+    let mut res = 1;
+    while e > 0 {
+        if e % 2 == 1 {
+            res = res * b;
+        }
+        b = b * b;
+        e = e / 2;
+    }
+    res
+}
+
+export fn main(): Unit => {
+    println(`2^10 = ${power(2, 10)}`);
+    println(`3^5 = ${power(3, 5)}`);
+}

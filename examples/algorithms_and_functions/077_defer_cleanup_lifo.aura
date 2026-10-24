@@ -1,0 +1,12 @@
+// Example 077: Defer LIFO Resource Cleanup
+// Guarantees clean execution of cleanup code when function exits.
+
+fn processResource(): Unit => {
+    println("1. Resource allocated");
+    defer println("3. Defer: Resource cleaned up (LIFO)");
+    println("2. Resource actively working");
+}
+
+export fn main(): Unit => {
+    processResource();
+}

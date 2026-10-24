@@ -1,0 +1,20 @@
+// Example 074: WaitGroup Synchronization
+// Coordinates completion of multiple background tasks.
+
+export fn main(): Unit => {
+    let wg = WaitGroup.new();
+    wg.add(2);
+
+    spawn {
+        println("Worker 1 finished");
+        wg.done();
+    };
+
+    spawn {
+        println("Worker 2 finished");
+        wg.done();
+    };
+
+    wg.wait();
+    println("All workers completed via WaitGroup!");
+}

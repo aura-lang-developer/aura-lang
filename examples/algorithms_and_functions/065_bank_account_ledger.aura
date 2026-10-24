@@ -1,0 +1,27 @@
+// Example 065: Bank Account Model
+// Deposit, withdraw and balance inquiry.
+
+type BankAccount = {
+    accountNumber: String,
+    balance: Int,
+};
+
+fn deposit(acc: BankAccount, amount: Int): BankAccount => {
+    { accountNumber: acc.accountNumber, balance: acc.balance + amount }
+}
+
+fn withdraw(acc: BankAccount, amount: Int): BankAccount => {
+    if acc.balance >= amount {
+        { accountNumber: acc.accountNumber, balance: acc.balance - amount }
+    } else {
+        acc
+    }
+}
+
+export fn main(): Unit => {
+    let mut account: BankAccount = { accountNumber: "ACC-00123", balance: 500 };
+    account = deposit(account, 250);
+    println(`After deposit: ${account.balance}`);
+    account = withdraw(account, 100);
+    println(`After withdrawal: ${account.balance}`);
+}

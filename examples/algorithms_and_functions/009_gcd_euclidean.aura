@@ -1,0 +1,18 @@
+// Example 009: Greatest Common Divisor (Euclidean)
+// Efficiently finds GCD using Euclidean algorithm.
+
+fn gcd(a: Int, b: Int): Int => {
+    let mut x = a;
+    let mut y = b;
+    while y != 0 {
+        let r = x % y;
+        x = y;
+        y = r;
+    }
+    x
+}
+
+export fn main(): Unit => {
+    println(`GCD(48, 18) = ${gcd(48, 18)}`);
+    println(`GCD(101, 10) = ${gcd(101, 10)}`);
+}

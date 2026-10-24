@@ -1,0 +1,17 @@
+// Example 034: String Reversal
+// Reverses characters in a string.
+
+fn reverseString(s: String): String => {
+    let mut res = "";
+    let mut i = s.length - 1;
+    while i >= 0 {
+        res = `${res}${s[i]}`;
+        i = i - 1;
+    }
+    res
+}
+
+export fn main(): Unit => {
+    let word = "AuraLanguage";
+    println(`Reversed '${word}': ${reverseString(word)}`);
+}

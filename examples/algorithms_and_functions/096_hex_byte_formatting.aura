@@ -1,0 +1,13 @@
+// Example 096: Hex Byte Formatting
+// Formats small integers into hexadecimal representations.
+
+fn toHexNibble(n: Int): String => {
+    let hexChars = "0123456789ABCDEF";
+    let idx = n & 15;
+    hexChars[idx]
+}
+
+export fn main(): Unit => {
+    println(`10 in hex: ${toHexNibble(10)}`);
+    println(`15 in hex: ${toHexNibble(15)}`);
+}

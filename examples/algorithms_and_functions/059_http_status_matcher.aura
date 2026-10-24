@@ -1,0 +1,22 @@
+// Example 059: HTTP Status Code Pattern Matcher
+// Maps numeric HTTP status code to category.
+
+fn httpStatusCategory(code: Int): String => {
+    if code >= 200 && code < 300 {
+        "2xx Success"
+    } else if code >= 300 && code < 400 {
+        "3xx Redirection"
+    } else if code >= 400 && code < 500 {
+        "4xx Client Error"
+    } else if code >= 500 && code < 600 {
+        "5xx Server Error"
+    } else {
+        "Unknown Status"
+    }
+}
+
+export fn main(): Unit => {
+    println(`200 is: ${httpStatusCategory(200)}`);
+    println(`404 is: ${httpStatusCategory(404)}`);
+    println(`503 is: ${httpStatusCategory(503)}`);
+}

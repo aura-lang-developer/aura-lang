@@ -1,0 +1,16 @@
+// Example 044: Custom Fold / Reduce
+// Accumulates elements in a slice using a binary function.
+
+fn reduceSum(items: []Int, initial: Int): Int => {
+    let mut acc = initial;
+    for x in items {
+        acc = acc + x;
+    }
+    acc
+}
+
+export fn main(): Unit => {
+    let data = [1, 2, 3, 4, 5];
+    let total = reduceSum(data, 100);
+    println(`Fold with init 100: ${total}`);
+}

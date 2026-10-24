@@ -1,0 +1,21 @@
+// Example 088: Edit Distance / Match Indicator
+// Evaluates character match differences between two strings.
+
+fn mismatchCount(a: String, b: String): Int => {
+    let len = if a.length < b.length { a.length } else { b.length };
+    let mut diff = 0;
+    let mut i = 0;
+    while i < len {
+        if a[i] != b[i] {
+            diff = diff + 1;
+        }
+        i = i + 1;
+    }
+    diff
+}
+
+export fn main(): Unit => {
+    let s1 = "kitten";
+    let s2 = "sitten";
+    println(`Mismatches between ${s1} and ${s2}: ${mismatchCount(s1, s2)}`);
+}

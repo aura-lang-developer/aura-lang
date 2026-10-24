@@ -1,0 +1,15 @@
+// Example 094: Value Swapping with Arithmetic
+// Demonstrates variable swapping without auxiliary storage using addition & subtraction.
+
+fn arithmeticSwapDemo(a: Int, b: Int): Unit => {
+    let mut x = a;
+    let mut y = b;
+    x = x + y;
+    y = x - y;
+    x = x - y;
+    println(`Swapped arithmetic: x=${x}, y=${y}`);
+}
+
+export fn main(): Unit => {
+    arithmeticSwapDemo(42, 99);
+}

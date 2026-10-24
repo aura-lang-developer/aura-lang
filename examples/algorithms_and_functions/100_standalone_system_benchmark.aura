@@ -1,0 +1,22 @@
+// Example 100: Standalone System Benchmark
+// Measures execution elapsed time using Aura system timers.
+
+fn computeHeavyWork(): Int => {
+    let mut acc = 0;
+    let mut i = 0;
+    while i < 100000 {
+        acc = acc + (i % 7);
+        i = i + 1;
+    }
+    acc
+}
+
+export fn main(): Unit => {
+    println("--- Aura Milestone Example 100 ---");
+    let start = time.now();
+    let result = computeHeavyWork();
+    let finish = time.now();
+    let durationMs = finish - start;
+    println(`Computation finished: ${result}`);
+    println(`Elapsed time: ${durationMs} ms`);
+}

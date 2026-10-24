@@ -1,0 +1,26 @@
+// Example 020: Perfect Number Checker
+// A perfect number equals the sum of its proper positive divisors.
+
+fn isPerfect(n: Int): Bool => {
+    if n <= 1 {
+        return false;
+    }
+    let mut sum = 1;
+    let mut d = 2;
+    while d * d <= n {
+        if n % d == 0 {
+            sum = sum + d;
+            if d * d != n {
+                sum = sum + (n / d);
+            }
+        }
+        d = d + 1;
+    }
+    sum == n
+}
+
+export fn main(): Unit => {
+    println(`6 is perfect: ${isPerfect(6)}`);
+    println(`28 is perfect: ${isPerfect(28)}`);
+    println(`12 is perfect: ${isPerfect(12)}`);
+}

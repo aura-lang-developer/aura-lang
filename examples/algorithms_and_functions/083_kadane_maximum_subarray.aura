@@ -1,0 +1,26 @@
+// Example 083: Kadane's Maximum Subarray Sum
+// Finds the contiguous subarray with the largest sum in O(n).
+
+fn maxSubArraySum(items: []Int): Int => {
+    let mut maxSoFar = items[0];
+    let mut currentMax = items[0];
+    let mut i = 1;
+    while i < items.length {
+        let x = items[i];
+        if x > currentMax + x {
+            currentMax = x;
+        } else {
+            currentMax = currentMax + x;
+        }
+        if currentMax > maxSoFar {
+            maxSoFar = currentMax;
+        }
+        i = i + 1;
+    }
+    maxSoFar
+}
+
+export fn main(): Unit => {
+    let data = [0 - 2, 1, 0 - 3, 4, 0 - 1, 2, 1, 0 - 5, 4];
+    println(`Max subarray sum: ${maxSubArraySum(data)}`);
+}

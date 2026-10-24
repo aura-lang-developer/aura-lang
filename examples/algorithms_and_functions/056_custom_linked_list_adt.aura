@@ -1,0 +1,21 @@
+// Example 056: Functional Linked List ADT
+// Singly linked list representation.
+
+type IntList =
+    | Nil
+    | Cons(Int);
+
+fn isEmpty(list: IntList): Bool => {
+    match list {
+        Nil => true,
+        Cons(head) => false,
+    }
+}
+
+export fn main(): Unit => {
+    let emptyList = Nil;
+    let single = Cons(100);
+
+    println(`emptyList isEmpty: ${isEmpty(emptyList)}`);
+    println(`single isEmpty: ${isEmpty(single)}`);
+}

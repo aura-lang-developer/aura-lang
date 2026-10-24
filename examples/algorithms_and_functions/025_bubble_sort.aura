@@ -1,0 +1,26 @@
+// Example 025: Bubble Sort
+// Classical O(n^2) comparison sort.
+
+fn bubbleSort(items: []Int): []Int => {
+    let n = items.length;
+    let mut i = 0;
+    while i < n {
+        let mut j = 0;
+        while j < n - i - 1 {
+            if items[j] > items[j + 1] {
+                let temp = items[j];
+                items[j] = items[j + 1];
+                items[j + 1] = temp;
+            }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    items
+}
+
+export fn main(): Unit => {
+    let data = [64, 34, 25, 12, 22, 11, 90];
+    let sorted = bubbleSort(data);
+    println(`Sorted: ${sorted}`);
+}

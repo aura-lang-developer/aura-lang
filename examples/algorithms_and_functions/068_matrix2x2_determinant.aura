@@ -1,0 +1,18 @@
+// Example 068: 2x2 Matrix Determinant
+// Determinant of a 2x2 matrix: (a*d - b*c).
+
+type Matrix2x2 = {
+    a: Int,
+    b: Int,
+    c: Int,
+    d: Int,
+};
+
+fn determinant(m: Matrix2x2): Int => {
+    m.a * m.d - m.b * m.c
+}
+
+export fn main(): Unit => {
+    let mat: Matrix2x2 = { a: 4, b: 6, c: 3, d: 8 };
+    println(`Determinant: ${determinant(mat)}`);
+}

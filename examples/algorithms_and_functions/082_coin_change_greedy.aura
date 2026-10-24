@@ -1,0 +1,23 @@
+// Example 082: Coin Change (Greedy Algorithm)
+// Minimizes number of standard denominations.
+
+fn minCoins(denominations: []Int, target: Int): Int => {
+    let mut remaining = target;
+    let mut totalCoins = 0;
+    let mut i = 0;
+    while i < denominations.length {
+        let coin = denominations[i];
+        if remaining >= coin {
+            let count = remaining / coin;
+            totalCoins = totalCoins + count;
+            remaining = remaining % coin;
+        }
+        i = i + 1;
+    }
+    totalCoins
+}
+
+export fn main(): Unit => {
+    let coins = [100, 50, 25, 10, 5, 1];
+    println(`Min coins for 287 cents: ${minCoins(coins, 287)}`);
+}

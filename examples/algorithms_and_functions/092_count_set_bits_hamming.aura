@@ -1,0 +1,19 @@
+// Example 092: Count Binary 1-Bits (Hamming Weight)
+// Counts the number of active bits in an integer representation.
+
+fn countSetBits(n: Int): Int => {
+    let mut count = 0;
+    let mut val = n;
+    while val > 0 {
+        if val % 2 == 1 {
+            count = count + 1;
+        }
+        val = val / 2;
+    }
+    count
+}
+
+export fn main(): Unit => {
+    println(`Set bits in 29: ${countSetBits(29)}`);
+    println(`Set bits in 15: ${countSetBits(15)}`);
+}

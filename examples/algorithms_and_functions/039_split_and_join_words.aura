@@ -1,0 +1,12 @@
+// Example 039: Split and Join Strings
+// Demonstrates splitting strings and joining slices.
+
+fn hyphenateWords(sentence: String): String => {
+    let words = sentence.split(" ");
+    words.join("-")
+}
+
+export fn main(): Unit => {
+    let text = "systems programming with ergonomics";
+    println(`Hyphenated: ${hyphenateWords(text)}`);
+}

@@ -1,0 +1,29 @@
+// Example 019: Integer Square Root
+// Computes floor(sqrt(n)) using integer binary search.
+
+fn integerSqrt(n: Int): Int => {
+    if n < 0 {
+        return 0;
+    }
+    if n == 0 || n == 1 {
+        return n;
+    }
+    let mut low = 1;
+    let mut high = n;
+    let mut ans = 1;
+    while low <= high {
+        let mid = (low + high) / 2;
+        if mid <= n / mid {
+            ans = mid;
+            low = mid + 1;
+        } else {
+            high = mid - 1;
+        }
+    }
+    ans
+}
+
+export fn main(): Unit => {
+    println(`sqrt(25) = ${integerSqrt(25)}`);
+    println(`sqrt(50) = ${integerSqrt(50)}`);
+}

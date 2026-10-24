@@ -1,0 +1,21 @@
+// Example 060: Binary Tree Search Node
+// Search helper within a tree node.
+
+type TreeNode =
+    | Empty
+    | Leaf(Int);
+
+fn containsVal(node: TreeNode, target: Int): Bool => {
+    match node {
+        Empty => false,
+        Leaf(v) => v == target,
+    }
+}
+
+export fn main(): Unit => {
+    let node1 = Leaf(42);
+    let node2 = Empty;
+
+    println(`node1 contains 42: ${containsVal(node1, 42)}`);
+    println(`node2 contains 42: ${containsVal(node2, 42)}`);
+}

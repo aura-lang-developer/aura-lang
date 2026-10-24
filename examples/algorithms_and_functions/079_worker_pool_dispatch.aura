@@ -1,0 +1,24 @@
+// Example 079: Worker Pool Dispatch Pattern
+// Dispatches tasks to a worker fiber via buffered channel.
+
+export fn main(): Unit => {
+    let tasks = Channel.new(4);
+    let done = Channel.new(1);
+
+    spawn {
+        let mut count = 0;
+        while count < 3 {
+            let task = <-tasks;
+            println(`Worker processed: ${task}`);
+            count = count + 1;
+        }
+        done <- "All processed";
+    };
+
+    tasks <- "Build AST";
+    tasks <- "Typecheck";
+    tasks <- "Emit Machine Code";
+
+    let finished = <-done;
+    println(`Pipeline status: ${finished}`);
+}

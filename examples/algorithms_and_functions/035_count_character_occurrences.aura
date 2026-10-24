@@ -1,0 +1,19 @@
+// Example 035: Count Character Occurrences
+// Counts how many times a character appears in a string.
+
+fn countChar(text: String, target: String): Int => {
+    let mut count = 0;
+    let mut i = 0;
+    while i < text.length {
+        if text[i] == target {
+            count = count + 1;
+        }
+        i = i + 1;
+    }
+    count
+}
+
+export fn main(): Unit => {
+    let text = "banana split banana boat";
+    println(`Count of 'a': ${countChar(text, "a")}`);
+}

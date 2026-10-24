@@ -1,0 +1,11 @@
+// Example 048: Currying Simulation
+// Decomposing a 2-parameter calculation into nested single-argument functions.
+
+fn multiplyBy(factor: Int): fn(Int) -> Int => {
+    fn(x: Int): Int => x * factor
+}
+
+export fn main(): Unit => {
+    let times5 = multiplyBy(5);
+    println(`5 * 12 = ${times5(12)}`);
+}

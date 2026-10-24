@@ -1,0 +1,15 @@
+// Example 021: Sum of Elements in Slice
+// Computes total sum of integers in a dynamic slice.
+
+fn sumSlice(items: []Int): Int => {
+    let mut total = 0;
+    for x in items {
+        total = total + x;
+    }
+    total
+}
+
+export fn main(): Unit => {
+    let numbers = [10, 20, 30, 40, 50];
+    println(`Sum: ${sumSlice(numbers)}`);
+}

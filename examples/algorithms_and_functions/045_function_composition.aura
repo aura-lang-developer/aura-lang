@@ -1,0 +1,19 @@
+// Example 045: Function Composition
+// Composes two unary functions f(g(x)).
+
+fn doubleVal(x: Int): Int => {
+    x * 2
+}
+
+fn addFive(x: Int): Int => {
+    x + 5
+}
+
+fn composeTwo(x: Int): Int => {
+    doubleVal(addFive(x))
+}
+
+export fn main(): Unit => {
+    let res = composeTwo(10);
+    println(`(10 + 5) * 2 = ${res}`);
+}

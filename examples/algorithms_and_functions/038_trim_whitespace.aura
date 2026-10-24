@@ -1,0 +1,11 @@
+// Example 038: String Trimming
+// Uses built-in trim to remove leading/trailing whitespace.
+
+fn cleanInput(raw: String): String => {
+    raw.trim()
+}
+
+export fn main(): Unit => {
+    let dirty = "   clean aura code   ";
+    println(`Trimmed: '${cleanInput(dirty)}'`);
+}

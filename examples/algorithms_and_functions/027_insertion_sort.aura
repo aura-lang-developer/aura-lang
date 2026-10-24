@@ -1,0 +1,24 @@
+// Example 027: Insertion Sort
+// Builds final sorted array one item at a time.
+
+fn insertionSort(items: []Int): []Int => {
+    let n = items.length;
+    let mut i = 1;
+    while i < n {
+        let key = items[i];
+        let mut j = i - 1;
+        while j >= 0 && items[j] > key {
+            items[j + 1] = items[j];
+            j = j - 1;
+        }
+        items[j + 1] = key;
+        i = i + 1;
+    }
+    items
+}
+
+export fn main(): Unit => {
+    let data = [12, 11, 13, 5, 6];
+    let sorted = insertionSort(data);
+    println(`Insertion sorted: ${sorted}`);
+}

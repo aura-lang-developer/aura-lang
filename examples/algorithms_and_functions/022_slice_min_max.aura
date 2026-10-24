@@ -1,0 +1,27 @@
+// Example 022: Minimum and Maximum in Slice
+// Traverses a slice to track both minimum and maximum values.
+
+fn findMin(items: []Int): Int => {
+    let mut minVal = items[0];
+    for x in items {
+        if x < minVal {
+            minVal = x;
+        }
+    }
+    minVal
+}
+
+fn findMax(items: []Int): Int => {
+    let mut maxVal = items[0];
+    for x in items {
+        if x > maxVal {
+            maxVal = x;
+        }
+    }
+    maxVal
+}
+
+export fn main(): Unit => {
+    let values = [45, 12, 89, 3, 67];
+    println(`Min: ${findMin(values)}, Max: ${findMax(values)}`);
+}

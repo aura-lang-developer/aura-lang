@@ -1,0 +1,26 @@
+// Example 010: Least Common Multiple (LCM)
+// Computes LCM based on GCD: (a * b) / gcd(a, b).
+
+fn gcd(a: Int, b: Int): Int => {
+    let mut x = a;
+    let mut y = b;
+    while y != 0 {
+        let r = x % y;
+        x = y;
+        y = r;
+    }
+    x
+}
+
+fn lcm(a: Int, b: Int): Int => {
+    if a == 0 || b == 0 {
+        0
+    } else {
+        let g = gcd(a, b);
+        (a * b) / g
+    }
+}
+
+export fn main(): Unit => {
+    println(`LCM(12, 18) = ${lcm(12, 18)}`);
+}

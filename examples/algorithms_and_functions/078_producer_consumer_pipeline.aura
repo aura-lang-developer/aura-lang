@@ -1,0 +1,16 @@
+// Example 078: Producer-Consumer Pipeline
+// Producer pushes items into channel; consumer pulls them.
+
+export fn main(): Unit => {
+    let dataCh = Channel.new(3);
+    spawn {
+        dataCh <- 10;
+        dataCh <- 20;
+        dataCh <- 30;
+    };
+
+    let a = <-dataCh;
+    let b = <-dataCh;
+    let c = <-dataCh;
+    println(`Consumer got: ${a}, ${b}, ${c}`);
+}

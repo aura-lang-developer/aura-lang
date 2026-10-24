@@ -1,0 +1,16 @@
+// Example 002: Difference and Product
+// Basic arithmetic operations demonstrating integer functions.
+
+fn subtract(a: Int, b: Int): Int => {
+    a - b
+}
+
+fn multiply(a: Int, b: Int): Int => {
+    a * b
+}
+
+export fn main(): Unit => {
+    let diff = subtract(50, 18);
+    let prod = multiply(6, 7);
+    println(`Difference: ${diff}, Product: ${prod}`);
+}

@@ -1,0 +1,11 @@
+// Example 001: Sum Two Numbers
+// Basic function taking two integers and returning their sum.
+
+fn add(a: Int, b: Int): Int => {
+    a + b
+}
+
+export fn main(): Unit => {
+    let result = add(15, 27);
+    println(`Sum: ${result}`);
+}

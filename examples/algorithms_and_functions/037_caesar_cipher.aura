@@ -1,0 +1,33 @@
+// Example 037: Caesar Cipher Encoder
+// Shifts ASCII characters by a fixed offset.
+
+fn caesarShiftChar(c: String, shift: Int): String => {
+    let code = c.charCodeAt(0);
+    // Uppercase 'A'-'Z' (65-90)
+    if code >= 65 && code <= 90 {
+        let shifted = ((code - 65 + shift) % 26) + 65;
+        return String.fromCharCode(shifted);
+    }
+    // Lowercase 'a'-'z' (97-122)
+    if code >= 97 && code <= 122 {
+        let shifted = ((code - 97 + shift) % 26) + 97;
+        return String.fromCharCode(shifted);
+    }
+    c
+}
+
+fn encryptCaesar(text: String, shift: Int): String => {
+    let mut res = "";
+    let mut i = 0;
+    while i < text.length {
+        res = `${res}${caesarShiftChar(text[i], shift)}`;
+        i = i + 1;
+    }
+    res
+}
+
+export fn main(): Unit => {
+    let raw = "Hello World";
+    let encrypted = encryptCaesar(raw, 3);
+    println(`Encrypted: ${encrypted}`);
+}

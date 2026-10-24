@@ -1,0 +1,17 @@
+// Example 006: Iterative Factorial
+// Calculates n! using a mutable loop accumulator.
+
+fn factorial(n: Int): Int => {
+    let mut result = 1;
+    let mut i = 1;
+    while i <= n {
+        result = result * i;
+        i = i + 1;
+    }
+    result
+}
+
+export fn main(): Unit => {
+    let val = 6;
+    println(`Factorial of ${val} is ${factorial(val)}`);
+}

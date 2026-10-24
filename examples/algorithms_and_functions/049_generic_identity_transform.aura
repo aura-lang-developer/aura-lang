@@ -1,0 +1,12 @@
+// Example 049: Generic Identity Function
+// Uses parameterized generic types <T> on a function.
+
+fn identity<ValType>(value: ValType): ValType => {
+    value
+}
+
+export fn main(): Unit => {
+    let intVal = identity<Int>(999);
+    let strVal = identity<String>("Aura Type Safety");
+    println(`Generic int: ${intVal}, str: ${strVal}`);
+}

@@ -1,0 +1,25 @@
+// Example 055: Evaluating Expression Trees
+// Recursive AST evaluator using ADT.
+
+type Expr =
+    | Num(Int)
+    | Add(Int, Int)
+    | Mul(Int, Int);
+
+fn evalExpr(e: Expr): Int => {
+    match e {
+        Num(v) => v,
+        Add(a, b) => a + b,
+        Mul(a, b) => a * b,
+    }
+}
+
+export fn main(): Unit => {
+    let e1 = Num(42);
+    let e2 = Add(10, 25);
+    let e3 = Mul(6, 7);
+
+    println(`Num: ${evalExpr(e1)}`);
+    println(`Add: ${evalExpr(e2)}`);
+    println(`Mul: ${evalExpr(e3)}`);
+}
