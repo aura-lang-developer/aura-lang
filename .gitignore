@@ -3,7 +3,7 @@ node_modules/
 dist/
 .DS_Store
 *.tfstate
-wordstar_app.go
+*.go
 projects/
 website/
 *.tar.gz
