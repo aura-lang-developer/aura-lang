@@ -3,6 +3,7 @@
 //! Provides automated security and code quality checks:
 //! - `SEC001`: Potential SQL injection via dynamic string interpolation/concatenation.
 //! - `SEC002`: Hardcoded sensitive credentials or API keys.
+//! - `SEC003`: Insecure PRNG (`Math.random`) usage for tokens, keys, passwords or cryptography.
 //! - `LINT001`: Variable declared with `let mut` but never reassigned.
 //! - `LINT002`: Exhaustive pattern match with empty arms.
 
@@ -155,6 +156,37 @@ impl Linter {
             }
         }
     }
+
+    fn check_insecure_random_usage(&mut self, name: &str, value: &Expr) {
+        let name_lower = name.to_lowercase();
+        let sensitive_token_indicators = [
+            "token", "secret", "salt", "iv", "nonce", "key", "password", "session", "auth",
+        ];
+
+        if sensitive_token_indicators.iter().any(|k| name_lower.contains(k)) {
+            let mut uses_math_random = false;
+            if let Expr::FunctionCall { callee, .. } = value {
+                if let Expr::MemberAccess { object, member } = callee.as_ref() {
+                    if let Expr::Identifier(obj_id) = object.as_ref() {
+                        if obj_id == "Math" && member == "random" {
+                            uses_math_random = true;
+                        }
+                    }
+                }
+            }
+
+            if uses_math_random {
+                self.diagnostics.push(LintDiagnostic {
+                    code: "SEC003",
+                    severity: LintSeverity::Error,
+                    message: format!(
+                        "Insecure randomness detected in security-sensitive variable '{}'. 'Math.random()' is pseudo-random and predictable. Use 'crypto.randomBytes()' or 'crypto.randomUUID()' instead.",
+                        name
+                    ),
+                });
+            }
+        }
+    }
 }
 
 impl AstVisitor for Linter {
@@ -170,6 +202,7 @@ impl AstVisitor for Linter {
                     self.mut_vars.insert(name.clone(), false);
                 }
                 self.check_hardcoded_secret(name, value);
+                self.check_insecure_random_usage(name, value);
             }
             Statement::Assign { target, .. } => {
                 if let Expr::Identifier(name) = target {

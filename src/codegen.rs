@@ -259,6 +259,13 @@ const __aura_import = async (m) => {
         self.write_line("  base64UrlDecode: (data) => {");
         self.write_line("    try { return Ok(Buffer.from(String(data ?? ''), 'base64url').toString('utf8')); } catch (e) { return Err(String(e)); }");
         self.write_line("  },");
+        self.write_line("  randomBytes: (size) => cryptoMod.randomBytes(Number(size || 32)).toString('hex'),");
+        self.write_line("  randomUUID: () => (cryptoMod.randomUUID ? cryptoMod.randomUUID() : cryptoMod.randomBytes(16).toString('hex')),");
+        self.write_line("  timingSafeEqual: (a, b) => {");
+        self.write_line("    const bufA = Buffer.from(String(a ?? ''));");
+        self.write_line("    const bufB = Buffer.from(String(b ?? ''));");
+        self.write_line("    return bufA.length === bufB.length && cryptoMod.timingSafeEqual(bufA, bufB);");
+        self.write_line("  },");
         self.write_line("});");
         self.write_line("");
         self.write_line("export const jwt = Object.freeze({");

@@ -46,6 +46,15 @@ export interface Handler {
     serveHTTP(w: ResponseWriter, req: Request): Unit
 }
 
+/// Applies standard defense-in-depth HTTP security headers (OWASP ASVS / CWE-693 mitigation).
+export fn applySecurityHeaders(w: ResponseWriter): Unit => {
+    w.setHeader("X-Content-Type-Options", "nosniff");
+    w.setHeader("X-Frame-Options", "DENY");
+    w.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    w.setHeader("X-XSS-Protection", "1; mode=block");
+    w.setHeader("Content-Security-Policy", "default-src 'self'");
+}
+
 /// Standard HTTP Status Codes
 export const StatusOK: Int = 200;
 export const StatusCreated: Int = 201;

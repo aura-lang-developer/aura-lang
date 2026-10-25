@@ -1690,6 +1690,34 @@ func (auraCryptoStatic) Base64UrlDecode(data string) auraResult {
 func (auraCryptoStatic) base64UrlDecode(data string) auraResult {
     return auraCryptoStatic{}.Base64UrlDecode(data)
 }
+func (auraCryptoStatic) RandomBytes(size any) string {
+    n := int(__auraInt(size))
+    if n <= 0 {
+        n = 32
+    }
+    b := make([]byte, n)
+    _, _ = rand.Read(b)
+    return hex.EncodeToString(b)
+}
+func (auraCryptoStatic) randomBytes(size any) string {
+    return auraCryptoStatic{}.RandomBytes(size)
+}
+func (auraCryptoStatic) RandomUUID() string {
+    b := make([]byte, 16)
+    _, _ = rand.Read(b)
+    b[6] = (b[6] & 0x0f) | 0x40 // Version 4
+    b[8] = (b[8] & 0x3f) | 0x80 // Variant RFC 4122
+    return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+}
+func (auraCryptoStatic) randomUUID() string {
+    return auraCryptoStatic{}.RandomUUID()
+}
+func (auraCryptoStatic) TimingSafeEqual(a, b string) bool {
+    return hmac.Equal([]byte(a), []byte(b))
+}
+func (auraCryptoStatic) timingSafeEqual(a, b string) bool {
+    return auraCryptoStatic{}.TimingSafeEqual(a, b)
+}
 var crypto = auraCryptoStatic{}
 
 type auraJwtStatic struct{}
@@ -2134,6 +2162,7 @@ impl GoCodeGen {
 
         final_code.push_str("import (\n");
         final_code.push_str("    \"bytes\"\n");
+        final_code.push_str("    \"crypto/rand\"\n");
         final_code.push_str("    \"crypto/hmac\"\n");
         final_code.push_str("    \"crypto/sha256\"\n");
         final_code.push_str("    \"encoding/base64\"\n");

@@ -51,6 +51,20 @@ export interface DB {
     close(): Unit
 }
 
+/// Represents a type-safe parameterized SQL query object (OWASP/ASVS SQLi mitigation).
+export type SqlQuery = {
+    queryText: String,
+    parameters: List<Any>
+};
+
+/// Constructs a safe parameterized SQL query structure.
+export fn sqlQuery(queryText: String, parameters: List<Any> = []): SqlQuery => {
+    {
+        queryText: queryText,
+        parameters: parameters
+    }
+}
+
 /// Standard DB alias
 export type SqlDB = DB;
 

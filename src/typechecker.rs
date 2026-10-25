@@ -641,6 +641,27 @@ impl TypeEnv {
                 )),
             },
         );
+        crypto_methods.insert(
+            "randomBytes".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::Int],
+                return_type: Box::new(ConcreteType::String),
+            },
+        );
+        crypto_methods.insert(
+            "randomUUID".to_string(),
+            ConcreteType::Function {
+                params: vec![],
+                return_type: Box::new(ConcreteType::String),
+            },
+        );
+        crypto_methods.insert(
+            "timingSafeEqual".to_string(),
+            ConcreteType::Function {
+                params: vec![ConcreteType::String, ConcreteType::String],
+                return_type: Box::new(ConcreteType::Bool),
+            },
+        );
         let crypto_type = ConcreteType::Record(crypto_methods);
         env.types.insert("Crypto".to_string(), crypto_type.clone());
         env.variables.insert("crypto".to_string(), crypto_type);
