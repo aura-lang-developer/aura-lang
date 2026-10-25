@@ -6,6 +6,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.3] - 2026-10-25
+
+### 🛡️ Pentest Security Hardening, Cryptographic Primitives (CSPRNG), OWASP ASVS & 100 Verified Algorithm Examples
+
+Aura v0.8.3 brings enterprise-grade security hardening based on OWASP ASVS and CWE pentesting guidelines, introducing native CSPRNG cryptographic primitives in both Golang and Node/V8 execution backends, static linter rules (`SEC003`) against predictable pseudo-randomness in sensitive contexts, safe typed SQL query structures, automated HTTP defense-in-depth security headers, and an extensive suite of 100 verified algorithm and functional programming examples.
+
+#### 1. Cryptographic Primitives & CSPRNG (`src/typechecker.rs`, `src/codegen_go.rs`, `src/codegen.rs`)
+- **Native CSPRNG Primitives**: Registered and implemented in the standard `crypto` module:
+  - `crypto.randomBytes(size: Int): String`: Generates cryptographically secure random bytes formatted as hexadecimal string using Go `crypto/rand` and Node `node:crypto`.
+  - `crypto.randomUUID(): String`: Generates RFC 4122 v4 compliant cryptographically secure random UUID strings.
+  - `crypto.timingSafeEqual(a: String, b: String): Bool`: Performs constant-time string comparison using `hmac.Equal` (Go) and `crypto.timingSafeEqual` (Node) to prevent side-channel timing attacks (CWE-208).
+
+#### 2. Static Security Linter (`src/linter.rs`)
+- **New Rule `SEC003` (Insecure PRNG Detection)**: The integrated linter (`aurac lint`) statically flags `Math.random()` when assigned to security-sensitive variables (matching tokens, secrets, salts, ivs, nonces, keys, passwords, sessions, or auth identifiers), instructing developers to use `crypto.randomBytes()` or `crypto.randomUUID()`.
+
+#### 3. Standard Library Hardening (`std/database/sql`, `std/net/http`)
+- **OWASP ASVS SQL Injection Mitigation (CWE-89)**: Added strongly typed `SqlQuery` interface and constructor `sqlQuery(text: String, params: List<Any> = [])` in `std/database/sql/sql.aura` to promote parameterized and prepared SQL queries.
+- **HTTP Defense-in-Depth Headers (CWE-693)**: Added `applySecurityHeaders(w: ResponseWriter)` in `std/net/http/http.aura`, automatically setting `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-XSS-Protection: 1; mode=block`, and `Content-Security-Policy: default-src 'self'`.
+
+#### 4. Web Playground Security Hardening (`src/playground.rs`)
+- **Elimination of `'unsafe-eval'` (CWE-79 / CWE-1021)**: Stripped `'unsafe-eval'` from the HTTP Content-Security-Policy header in the interactive web playground server and upgraded the Referrer-Policy to `strict-origin-when-cross-origin`.
+
+#### 5. 100 Verified Algorithm & Function Examples (`examples/algorithms_and_functions/`)
+- Added 100 individually compiled, executed, and type-checked Aura examples spanning arithmetic, number theory, sorting, searching, slices, strings, higher-order functions, algebraic data types, data structures, CSP concurrency, dynamic programming, and low-level representations with complete documentation in `examples/algorithms_and_functions/README.md`.
+
+---
+
 ## [0.8.2] - 2026-10-20
 
 ### 🧪 Full Golang `testing` (`go test`) Format Parity, Table-Driven Subtests & Verifiable Examples
