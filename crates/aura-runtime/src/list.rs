@@ -89,14 +89,8 @@ pub extern "C" fn aura_list_repeat_with_elem_size(
     if count > 0 && !items.is_null() {
         if es == 1 {
             let b = item as u8;
-            if b == 0 {
-                unsafe {
-                    std::ptr::write_bytes(items, 0, count);
-                }
-            } else {
-                unsafe {
-                    std::slice::from_raw_parts_mut(items, count).fill(b);
-                }
+            unsafe {
+                std::ptr::write_bytes(items, b, count);
             }
         } else {
             if item == 0 {

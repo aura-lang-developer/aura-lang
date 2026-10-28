@@ -21,6 +21,7 @@ pub struct CraneliftBackend {
     func_ids: HashMap<String, FuncId>,
     globals: HashMap<String, DataId>,
     byte_lists: HashSet<String>,
+    known_lists: HashSet<String>,
     distinct_types: HashSet<String>,
 
     // Runtime imported function IDs
@@ -659,6 +660,7 @@ impl CraneliftBackend {
             func_ids: HashMap::new(),
             globals: HashMap::new(),
             byte_lists: HashSet::new(),
+            known_lists: HashSet::new(),
             distinct_types: HashSet::new(),
             rt_start_id,
             fiber_spawn_id,
@@ -1009,6 +1011,7 @@ impl CraneliftBackend {
         }
 
         self.byte_lists.clear();
+        self.known_lists.clear();
 
         // Compile body
         let ret_val = self.compile_expr(&mut builder, &f.body, &mut vars, &mut defers, None)?;
@@ -1031,6 +1034,34 @@ impl CraneliftBackend {
             .map_err(|e| format!("Error defining function '{}': {}", f.name, e))?;
 
         Ok(())
+    }
+
+    fn is_list_expr(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::FunctionCall { callee, .. } => {
+                if let Expr::MemberAccess { object, member } = callee.as_ref() {
+                    if let Expr::Identifier(obj_name) = object.as_ref() {
+                        if obj_name == "Array" {
+                            return matches!(
+                                member.as_str(),
+                                "repeat"
+                                    | "repeatBool"
+                                    | "repeatByte"
+                                    | "new"
+                                    | "newByte"
+                                    | "newBool"
+                                    | "withCapacity"
+                            );
+                        }
+                    }
+                }
+                false
+            }
+            Expr::ListLiteral(_) => true,
+            Expr::SliceAccess { .. } => true,
+            Expr::Identifier(id) => self.known_lists.contains(id) || self.byte_lists.contains(id),
+            _ => false,
+        }
     }
 
     fn is_byte_list_expr(&self, expr: &Expr) -> bool {
@@ -1266,21 +1297,32 @@ impl CraneliftBackend {
                 let obj_val = self.compile_expr(builder, object, vars, defers, loop_ctx)?;
                 let idx_val = self.compile_expr(builder, index, vars, defers, loop_ctx)?;
 
+                let is_known = match object.as_ref() {
+                    Expr::Identifier(name) => {
+                        self.known_lists.contains(name) || self.byte_lists.contains(name)
+                    }
+                    _ => false,
+                };
+
                 let res_var = builder.declare_var(types::I64);
-                let zero = builder.ins().iconst(types::I64, 0);
-                let not_null = builder.ins().icmp(
-                    cranelift_codegen::ir::condcodes::IntCC::NotEqual,
-                    obj_val,
-                    zero,
-                );
                 let check_block = builder.create_block();
                 let slow_block = builder.create_block();
                 let fast_block = builder.create_block();
                 let merge_block = builder.create_block();
 
-                builder
-                    .ins()
-                    .brif(not_null, check_block, &[], slow_block, &[]);
+                if is_known {
+                    builder.ins().jump(check_block, &[]);
+                } else {
+                    let zero = builder.ins().iconst(types::I64, 0);
+                    let not_null = builder.ins().icmp(
+                        cranelift_codegen::ir::condcodes::IntCC::NotEqual,
+                        obj_val,
+                        zero,
+                    );
+                    builder
+                        .ins()
+                        .brif(not_null, check_block, &[], slow_block, &[]);
+                }
 
                 builder.switch_to_block(check_block);
                 builder.seal_block(check_block);
@@ -1677,6 +1719,9 @@ impl CraneliftBackend {
                             if self.is_byte_list_expr(value) {
                                 self.byte_lists.insert(name.clone());
                             }
+                            if self.is_list_expr(value) {
+                                self.known_lists.insert(name.clone());
+                            }
                             let val = self.compile_expr(builder, value, vars, defers, loop_ctx)?;
                             let var = builder.declare_var(types::I64);
                             builder.def_var(var, val);
@@ -1709,20 +1754,32 @@ impl CraneliftBackend {
                                     let idx_val =
                                         self.compile_expr(builder, index, vars, defers, loop_ctx)?;
 
-                                    let zero = builder.ins().iconst(types::I64, 0);
-                                    let not_null = builder.ins().icmp(
-                                        cranelift_codegen::ir::condcodes::IntCC::NotEqual,
-                                        obj_val,
-                                        zero,
-                                    );
+                                    let is_known = match object.as_ref() {
+                                        Expr::Identifier(name) => {
+                                            self.known_lists.contains(name)
+                                                || self.byte_lists.contains(name)
+                                        }
+                                        _ => false,
+                                    };
+
                                     let check_block = builder.create_block();
                                     let slow_block = builder.create_block();
                                     let fast_block = builder.create_block();
                                     let merge_block = builder.create_block();
 
-                                    builder
-                                        .ins()
-                                        .brif(not_null, check_block, &[], slow_block, &[]);
+                                    if is_known {
+                                        builder.ins().jump(check_block, &[]);
+                                    } else {
+                                        let zero = builder.ins().iconst(types::I64, 0);
+                                        let not_null = builder.ins().icmp(
+                                            cranelift_codegen::ir::condcodes::IntCC::NotEqual,
+                                            obj_val,
+                                            zero,
+                                        );
+                                        builder
+                                            .ins()
+                                            .brif(not_null, check_block, &[], slow_block, &[]);
+                                    }
 
                                     builder.switch_to_block(check_block);
                                     builder.seal_block(check_block);
