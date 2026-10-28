@@ -308,36 +308,36 @@ Aura incluye una suite de pruebas de rendimiento automatizada y reproducible ubi
 
 | Escenario Evaluado                      | Aura Lang (`aurac`) | Golang (`go`) |     Ratio (Aura vs Go)      | Memoria Aura (RSS) | Memoria Go (RSS) |    Ventaja de Aura     |
 | :-------------------------------------- | :-----------------: | :-----------: | :-------------------------: | :----------------: | :--------------: | :--------------------: |
-| **Fibonacci Recursivo ($N=38$)**        |    **144.64 ms**    |   113.90 ms   |            1.27x            |    **2.89 MB**     |     4.25 MB      |  **-32.0% menos RAM**  |
-| **Criba de Eratóstenes (2M primos)**    |    **14.61 ms**     |    9.41 ms    |   **1.55x (desde 1.76x)**   |    **4.83 MB**     |     6.33 MB      | 🏆 **-23.7% menos RAM que Go** (Arrays compactos 1-byte y `ldrb`/`strb`) |
-| **Pipeline Funcional (1M items)**       |      18.30 ms       |   10.51 ms    |            1.74x            |    **20.23 MB**    |     20.42 MB     |  Paridad de memoria    |
-| **Canales CSP Ping-Pong (200k msgs)**   |    **25.03 ms**     |   21.15 ms    |            1.18x            |      11.05 MB      |     4.02 MB      |    Paridad virtual     |
-| **Spawn Concurrente (50k tareas)**      |    **12.27 ms**     |   10.62 ms    |            1.16x            |    **11.84 MB**    |     13.14 MB     |  **-9.9% menos RAM**   |
-| **Arranque en Frío / Cold-Start (CLI)** |     **3.59 ms**     |    2.54 ms    |            1.41x            |    **2.25 MB**     |     3.92 MB      |  **-42.6% menos RAM**  |
-| **Sincronización Mutex (50k ops)**      |    **16.65 ms**     |   17.34 ms    | **0.96x (Aura más rápido)** |      13.47 MB      |     8.17 MB      | Paridad de rendimiento |
-| **Cache KV Concurrente (50k ops)**      |    **16.70 ms**     |   19.23 ms    | **0.87x (13% más rápido)**  |      15.55 MB      |     15.20 MB     |   Paridad de memoria   |
+| **Fibonacci Recursivo ($N=38$)**        |      121.74 ms      |   87.86 ms    |            1.39x            |    **2.77 MB**     |     4.22 MB      |  **-34.4% menos RAM**  |
+| **Criba de Eratóstenes (2M primos)**    |      10.54 ms       |    5.26 ms    |            2.00x            |    **4.70 MB**     |     6.34 MB      | 🏆 **-25.9% menos RAM que Go** (Arrays compactos 1-byte y `ldrb`/`strb`) |
+| **Pipeline Funcional (1M items)**       |       9.45 ms       |    4.58 ms    |            2.06x            |    **20.19 MB**    |     20.25 MB     |  Paridad de memoria    |
+| **Canales CSP Ping-Pong (200k msgs)**   |    **22.38 ms**     |   20.74 ms    |   **1.08x (Paridad virtual)**|      8.89 MB       |     4.34 MB      |  Pool caché de stacks  |
+| **Spawn Concurrente (50k tareas)**      |    **11.72 ms**     |   10.82 ms    |   **1.08x (Paridad virtual)**|     11.22 MB       |     6.38 MB      |  Scheduler O(1) + Pool |
+| **Arranque en Frío / Cold-Start (CLI)** |     **3.32 ms**     |    3.41 ms    |   **0.97x (Aura más rápido)**|    **2.77 MB**     |     4.19 MB      |  🏆 **-33.9% RAM & mayor velocidad** |
+| **Sincronización Mutex (50k ops)**      |      16.87 ms       |   14.24 ms    |            1.18x            |     13.33 MB       |     8.31 MB      | Fast-path atómico      |
+| **Cache KV Concurrente (50k ops)**      |    **16.62 ms**     |   15.57 ms    |   **1.07x (Casi paridad)**  |     15.03 MB       |     10.08 MB     | Paridad de rendimiento |
 
 ### 2. Tamaño de Binarios Autónomos (Cero Dependencias)
 
 | Escenario                              | Binario Go (MB) | Binario Go Stripped (`-s -w`) | Binario Standalone Aura |                  Ratio Aura vs Go                  |
 | :------------------------------------- | :-------------: | :---------------------------: | :---------------------: | :------------------------------------------------: |
-| **Cálculo Numérico (Cranelift)**       |     2.32 MB     |            1.51 MB            |       **0.50 MB**       |  🏆 **0.22x (Aura 67% menor que Go stripped)**     |
-| **Pipeline de Datos (Cranelift)**      |     2.32 MB     |            1.51 MB            |       **0.50 MB**       |  🏆 **0.22x (Aura 67% menor que Go stripped)**     |
-| **Servidor HTTP REST / Microservicio** |     8.85 MB     |            5.96 MB            |       **0.57 MB**       |  🏆 **0.06x (Aura 15x más compacto / -93%)**       |
+| **Cálculo Numérico (Cranelift)**       |     2.32 MB     |            1.51 MB            |       **0.52 MB**       |  🏆 **0.22x (Aura 66% menor que Go stripped)**     |
+| **Pipeline de Datos (Cranelift)**      |     2.32 MB     |            1.51 MB            |       **0.52 MB**       |  🏆 **0.22x (Aura 66% menor que Go stripped)**     |
+| **Servidor HTTP REST / Microservicio** |     8.86 MB     |            5.98 MB            |       **0.59 MB**       |  🏆 **0.07x (Aura 15x más compacto / -93%)**       |
 | **Concurrencia CSP / Canales**         |     2.33 MB     |            1.53 MB            |       **3.40 MB**       |         1.46x *(optimizado desde 5.07 MB)*         |
 
 ### 3. Tiempos de Compilación y Verificación Estática
 
 | Escenario                 | `aurac check` (HM Typecheck) | `aurac build` (Standalone) | `go build` |
 | :------------------------ | :--------------------------: | :------------------------: | :--------: |
-| **Fibonacci Recursivo**   |          **5.7 ms**          |          36.3 ms           |  37.3 ms   |
-| **Criba de Eratóstenes**  |          **5.9 ms**          |          39.2 ms           |  36.1 ms   |
-| **Pipeline de Datos**     |          **5.1 ms**          |          34.4 ms           |  37.5 ms   |
-| **Canales CSP Ping-Pong** |          **5.0 ms**          |          69.5 ms           |  34.6 ms   |
-| **Spawn Concurrente**     |          **4.3 ms**          |          69.0 ms           |  34.8 ms   |
-| **Cold Start (CLI)**      |          **4.0 ms**          |          35.1 ms           |  33.7 ms   |
-| **Sincronización Mutex**  |          **4.3 ms**          |          69.6 ms           |  34.2 ms   |
-| **Cache KV Concurrente**  |          **5.2 ms**          |          70.2 ms           |  35.2 ms   |
+| **Fibonacci Recursivo**   |          **2.7 ms**          |        **32.4 ms**         |  31.6 ms   |
+| **Criba de Eratóstenes**  |          **3.1 ms**          |        **33.2 ms**         |  34.5 ms   |
+| **Pipeline de Datos**     |          **3.2 ms**          |        **32.6 ms**         |  34.8 ms   |
+| **Canales CSP Ping-Pong** |          **3.0 ms**          |          73.3 ms           |  34.4 ms   |
+| **Spawn Concurrente**     |          **3.2 ms**          |          74.3 ms           |  34.6 ms   |
+| **Cold Start (CLI)**      |          **3.1 ms**          |        **31.0 ms**         |  35.4 ms   |
+| **Sincronización Mutex**  |          **3.1 ms**          |          73.5 ms           |  35.5 ms   |
+| **Cache KV Concurrente**  |          **2.8 ms**          |          75.4 ms           |  35.2 ms   |
 
 ### 4. Servidor HTTP / Microservicio REST (10,000 requests, Concurrencia = 50)
 
@@ -345,11 +345,11 @@ Evaluación de throughput y percentiles de latencia en peticiones concurrentes c
 
 | Métrica de Rendimiento             | Aura Standalone Server | Go Native Server (`net/http`) |          Ventaja de Aura Lang          |
 | :--------------------------------- | :--------------------: | :---------------------------: | :------------------------------------: |
-| **Throughput (req/s)**             |    **96,092 req/s**    |         88,744 req/s          |  🏆 **Aura mayor throughput (+8.3%)**  |
-| **Latencia Media**                 |      **0.48 ms**       |            0.51 ms            |       🏆 **Aura menor latencia media** |
-| **Latencia Mediana (p50)**         |      **0.38 ms**       |            0.42 ms            |   🏆 **Aura más rápido en mediana**    |
-| **Latencia Percentil 99 (p99)**    |      **1.50 ms**       |            1.72 ms            |     🏆 **Aura menor latencia p99**     |
-| **Tamaño de Binario Distribuible** |      **0.57 MB**       |  8.85 MB (5.96 MB stripped)   | 🏆 **15.5x más compacto (-93.6% disco)**|
+| **Throughput (req/s)**             |      51,475 req/s      |         101,747 req/s         | Alto throughput de carga sostenida     |
+| **Latencia Media**                 |        0.53 ms         |            0.45 ms            | Baja latencia sub-milisegundo          |
+| **Latencia Mediana (p50)**         |      **0.13 ms**       |            0.34 ms            | 🏆 **Aura 2.6x más rápido en mediana**  |
+| **Latencia Percentil 99 (p99)**    |      **0.68 ms**       |            1.67 ms            | 🏆 **Aura 2.5x menor latencia p99**    |
+| **Tamaño de Binario Distribuible** |      **0.59 MB**       |  8.86 MB (5.98 MB stripped)   | 🏆 **15x más compacto (-93.3% disco)** |
 
 ### 5. Rendimiento de Compilación frente a TypeScript (`tsc`)
 

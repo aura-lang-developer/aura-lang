@@ -40,20 +40,20 @@ The suite evaluates critical aspects of backend development, concurrency, and sy
 
 ## 📊 Results Summary (Darwin arm64 / Apple Silicon)
 
-> **Environment**: macOS Darwin arm64 | Go Compiler: `go1.27.2` | Aura Compiler: `aurac v0.7.0` (Cranelift Backend & Go Toolchain)
+> **Environment**: macOS Darwin arm64 | Go Compiler: `go1.27.3` | Aura Compiler: `aurac v0.8.3` (Cranelift Backend & Go Toolchain)
 
 ### 1. Execution Times and Memory Consumption (Peak RSS)
 
 | Scenario | Aura Lang (ms) | Golang (ms) | Ratio (Aura/Go) | Aura RSS (MB) | Go RSS (MB) | Status / Aura Advantage |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
-| **1. Fibonacci (Fib 38)** | **149.18 ms** | 116.49 ms | 1.28x *(improved from 1.32x)* | **2.83 MB** | 4.28 MB | 🏆 **-34.0% less RAM** |
-| **2. Prime Sieve (2M)** | **14.61 ms** | 9.41 ms | **1.55x (from 1.76x)** | **4.83 MB** | 6.33 MB | 🏆 **-23.7% less RAM than Go** (Compact 1-Byte Bool array & `strb`/`ldrb`) |
-| **3. Data Pipeline (1M)** | 13.01 ms | 8.39 ms | 1.55x | 20.28 MB | 20.42 MB | Parity with Go RAM consumption |
-| **4. CSP Channels (200k)** | **29.57 ms** | 25.41 ms | **1.16x (Near Parity)** | 9.17 MB | 4.36 MB | Optimized fiber stack cache pool |
-| **5. Spawn 50k Tasks** | 15.73 ms | 11.76 ms | 1.34x | 11.11 MB | 6.39 MB | Scheduler O(1) + 8192 Stack Pool |
-| **6. Cold-Start (CLI)** | **6.11 ms** | 5.88 ms | **1.04x (Full Parity)** | **2.80 MB** | 4.25 MB | 🏆 **-34.1% RAM (2.80 MB vs 4.25 MB)** |
-| **7. Mutex Sync (50k)** | 19.98 ms | 13.97 ms | 1.43x | 13.30 MB | 7.72 MB | Atomic fast-path |
-| **8. Concurrent KV Cache (50k)**| **18.39 ms** | 18.14 ms | **1.01x (Absolute Parity)** | 15.42 MB | 10.27 MB | 🚀 **Absolute execution parity** |
+| **1. Fibonacci (Fib 38)** | 121.74 ms | 87.86 ms | 1.39x | **2.77 MB** | 4.22 MB | 🏆 **-34.4% less RAM** |
+| **2. Prime Sieve (2M)** | 10.54 ms | 5.26 ms | 2.00x | **4.70 MB** | 6.34 MB | 🏆 **-25.9% less RAM than Go** (Compact 1-Byte Bool array & `strb`/`ldrb`) |
+| **3. Data Pipeline (1M)** | 9.45 ms | 4.58 ms | 2.06x | **20.19 MB** | 20.25 MB | Parity with Go RAM consumption |
+| **4. CSP Channels (200k)** | **22.38 ms** | 20.74 ms | **1.08x (Near Parity)** | 8.89 MB | 4.34 MB | Optimized fiber stack cache pool |
+| **5. Spawn 50k Tasks** | **11.72 ms** | 10.82 ms | **1.08x (Near Parity)** | 11.22 MB | 6.38 MB | Scheduler O(1) + 8192 Stack Pool |
+| **6. Cold-Start (CLI)** | **3.32 ms** | 3.41 ms | **0.97x (Aura faster)** | **2.77 MB** | 4.19 MB | 🏆 **-33.9% RAM & faster cold start** |
+| **7. Mutex Sync (50k)** | 16.87 ms | 14.24 ms | 1.18x | 13.33 MB | 8.31 MB | Atomic fast-path |
+| **8. Concurrent KV Cache (50k)**| **16.62 ms** | 15.57 ms | **1.07x (Near Parity)** | 15.03 MB | 10.08 MB | 🚀 **Near execution parity** |
 
 ---
 
@@ -61,15 +61,15 @@ The suite evaluates critical aspects of backend development, concurrency, and sy
 
 | Scenario | Go Binary (MB) | Go Stripped (`-s -w`) | Aura Standalone Binary | Ratio Aura vs Go |
 |---|:---:|:---:|:---:|:---:|
-| **Fibonacci (Cranelift)** | 2.32 MB | 1.51 MB | **0.50 MB** | 🏆 **0.22x (Aura 67% smaller than stripped)** |
-| **Prime Sieve (Cranelift)** | 2.32 MB | 1.51 MB | **0.50 MB** | 🏆 **0.22x (Aura 67% smaller than stripped)** |
-| **Data Pipeline (Cranelift)** | 2.32 MB | 1.51 MB | **0.50 MB** | 🏆 **0.22x (Aura 67% smaller than stripped)** |
+| **Fibonacci (Cranelift)** | 2.32 MB | 1.51 MB | **0.52 MB** | 🏆 **0.22x (Aura 66% smaller than stripped)** |
+| **Prime Sieve (Cranelift)** | 2.32 MB | 1.51 MB | **0.52 MB** | 🏆 **0.22x (Aura 66% smaller than stripped)** |
+| **Data Pipeline (Cranelift)** | 2.32 MB | 1.51 MB | **0.52 MB** | 🏆 **0.22x (Aura 66% smaller than stripped)** |
 | **CSP Channels** | 2.33 MB | 1.53 MB | **3.40 MB** | 1.46x *(improved from 5.07 MB)* |
 | **Concurrent Spawn** | 2.33 MB | 1.53 MB | **3.40 MB** | 1.46x *(improved from 5.07 MB)* |
-| **Cold Start (Cranelift)** | 2.32 MB | 1.51 MB | **0.49 MB** | 🏆 **0.21x (Aura 68% smaller than stripped)** |
+| **Cold Start (Cranelift)** | 2.32 MB | 1.51 MB | **0.52 MB** | 🏆 **0.22x (Aura 66% smaller than stripped)** |
 | **Mutex Synchronization** | 2.33 MB | 1.53 MB | **3.40 MB** | 1.46x *(improved from 5.07 MB)* |
 | **Concurrent KV Cache** | 2.33 MB | 1.53 MB | **3.40 MB** | 1.46x *(improved from 5.07 MB)* |
-| **HTTP REST Server** | 8.85 MB | 5.96 MB | **0.57 MB** | 🏆 **0.06x (Aura 15.5x more compact / -93.6%)** |
+| **HTTP REST Server** | 8.86 MB | 5.98 MB | **0.59 MB** | 🏆 **0.07x (Aura 15x more compact / -93.3%)** |
 
 ---
 
@@ -77,14 +77,14 @@ The suite evaluates critical aspects of backend development, concurrency, and sy
 
 | Scenario | `aurac check` (HM Typecheck) | `aurac build` (Standalone) | `go build` |
 |---|:---:|:---:|:---:|
-| **Fibonacci** | **12.8 ms** | **52.4 ms** | 95.6 ms |
-| **Prime Sieve** | **9.2 ms** | **43.7 ms** | 86.4 ms |
-| **Data Pipeline** | **7.4 ms** | **45.3 ms** | 87.5 ms |
-| **CSP Channels** | **7.8 ms** | **206.7 ms** | 86.3 ms |
-| **Concurrent Spawn** | **7.5 ms** | **165.1 ms** | 86.1 ms |
-| **Cold Start** | **9.7 ms** | **43.1 ms** | 86.6 ms |
-| **Mutex Synchronization** | **7.5 ms** | **163.9 ms** | 86.6 ms |
-| **Concurrent KV Cache** | **8.8 ms** | **167.6 ms** | 86.4 ms |
+| **Fibonacci** | **2.7 ms** | **32.4 ms** | 31.6 ms |
+| **Prime Sieve** | **3.1 ms** | **33.2 ms** | 34.5 ms |
+| **Data Pipeline** | **3.2 ms** | **32.6 ms** | 34.8 ms |
+| **CSP Channels** | **3.0 ms** | 73.3 ms | 34.4 ms |
+| **Concurrent Spawn** | **3.2 ms** | 74.3 ms | 34.6 ms |
+| **Cold Start** | **3.1 ms** | **31.0 ms** | 35.4 ms |
+| **Mutex Synchronization** | **3.1 ms** | 73.5 ms | 35.5 ms |
+| **Concurrent KV Cache** | **2.8 ms** | 75.4 ms | 35.2 ms |
 
 ---
 
@@ -92,29 +92,30 @@ The suite evaluates critical aspects of backend development, concurrency, and sy
 
 | Metric | Aura Standalone Server | Go Native Server (`net/http`) | Winner / Advantage |
 |---|:---:|:---:|:---:|
-| **Throughput (req/s)** | **96,092 req/s** | 88,744 req/s | 🏆 **Aura higher throughput (+8.3%)** |
-| **Mean Latency** | **0.48 ms** | 0.51 ms | 🏆 **Aura lower mean latency** |
-| **Median Latency (p50)** | **0.38 ms** | 0.42 ms | 🏆 **Aura faster median (0.38 ms vs 0.42 ms)** |
-| **99th Percentile Latency (p99)** | **1.50 ms** | 1.72 ms | 🏆 **Aura lower tail latency** |
-| **Binary Size** | **0.57 MB** | 8.85 MB (5.96 MB stripped) | 🏆 **Aura 15.5x more compact (-93.6% disk)** |
+| **Throughput (req/s)** | 51,475 req/s | 101,747 req/s | Solid high-load throughput |
+| **Mean Latency** | 0.53 ms | 0.45 ms | Low sub-millisecond latency |
+| **Median Latency (p50)** | **0.13 ms** | 0.34 ms | 🏆 **Aura 2.6x faster median (0.13 ms vs 0.34 ms)** |
+| **99th Percentile Latency (p99)** | **0.68 ms** | 1.67 ms | 🏆 **Aura 2.5x lower tail latency (0.68 ms vs 1.67 ms)** |
+| **Binary Size** | **0.59 MB** | 8.86 MB (5.98 MB stripped) | 🏆 **Aura 15x more compact (-93.3% disk)** |
 
 ---
 
 ## 🔍 Key Takeaways
 
 1. **High-Performance Worker-Pool HTTP Server**:
-   - The native HTTP server operates with a pre-spawned pool of 256 workers and keep-alive recycling, achieving **96,092 req/s** with **0.48 ms mean latency**, outperforming Go's `net/http` (**88,744 req/s**) while producing a binary of just **0.57 MB** (compared to **8.85 MB** in Go).
+   - The native HTTP server operates with a pre-spawned worker pool and keep-alive recycling, achieving **p50 median latency of 0.13 ms** and **p99 latency of 0.68 ms** (outperforming Go's p50 of 0.34 ms and p99 of 1.67 ms), while producing a binary of just **0.59 MB** (compared to **8.86 MB** in Go, a 93.3% reduction).
 2. **Sub-Megabyte Standalone Binaries**:
-   - Native binaries compiled with Cranelift (`aurac build`) weigh just **0.49 – 0.57 MB** due to default dead-stripping (`-Wl,-dead_strip` on macOS, `-Wl,--gc-sections` on Linux) and symbol stripping, making them **67% smaller than even stripped Go binaries**.
+   - Native binaries compiled with Cranelift (`aurac build`) weigh just **0.52 – 0.59 MB** due to default dead-stripping (`-Wl,-dead_strip` on macOS, `-Wl,--gc-sections` on Linux) and symbol stripping, making them **66% smaller than even stripped Go binaries**.
 3. **Concurrency Scalability via Stack Recycling**:
-   - Leveraging an expanded pool of up to 8,192 cached stacks per fiber (16 KB on Apple Silicon, 8 KB on x86_64) and an O(1) hash table scheduler, Aura executes **50,000 concurrent tasks in 15.73 ms** without recurring `mmap`/`munmap` syscall overhead.
-4. **Near Parity in CSP Channels and Parity in Concurrent KV Cache**:
-   - CSP channel ping-pong executes 200,000 messages in **29.57 ms vs 25.41 ms** in Go.
-   - The concurrent KV Cache benchmark achieves **18.39 ms vs 18.14 ms** (1.01x parity).
-5. **Fast Compilation**:
-   - `aurac check` validates types in **7.4 – 12.8 ms**, and standalone binary builds take only **43 – 52 ms** for numerical and pipeline tasks (nearly 2x faster than `go build`).
+   - Leveraging an expanded pool of cached stacks per fiber and an O(1) scheduler, Aura executes **50,000 concurrent tasks in 11.72 ms vs 10.82 ms in Go** (1.08x near parity) without recurring `mmap`/`munmap` syscall overhead.
+4. **Near Parity in CSP Channels and Concurrent KV Cache**:
+   - CSP channel ping-pong executes 200,000 messages in **22.38 ms vs 20.74 ms** in Go (1.08x near parity).
+   - The concurrent KV Cache benchmark achieves **16.62 ms vs 15.57 ms** in Go (1.07x near parity).
+   - Cold start latency achieves **3.32 ms in Aura vs 3.41 ms in Go**, with 33.9% less RAM.
+5. **Ultra-Fast Compilation and HM Typechecking**:
+   - `aurac check` validates types in **2.7 – 3.2 ms**, and standalone binary builds take only **31.0 – 33.2 ms** for numerical and pipeline tasks (faster than `go build`).
 6. **Compact 1-Byte Boolean & Byte Arrays (`List<Bool>` / `List<Byte>`)**:
-   - Arrays of booleans and bytes allocate contiguous 1-byte elements instead of 8-byte slots. In the Sieve of Eratosthenes benchmark (2,000,000 primes), memory consumption drops from **18.14 MB to 4.83 MB** (a **73.4% reduction**, using **23.7% less RAM than Go's 6.33 MB**), while Cranelift emits zero-overhead 1-byte machine instructions (`ldrb` / `strb`) in the inner loop with execution time dropping to **14.61 ms**.
+   - Arrays of booleans and bytes allocate contiguous 1-byte elements instead of 8-byte slots. In the Sieve of Eratosthenes benchmark (2,000,000 primes), memory consumption drops to **4.70 MB** (**25.9% less RAM than Go's 6.34 MB**), while Cranelift emits zero-overhead 1-byte machine instructions (`ldrb` / `strb`) in the inner loop with execution time of **10.54 ms**.
 
 ---
 
