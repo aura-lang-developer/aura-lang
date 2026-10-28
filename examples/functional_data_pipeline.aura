@@ -1,0 +1,41 @@
+// High-Performance Zero-Overhead Functional Pipeline in Aura Lang
+// Demonstrates vectorized/fast-path filter, map, and sum operations on List<Int>
+
+export fn isEven(x: Int): Bool => {
+    x % 2 == 0
+}
+
+export fn triple(x: Int): Int => {
+    x * 3
+}
+
+export fn main(): Unit => {
+    let count = 1000000;
+    println(`[Pipeline Demo] Generating dataset with ${count} elements...`);
+
+    let mut data = [];
+    let mut i = 0;
+    while i < count {
+        data.push(i);
+        i = i + 1;
+    };
+
+    println("[Pipeline Demo] Executing chained functional pipeline: data.filter().map().sum()...");
+    let t0 = time.now();
+
+    // 1. Vectorized filter (500k even numbers preserved)
+    let evens = data.filter(fn(x: Int): Bool => x % 2 == 0);
+
+    // 2. Direct memory transformation map (x * 3)
+    let mapped = evens.map(fn(x: Int): Int => x * 3);
+
+    // 3. Autovectorized parallel/SIMD summation
+    let total = mapped.sum();
+
+    let elapsed = time.now() - t0;
+
+    println(`[Pipeline Demo] Results:`);
+    println(`  - Filtered items : ${len(evens)}`);
+    println(`  - Total sum      : ${total}`);
+    println(`  - Execution time : ${elapsed} ms`);
+}

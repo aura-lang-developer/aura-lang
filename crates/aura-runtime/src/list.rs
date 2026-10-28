@@ -274,11 +274,23 @@ pub extern "C" fn aura_list_filter(
             return res;
         }
         let mut count = 0;
-        for i in 0..len {
-            let item = aura_list_get(list, i);
-            if pred(item) != 0 {
-                aura_list_set(res, count, item);
-                count += 1;
+        if es == 1 {
+            let src_slice = std::slice::from_raw_parts(src.items as *const u8, len);
+            let dst_items = (*res).items;
+            for &item in src_slice {
+                if pred(item as i64) != 0 {
+                    *dst_items.add(count) = item;
+                    count += 1;
+                }
+            }
+        } else {
+            let src_slice = std::slice::from_raw_parts(src.items as *const i64, len);
+            let dst_items = (*res).items as *mut i64;
+            for &item in src_slice {
+                if pred(item) != 0 {
+                    *dst_items.add(count) = item;
+                    count += 1;
+                }
             }
         }
         (*res).len = count;
@@ -302,9 +314,18 @@ pub extern "C" fn aura_list_map(
         if len == 0 || src.items.is_null() {
             return res;
         }
-        for i in 0..len {
-            let item = aura_list_get(list, i);
-            aura_list_set(res, i, mapper(item));
+        if es == 1 {
+            let src_slice = std::slice::from_raw_parts(src.items as *const u8, len);
+            let dst_items = (*res).items;
+            for (i, &item) in src_slice.iter().enumerate() {
+                *dst_items.add(i) = mapper(item as i64) as u8;
+            }
+        } else {
+            let src_slice = std::slice::from_raw_parts(src.items as *const i64, len);
+            let dst_items = (*res).items as *mut i64;
+            for (i, &item) in src_slice.iter().enumerate() {
+                *dst_items.add(i) = mapper(item);
+            }
         }
         (*res).len = len;
         res
@@ -321,11 +342,13 @@ pub extern "C" fn aura_list_sum(list: *mut AuraList) -> i64 {
         if l.len == 0 || l.items.is_null() {
             return 0;
         }
-        let mut sum: i64 = 0;
-        for i in 0..l.len {
-            sum += aura_list_get(list, i);
+        if l.elem_size == 1 {
+            let slice = std::slice::from_raw_parts(l.items as *const u8, l.len);
+            slice.iter().map(|&x| x as i64).sum()
+        } else {
+            let slice = std::slice::from_raw_parts(l.items as *const i64, l.len);
+            slice.iter().sum()
         }
-        sum
     }
 }
 

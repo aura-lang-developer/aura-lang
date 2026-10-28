@@ -812,6 +812,11 @@ let totalParesTransformados = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     |> map(fn(x: Int): Int => x * 3)
     |> toList();
 
+// Operaciones funcionales vectorizadas de costo cero (examples/functional_data_pipeline.aura)
+let evens = data.filter(fn(x: Int): Bool => x % 2 == 0);
+let mapped = evens.map(fn(x: Int): Int => x * 3);
+let total = mapped.sum(); // Reducción acumulativa directa sobre slices sin llamadas FFI por elemento
+
 // 2. Función recursiva optimizada con TCO
 fn factorialTCO(n: Int, acc: Int = 1): Int => {
     if n <= 1 {
