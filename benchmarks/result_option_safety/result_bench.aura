@@ -1,0 +1,48 @@
+fn divideSafe(numerator: Int, denominator: Int): Result<Int, String> => {
+    if denominator == 0 {
+        Err("Division by zero")
+    } else {
+        Ok(numerator / denominator)
+    }
+}
+
+fn findUserAge(id: Int): Option<Int> => {
+    if id % 2 == 0 {
+        Some(20 + (id % 50))
+    } else {
+        None
+    }
+}
+
+export fn main(): Unit => {
+    let iterations = 2000000;
+    let t0 = time.now();
+    let mut okCount = 0;
+    let mut someCount = 0;
+    let mut i = 0;
+
+    while i < iterations {
+        let r = divideSafe(i * 10, (i % 5));
+        let val1 = match r {
+            Ok(v) => v,
+            Err(e) => 0,
+        };
+        if val1 > 0 {
+            okCount = okCount + 1;
+        };
+
+        let opt = findUserAge(i);
+        let val2 = match opt {
+            Some(age) => age,
+            None => 0,
+        };
+        if val2 > 0 {
+            someCount = someCount + 1;
+        };
+
+        i = i + 1;
+    };
+
+    let dur = time.now() - t0;
+    println(`[AURA] Result/Option safety: 2M iterations (Oks: ${okCount}, Somes: ${someCount}) in ${dur} ms`);
+}

@@ -1,0 +1,25 @@
+fn scopedOperation(id: Int): Int => {
+    let mut status = 10;
+    defer {
+        status = status + 1;
+    };
+    defer {
+        status = status + 2;
+    };
+    status + id
+}
+
+export fn main(): Unit => {
+    let iterations = 1000000;
+    let t0 = time.now();
+    let mut sum = 0;
+    let mut i = 0;
+
+    while i < iterations {
+        sum = sum + scopedOperation(i);
+        i = i + 1;
+    };
+
+    let dur = time.now() - t0;
+    println(`[AURA] Defer cleanup: ${iterations} scopes executed | Sum: ${sum} | Time: ${dur} ms`);
+}

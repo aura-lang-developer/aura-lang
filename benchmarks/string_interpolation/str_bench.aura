@@ -1,0 +1,19 @@
+export fn main(): Unit => {
+    let iterations = 200000;
+    let t0 = time.now();
+    let mut totalLen = 0;
+    let mut i = 0;
+
+    let service = "order-service";
+    let env = "production";
+
+    while i < iterations {
+        let code = 200 + (i % 5);
+        let msg = `[${env}] service=${service} request_id=${i} status=${code} latency=${i % 50}ms`;
+        totalLen = totalLen + msg.length;
+        i = i + 1;
+    };
+
+    let dur = time.now() - t0;
+    println(`[AURA] String Interpolation: ${iterations} strings (${totalLen} bytes) in ${dur} ms`);
+}

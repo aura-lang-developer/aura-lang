@@ -1,0 +1,40 @@
+type Shape =
+    | Circle(Float)
+    | Rectangle(Float, Float)
+    | Triangle(Float, Float)
+    | Point;
+
+fn calculateArea(s: Shape): Float => {
+    match s {
+        Circle(r) => 3.141592653589793 * r * r,
+        Rectangle(w, h) => w * h,
+        Triangle(b, h) => 0.5 * b * h,
+        Point => 0.0,
+    }
+}
+
+export fn main(): Unit => {
+    let iterations = 2000000;
+    let mut totalArea = 0.0;
+    let mut i = 0;
+
+    let t0 = time.now();
+    while i < iterations {
+        let rem = i % 4;
+        let s = if rem == 0 {
+            Circle(10.5)
+        } else if rem == 1 {
+            Rectangle(20.0, 15.0)
+        } else if rem == 2 {
+            Triangle(12.0, 8.0)
+        } else {
+            Point
+        };
+
+        totalArea = totalArea + calculateArea(s);
+        i = i + 1;
+    };
+    let dur = time.now() - t0;
+
+    println(`[AURA] ADT Match 2M shapes | Total Area: ${totalArea} | Time: ${dur} ms`);
+}

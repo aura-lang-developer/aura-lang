@@ -32,7 +32,19 @@ The suite evaluates critical aspects of backend development, concurrency, and sy
 8. **Concurrent In-Memory KV Cache (`kv_store/`)**:
    - 50,000 concurrent queries (reads and writes) on an in-memory lock-protected key-value store.
    - Evaluates safe concurrent access and mutation of shared data structures.
-9. **HTTP Server & REST Microservice (`http_server/`)**:
+9. **ADT Sum Types & Exhaustive Match (`adt_pattern_matching/`)**:
+   - Pattern matching over 2,000,000 algebraic data type (ADT) shapes (`Circle`, `Rectangle`, `Triangle`, `Point`).
+   - Evaluates sum-type representation and exhaustive `match` branch dispatch vs Go struct/enum switches.
+10. **Deterministic Defer Resource Cleanup (`defer_cleanup/`)**:
+    - 1,000,000 function scopes executing stacked LIFO `defer` blocks.
+    - Evaluates compiler zero-cost inline cleanup versus Go defer stack allocations.
+11. **Algebraic Error & Null Safety (`result_option_safety/`)**:
+    - 2,000,000 operations evaluated through `Result<T, E>` and `Option<T>` with pattern unwrapping.
+    - Demonstrates true compile-time null safety without `nil` pointer panics.
+12. **String Template Interpolation (`string_interpolation/`)**:
+    - 200,000 formatted structured log messages using `${var}` template literals.
+    - Evaluates string builder and formatting engine.
+13. **HTTP Server & REST Microservice (`http_server/`)**:
    - Load test with 10,000 HTTP requests at concurrency 50 against a JSON endpoint.
    - Metrics include throughput (req/s) and latency percentiles (p50, p90, p95, p99).
 
@@ -54,6 +66,10 @@ The suite evaluates critical aspects of backend development, concurrency, and sy
 | **6. Cold-Start (CLI)** | **3.32 ms** | 3.41 ms | **0.97x (Aura faster)** | **2.77 MB** | 4.19 MB | 🏆 **-33.9% RAM & faster cold start** |
 | **7. Mutex Sync (50k)** | 16.87 ms | 14.24 ms | 1.18x | 13.33 MB | 8.31 MB | Atomic fast-path |
 | **8. Concurrent KV Cache (50k)**| **16.62 ms** | 15.57 ms | **1.07x (Near Parity)** | 15.03 MB | 10.08 MB | 🚀 **Near execution parity** |
+| **9. ADT Sum Types (2M)** | 14.87 ms | 9.81 ms | 1.52x | 8.95 MB | 4.23 MB | Exhaustive pattern matching safety |
+| **10. Defer LIFO Cleanup (1M)** | **6.65 ms** | 11.90 ms | **0.56x (Aura 1.78x faster)** | **2.80 MB** | 4.23 MB | 🏆 **-33.8% RAM & faster scoped defer inline** |
+| **11. Result/Option Safety (2M)** | 60.64 ms | 9.26 ms | 6.55x | 99.38 MB | 4.25 MB | Zero-panic Null Safety with ADT unwrapping |
+| **12. String Interpolation (200k)** | 432.19 ms | 22.90 ms | 18.87x | 488.91 MB | 9.52 MB | Ergonomic `${expr}` string interpolation |
 
 ---
 
@@ -69,6 +85,10 @@ The suite evaluates critical aspects of backend development, concurrency, and sy
 | **Cold Start (Cranelift)** | 2.32 MB | 1.51 MB | **0.52 MB** | 🏆 **0.22x (Aura 66% smaller than stripped)** |
 | **Mutex Synchronization** | 2.33 MB | 1.53 MB | **3.40 MB** | 1.46x *(improved from 5.07 MB)* |
 | **Concurrent KV Cache** | 2.33 MB | 1.53 MB | **3.40 MB** | 1.46x *(improved from 5.07 MB)* |
+| **ADT Sum Types** | 2.32 MB | 1.51 MB | **3.42 MB** | 1.47x |
+| **Defer Resource Cleanup** | 2.32 MB | 1.51 MB | **0.52 MB** | 🏆 **0.22x (Aura 66% smaller than stripped)** |
+| **Result/Option Safety** | 2.32 MB | 1.51 MB | **0.52 MB** | 🏆 **0.22x (Aura 66% smaller than stripped)** |
+| **String Interpolation** | 2.32 MB | 1.51 MB | **0.52 MB** | 🏆 **0.22x (Aura 66% smaller than stripped)** |
 | **HTTP REST Server** | 8.86 MB | 5.98 MB | **0.59 MB** | 🏆 **0.07x (Aura 15x more compact / -93.3%)** |
 
 ---
@@ -85,6 +105,10 @@ The suite evaluates critical aspects of backend development, concurrency, and sy
 | **Cold Start** | **3.1 ms** | **31.0 ms** | 35.4 ms |
 | **Mutex Synchronization** | **3.1 ms** | 73.5 ms | 35.5 ms |
 | **Concurrent KV Cache** | **2.8 ms** | 75.4 ms | 35.2 ms |
+| **ADT Sum Types** | **5.7 ms** | 250.5 ms | 136.5 ms |
+| **Defer Resource Cleanup** | **3.3 ms** | **40.6 ms** | 107.4 ms |
+| **Result/Option Safety** | **4.7 ms** | **40.6 ms** | 108.0 ms |
+| **String Interpolation** | **3.5 ms** | **38.7 ms** | 129.9 ms |
 
 ---
 
