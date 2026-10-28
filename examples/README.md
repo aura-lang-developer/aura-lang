@@ -103,6 +103,8 @@ Located in the [`generics/`](generics/) directory:
 | File | Core Concepts & Key Features |
 | :--- | :--- |
 | [`pointers_demo.aura`](pointers_demo.aura) | **Pointers & Memory References**: Pointer types (`*T`), address-of operator (`&x`), explicit dereferencing (`*p`), in-place value exchange (`swapValues`), pointer receiver methods (`*Receiver`), and compile-time thread-isolation safety (`[E0401]`). |
+| [`rust_features_showcase.aura`](rust_features_showcase.aura) | **Rust-Inspired Features Showcase**: `#[derive(Debug, Clone, Eq, Json, Hash)]` attributes on structs and sum types, `#[must_use]` validation, type invariants, and auto-generated boilerplate methods. |
+| [`must_use_and_fix_demo.aura`](must_use_and_fix_demo.aura) | **Must-Use and Auto-Fix Demo**: Static linter diagnostics for discarded critical return values (`#[must_use]`) and automatic in-place correction of unmutated `let mut` declarations via `aura fix`. |
 | [`zig_inspired_features.aura`](zig_inspired_features.aura) | **Zig-Inspired Low-Level Capabilities**: Transactional cleanup with `errdefer`, zero-padding binary layouts (`packed struct`), and C ABI foreign function declarations (`extern "C"`). |
 
 ---
@@ -139,6 +141,7 @@ Located in the [`tests/`](tests/) directory:
 
 ## 9. Subprojects & Tooling Demos
 
+* **[`algorithms_and_functions/`](algorithms_and_functions/)**: Suite of **100 verified algorithms and functions** ([see full catalog](algorithms_and_functions/README.md)) covering arithmetic, primes/sieve, sorting, searching, string manipulation, functional programming, ADTs, CSP, and microbenchmarks.
 * **[`aurabun/`](aurabun/)**: High-performance package manager and bundler for the Aura ecosystem inspired by Bun.
 * **[`bootstrap_demo/`](bootstrap_demo/)**: Demonstration of the stage-1 compiler bootstrapping process.
 * **[`compiler_extension_guide/`](compiler_extension_guide/)**: Comprehensive documentation and source examples for extending Aura's AST, typechecker, and backends.

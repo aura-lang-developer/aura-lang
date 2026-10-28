@@ -103,6 +103,8 @@ Ubicados en la carpeta [`generics/`](generics/):
 | Archivo | Concepto y Características Clave |
 | :--- | :--- |
 | [`pointers_demo.aura`](pointers_demo.aura) | **Punteros y Referencias de Memoria**: Tipos de puntero (`*T`), operador address-of (`&x`), desreferenciación (`*p`), intercambio de memoria `swapValues`, métodos con receptor de puntero (`*Receiver`) y reglas de seguridad de aislamiento en hilos `[E0401]`. |
+| [`rust_features_showcase.aura`](rust_features_showcase.aura) | **Características Inspiradas en Rust**: Atributos `#[derive(Debug, Clone, Eq, Json, Hash)]` sobre structs y sum types, validación `#[must_use]`, aserciones de invariantes y métodos generados automáticamente. |
+| [`must_use_and_fix_demo.aura`](must_use_and_fix_demo.aura) | **Demostración de Must-Use y Auto-Fix**: Diagnóstico estático de valores críticos ignorados (`#[must_use]`) y corrección automática de variables `let mut` no reasignadas con `aura fix`. |
 | [`zig_inspired_features.aura`](zig_inspired_features.aura) | **Características Inspiradas en Zig**: Limpieza transaccional condicional con `errdefer`, estructuras de padding cero `packed struct`, enlaces FFI con `extern "C"` y cross-compilación. |
 
 ---
@@ -139,6 +141,7 @@ Ubicados en la carpeta [`tests/`](tests/):
 
 ## 9. Subproyectos y Demos Adicionales
 
+* **[`algorithms_and_functions/`](algorithms_and_functions/)**: Suite de **100 algoritmos y funciones verificadas** ([ver catálogo completo](algorithms_and_functions/README.md)) cubriendo aritmética, números primos, ordenamiento, búsqueda, procesamiento de strings, programación funcional, ADTs, CSP y benchmarks.
 * **[`aurabun/`](aurabun/)**: Gestor de paquetes y herramienta de empaquetado de alto rendimiento inspirada en Bun para el ecosistema de Aura.
 * **[`bootstrap_demo/`](bootstrap_demo/)**: Demostración del proceso de auto-hospedaje (*bootstrapping*) del compilador.
 * **[`compiler_extension_guide/`](compiler_extension_guide/)**: Guía y código base para desarrolladores que desean extender el AST, el typechecker o los generadores de código de Aura.
