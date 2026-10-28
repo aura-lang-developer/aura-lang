@@ -5090,8 +5090,36 @@ impl TypeChecker {
                                     params: vec![],
                                     return_type: Box::new(ConcreteType::List(Box::new(elem))),
                                 }),
-                                _ => Err(format!("Field '{}' not found in record", member)),
+                                _ => {
+                                    if matches!(
+                                        member.as_str(),
+                                        "clone"
+                                            | "debug"
+                                            | "toString"
+                                            | "equals"
+                                            | "toJson"
+                                            | "fromJson"
+                                            | "hash"
+                                            | "isPacked"
+                                    ) {
+                                        Ok(ConcreteType::Any)
+                                    } else {
+                                        Err(format!("Field '{}' not found in record", member))
+                                    }
+                                }
                             }
+                        } else if matches!(
+                            member.as_str(),
+                            "clone"
+                                | "debug"
+                                | "toString"
+                                | "equals"
+                                | "toJson"
+                                | "fromJson"
+                                | "hash"
+                                | "isPacked"
+                        ) {
+                            Ok(ConcreteType::Any)
                         } else {
                             Err(format!("Field '{}' not found in record", member))
                         }
@@ -5167,6 +5195,18 @@ impl TypeChecker {
                                 Ok(field_ty.clone())
                             } else if member == "val" || member == "value" {
                                 Ok(*inner.clone())
+                            } else if matches!(
+                                member.as_str(),
+                                "clone"
+                                    | "debug"
+                                    | "toString"
+                                    | "equals"
+                                    | "toJson"
+                                    | "fromJson"
+                                    | "hash"
+                                    | "isPacked"
+                            ) {
+                                Ok(ConcreteType::Any)
                             } else {
                                 Err(format!("Field '{}' not found in record", member))
                             }
@@ -5202,6 +5242,18 @@ impl TypeChecker {
                                 type_args,
                                 variants,
                             })
+                        } else if matches!(
+                            member.as_str(),
+                            "clone"
+                                | "debug"
+                                | "toString"
+                                | "equals"
+                                | "toJson"
+                                | "fromJson"
+                                | "hash"
+                                | "isPacked"
+                        ) {
+                            Ok(ConcreteType::Any)
                         } else {
                             Err(format!("Variant '{}' not found in type '{}'", member, name))
                         }
@@ -5257,6 +5309,18 @@ impl TypeChecker {
                                     type_args,
                                     variants,
                                 })
+                            } else if matches!(
+                                member.as_str(),
+                                "clone"
+                                    | "debug"
+                                    | "toString"
+                                    | "equals"
+                                    | "toJson"
+                                    | "fromJson"
+                                    | "hash"
+                                    | "isPacked"
+                            ) {
+                                Ok(ConcreteType::Any)
                             } else {
                                 Err(format!("Variant '{}' not found in type '{}'", member, name))
                             }
@@ -5279,6 +5343,18 @@ impl TypeChecker {
                         {
                             if let Some(field_ty) = fields.get(member) {
                                 Ok(field_ty.clone())
+                            } else if matches!(
+                                member.as_str(),
+                                "clone"
+                                    | "debug"
+                                    | "toString"
+                                    | "equals"
+                                    | "toJson"
+                                    | "fromJson"
+                                    | "hash"
+                                    | "isPacked"
+                            ) {
+                                Ok(ConcreteType::Any)
                             } else {
                                 Err(format!("Field '{}' not found in record", member))
                             }
@@ -5344,6 +5420,18 @@ impl TypeChecker {
                         ConcreteType::Record(fields) => {
                             if let Some(field_ty) = fields.get(member) {
                                 Ok(field_ty.clone())
+                            } else if matches!(
+                                member.as_str(),
+                                "clone"
+                                    | "debug"
+                                    | "toString"
+                                    | "equals"
+                                    | "toJson"
+                                    | "fromJson"
+                                    | "hash"
+                                    | "isPacked"
+                            ) {
+                                Ok(ConcreteType::Any)
                             } else {
                                 Err(format!("Field '{}' not found in record", member))
                             }

@@ -1,0 +1,108 @@
+// ==============================================================================
+// Aura Language Example: Rust-Inspired Features Showcase
+// Demonstrates:
+// 1. #[derive(Debug, Clone, Eq, Json, Hash)] on records and sum types
+// 2. #[must_use] function directives with custom diagnostics
+// 3. Doctests embedded in documentation comments
+// ==============================================================================
+
+// ------------------------------------------------------------------------------
+// 1. Derivaciones Automáticas: #[derive(...)]
+// ------------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Eq, Json, Hash)]
+export type User = {
+    id: Int,
+    username: String,
+    email: String,
+    active: Bool,
+};
+
+#[derive(Debug, Clone, Eq, Json)]
+export type OrderStatus =
+    | Pending
+    | Processing
+    | Completed(String)
+    | Cancelled(String);
+
+// ------------------------------------------------------------------------------
+// 2. Directiva #[must_use] y Manejo Estricto de Recursos
+// ------------------------------------------------------------------------------
+
+#[must_use = "El resultado de la transacción bancaria debe ser validado o revertido"]
+export fn processPayment(amount: Float): Bool => {
+    println(`Procesando pago por monto: $${amount}`);
+    true
+};
+
+// ------------------------------------------------------------------------------
+// 3. Documentación Ejecutable (Doctests)
+// ------------------------------------------------------------------------------
+
+/// Suma dos números enteros.
+/// ```aura
+/// let res = add(15, 25);
+/// assert(res == 40, "15 + 25 debe ser 40");
+/// ```
+export fn add(a: Int, b: Int): Int => {
+    a + b
+};
+
+/// Calcula el precio con descuento.
+/// ```aura
+/// let total = applyDiscount(100.0, 0.20);
+/// assert(total == 80.0, "100 con 20% descuento debe ser 80");
+/// ```
+export fn applyDiscount(price: Float, discount: Float): Float => {
+    price * (1.0 - discount)
+};
+
+// ------------------------------------------------------------------------------
+// Punto de Entrada Principal
+// ------------------------------------------------------------------------------
+
+export fn main(): Unit => {
+    println("=== 1. Demostración de #[derive] en Records ===");
+    let u1: User = {
+        id: 101,
+        username: "alice",
+        email: "alice@aura.dev",
+        active: true,
+    };
+
+    // Método .clone() derivado automáticamente
+    let u2 = User.clone(u1);
+
+    // Comparación estructural por valor .equals()
+    let sonIguales = User.equals(u1, u2);
+    println(`¿u1 y u2 son iguales?: ${sonIguales}`);
+
+    // Serialización JSON .toJson() y deserialización .fromJson()
+    let jsonStr = User.toJson(u1);
+    println(`JSON serializado: ${jsonStr}`);
+
+    let u3 = User.fromJson(jsonStr);
+    println(`ID recuperado de JSON: ${u3.id}`);
+
+    // Código Hash entero determinista .hash()
+    let hashU1 = User.hash(u1);
+    println(`Hashcode FNV-1a de u1: ${hashU1}`);
+
+    println("\n=== 2. Demostración de #[derive] en Sum Types (ADTs) ===");
+    let estado1 = Completed("TX-998822");
+    let estado2 = OrderStatus.clone(estado1);
+    println(`Estado serializado: ${OrderStatus.toJson(estado1)}`);
+    println(`¿Estados clonados son idénticos?: ${OrderStatus.equals(estado1, estado2)}`);
+
+    println("\n=== 3. Demostración de #[must_use] ===");
+    // Uso correcto del valor de retorno de una función #[must_use]
+    let txExitosa = processPayment(250.75);
+    if txExitosa {
+        println("Pago verificado y procesado con éxito.");
+    }
+
+    println("\n=== 4. Demostración de Doctests ===");
+    println(`add(15, 25) = ${add(15, 25)}`);
+    println(`applyDiscount(100.0, 0.20) = ${applyDiscount(100.0, 0.20)}`);
+    println("Ejecuta 'auratest --doc' para verificar todos los doctests del proyecto.");
+};

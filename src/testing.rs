@@ -21,6 +21,7 @@ pub enum TestKind {
     Integration,
     E2E,
     Benchmark,
+    DocTest,
 }
 
 impl std::fmt::Display for TestKind {
@@ -30,6 +31,7 @@ impl std::fmt::Display for TestKind {
             TestKind::Integration => write!(f, "INTEGRATION"),
             TestKind::E2E => write!(f, "E2E"),
             TestKind::Benchmark => write!(f, "BENCHMARK"),
+            TestKind::DocTest => write!(f, "DOCTEST"),
         }
     }
 }
@@ -76,6 +78,7 @@ pub struct TestConfig {
     pub watch: bool,
     pub race: bool,
     pub tags: Vec<String>,
+    pub doc_only: bool,
 }
 
 impl Default for TestConfig {
@@ -100,6 +103,7 @@ impl Default for TestConfig {
             watch: false,
             race: false,
             tags: Vec::new(),
+            doc_only: false,
         }
     }
 }
@@ -175,18 +179,26 @@ pub struct TestSummary {
 
 /// Recursively discovers `.aura` test files matching test conventions.
 pub fn discover_test_files(paths: &[PathBuf]) -> Result<Vec<TestFile>, String> {
+    discover_test_files_with_config(paths, false)
+}
+
+/// Recursively discovers `.aura` test files with optional doctests inclusion.
+pub fn discover_test_files_with_config(
+    paths: &[PathBuf],
+    doc_only: bool,
+) -> Result<Vec<TestFile>, String> {
     let mut files = Vec::new();
     let mut visited = HashSet::new();
 
     for path in paths {
         let path_str = path.to_string_lossy();
         if path_str == "./..." || path_str == "..." {
-            discover_in_dir(Path::new("."), &mut files, &mut visited)?;
+            discover_in_dir(Path::new("."), &mut files, &mut visited, doc_only)?;
         } else if path_str.ends_with("/...") {
             let base = path_str.trim_end_matches("/...");
-            discover_in_dir(Path::new(base), &mut files, &mut visited)?;
+            discover_in_dir(Path::new(base), &mut files, &mut visited, doc_only)?;
         } else if path.is_dir() {
-            discover_in_dir(path, &mut files, &mut visited)?;
+            discover_in_dir(path, &mut files, &mut visited, doc_only)?;
         } else if path.is_file()
             && let Some(tf) = process_test_file(path)?
         {
@@ -201,6 +213,7 @@ fn discover_in_dir(
     dir: &Path,
     files: &mut Vec<TestFile>,
     visited: &mut HashSet<PathBuf>,
+    doc_only: bool,
 ) -> Result<(), String> {
     if !dir.exists() || !dir.is_dir() {
         return Ok(());
@@ -229,7 +242,7 @@ fn discover_in_dir(
         }
 
         if path.is_dir() {
-            discover_in_dir(&path, files, visited)?;
+            discover_in_dir(&path, files, visited, doc_only)?;
         } else if path.is_file() {
             let filename = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
             let is_test_name = filename.ends_with(".aura")
@@ -237,7 +250,8 @@ fn discover_in_dir(
                     || filename.ends_with(".test.aura")
                     || filename.ends_with("_spec.aura")
                     || filename.starts_with("test_")
-                    || path.to_string_lossy().contains("/tests/"));
+                    || path.to_string_lossy().contains("/tests/")
+                    || doc_only);
 
             if is_test_name {
                 let canon = path.canonicalize().unwrap_or_else(|_| path.clone());
@@ -252,6 +266,66 @@ fn discover_in_dir(
     }
 
     Ok(())
+}
+
+/// Extracts embedded code blocks inside doc comments (`/// ```aura ... ``` `).
+pub fn extract_doctests(source: &str, file_path: &Path) -> (Vec<TestFunction>, String) {
+    let mut doctests = Vec::new();
+    let mut synthetic_code = String::new();
+    let mut in_block = false;
+    let mut current_block_lines = Vec::new();
+    let mut start_line = 0;
+    let mut block_idx = 1;
+
+    for (line_idx, line) in source.lines().enumerate() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("///") || trimmed.starts_with("//!") {
+            let doc_line = trimmed.trim_start_matches("///").trim_start_matches("//!").trim();
+            if doc_line.starts_with("```aura") || (doc_line == "```" && !in_block) {
+                in_block = true;
+                start_line = line_idx + 1;
+                current_block_lines.clear();
+            } else if doc_line.starts_with("```") && in_block {
+                in_block = false;
+                let fn_name = format!("__aura_doctest_{}_line_{}", block_idx, start_line);
+                let body = current_block_lines.join("\n");
+                synthetic_code.push_str(&format!(
+                    "\nexport fn {}(): Unit => {{\n{}\n}};\n",
+                    fn_name, body
+                ));
+                doctests.push(TestFunction {
+                    name: fn_name,
+                    display_name: format!("{}:{} (doctest)", file_path.display(), start_line),
+                    kind: TestKind::DocTest,
+                    is_async: false,
+                    line_number: start_line,
+                });
+                block_idx += 1;
+                current_block_lines.clear();
+            } else if in_block {
+                current_block_lines.push(doc_line.to_string());
+            }
+        } else if in_block {
+            in_block = false;
+            let fn_name = format!("__aura_doctest_{}_line_{}", block_idx, start_line);
+            let body = current_block_lines.join("\n");
+            synthetic_code.push_str(&format!(
+                "\nexport fn {}(): Unit => {{\n{}\n}};\n",
+                fn_name, body
+            ));
+            doctests.push(TestFunction {
+                name: fn_name,
+                display_name: format!("{}:{} (doctest)", file_path.display(), start_line),
+                kind: TestKind::DocTest,
+                is_async: false,
+                line_number: start_line,
+            });
+            block_idx += 1;
+            current_block_lines.clear();
+        }
+    }
+
+    (doctests, synthetic_code)
 }
 
 fn determine_test_kind(path: &Path) -> TestKind {
@@ -354,6 +428,14 @@ fn process_test_file(path: &Path) -> Result<Option<TestFile>, String> {
         }
     }
 
+    let (doctests, doc_code) = extract_doctests(&source, path);
+    functions.extend(doctests);
+    let final_source = if !doc_code.is_empty() {
+        format!("{}\n\n{}", source, doc_code)
+    } else {
+        source
+    };
+
     if functions.is_empty() && has_top_level_assertions {
         let file_stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("Main");
         functions.push(TestFunction {
@@ -365,9 +447,13 @@ fn process_test_file(path: &Path) -> Result<Option<TestFile>, String> {
         });
     }
 
+    if functions.is_empty() {
+        return Ok(None);
+    }
+
     Ok(Some(TestFile {
         path: path.to_path_buf(),
-        source,
+        source: final_source,
         default_kind,
         functions,
         has_top_level_assertions,
@@ -1151,7 +1237,7 @@ __aura_main_runner().catch(err => {
 /// Main entrypoint to execute tests based on the provided configuration.
 pub fn run_tests(config: &TestConfig) -> Result<TestSummary, String> {
     let start_time = Instant::now();
-    let discovered_files = discover_test_files(&config.paths)?;
+    let discovered_files = discover_test_files_with_config(&config.paths, config.doc_only)?;
 
     if discovered_files.is_empty() {
         return Ok(TestSummary {
@@ -1201,6 +1287,12 @@ pub fn run_tests(config: &TestConfig) -> Result<TestSummary, String> {
         let mut matching_funcs = Vec::new();
         for f in &test_file.functions {
             // Category filter
+            if config.doc_only && f.kind != TestKind::DocTest {
+                continue;
+            }
+            if !config.doc_only && f.kind == TestKind::DocTest {
+                continue;
+            }
             if config.unit_only && f.kind != TestKind::Unit {
                 continue;
             }
@@ -1919,6 +2011,7 @@ pub fn print_test_help() {
     println!("  --unit                  Run only unit tests");
     println!("  --integration           Run only integration tests");
     println!("  --e2e                   Run only end-to-end (E2E) tests");
+    println!("  --doc                   Run only documentation tests (doctests)");
     println!("  -timeout <duration>     Test execution timeout (e.g. 30s, 5000ms)");
     println!("  -failfast               Stop execution on first test failure");
     println!("  -parallel <n>           Number of test files to run in parallel");
@@ -1979,6 +2072,10 @@ pub fn run_cli(args: &[String]) {
             }
             "--e2e" => {
                 config.e2e_only = true;
+                i += 1;
+            }
+            "--doc" | "-doc" => {
+                config.doc_only = true;
                 i += 1;
             }
             "-failfast" | "--failfast" | "--fail-fast" => {

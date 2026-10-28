@@ -1,0 +1,16 @@
+// Demostración de #[must_use] detectado por el linter
+// y de variables mutables innecesarias corregidas automáticamente con `aura fix`.
+
+#[must_use = "La transacción en la base de datos debe cerrarse explícitamente"]
+fn abrirTransaccion(): Int => {
+    1001
+};
+
+export fn main(): Unit => {
+    // 1. Variable declarada let mut innecesariamente (será corregida por aura fix)
+    let contadorInmutable = 42;
+    println(`Valor: ${contadorInmutable}`);
+
+    // 2. Llamada descartada a función #[must_use] (genera advertencia LINT003)
+    abrirTransaccion();
+};

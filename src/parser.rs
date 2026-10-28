@@ -3,6 +3,13 @@
 use crate::ast::*;
 use crate::lexer::{Lexer, RawTemplateSegment, Token, TokenKind};
 
+#[derive(Debug, Clone, PartialEq)]
+struct ParsedAttribute {
+    name: String,
+    args: Vec<String>,
+    message: Option<String>,
+}
+
 pub struct Parser {
     tokens: Vec<Token>,
     pos: usize,
@@ -193,8 +200,72 @@ impl Parser {
         })
     }
 
+    fn parse_attributes(&mut self) -> Result<Vec<ParsedAttribute>, String> {
+        let mut attrs = Vec::new();
+        while self.peek() == &TokenKind::Hash && self.peek_next() == &TokenKind::LBracket {
+            self.advance(); // match '#'
+            self.expect(TokenKind::LBracket)?;
+            let name = self.expect_ident()?;
+            let mut args = Vec::new();
+            let mut message = None;
+            if self.match_token(&TokenKind::Equal) {
+                if let TokenKind::String(s) = self.peek().clone() {
+                    self.advance();
+                    message = Some(s.clone());
+                    args.push(s);
+                }
+            } else if self.match_token(&TokenKind::LParen) {
+                while self.peek() != &TokenKind::RParen && self.peek() != &TokenKind::Eof {
+                    match self.peek().clone() {
+                        TokenKind::String(s) => {
+                            self.advance();
+                            message = Some(s.clone());
+                            args.push(s);
+                        }
+                        TokenKind::Ident(id) => {
+                            self.advance();
+                            args.push(id);
+                        }
+                        _ => {
+                            self.advance();
+                        }
+                    }
+                    if !self.match_token(&TokenKind::Comma) {
+                        break;
+                    }
+                }
+                self.expect(TokenKind::RParen)?;
+            }
+            self.expect(TokenKind::RBracket)?;
+            attrs.push(ParsedAttribute {
+                name,
+                args,
+                message,
+            });
+        }
+        Ok(attrs)
+    }
+
     fn parse_item(&mut self) -> Result<Item, String> {
+        let mut attrs = self.parse_attributes()?;
         let is_exported = self.match_token(&TokenKind::Export);
+        let mut more_attrs = self.parse_attributes()?;
+        attrs.append(&mut more_attrs);
+
+        let mut derives = Vec::new();
+        let mut is_must_use = false;
+        let mut must_use_message = None;
+
+        for attr in &attrs {
+            if attr.name == "derive" {
+                derives.extend(attr.args.clone());
+            } else if attr.name == "must_use" {
+                is_must_use = true;
+                if attr.message.is_some() {
+                    must_use_message = attr.message.clone();
+                }
+            }
+        }
 
         match self.peek() {
             TokenKind::Import => {
@@ -206,7 +277,7 @@ impl Parser {
                 Ok(Item::Extern(ext))
             }
             TokenKind::Fn | TokenKind::Async => {
-                let func = self.parse_function(is_exported)?;
+                let func = self.parse_function(is_exported, is_must_use, must_use_message)?;
                 self.match_token(&TokenKind::Semicolon);
                 Ok(Item::Function(func))
             }
@@ -232,6 +303,7 @@ impl Parser {
                     is_distinct: false,
                     type_params,
                     target,
+                    derives,
                 }))
             }
             TokenKind::Struct => {
@@ -247,6 +319,7 @@ impl Parser {
                     is_distinct: false,
                     type_params,
                     target,
+                    derives,
                 }))
             }
             TokenKind::Type => {
@@ -281,6 +354,7 @@ impl Parser {
                         is_exported,
                         type_params,
                         variants,
+                        derives,
                     }))
                 } else {
                     let target = self.parse_type()?;
@@ -292,6 +366,7 @@ impl Parser {
                         is_distinct,
                         type_params,
                         target,
+                        derives,
                     }))
                 }
             }
@@ -422,7 +497,12 @@ impl Parser {
         })
     }
 
-    fn parse_function(&mut self, is_exported: bool) -> Result<FunctionDecl, String> {
+    fn parse_function(
+        &mut self,
+        is_exported: bool,
+        is_must_use: bool,
+        must_use_message: Option<String>,
+    ) -> Result<FunctionDecl, String> {
         let is_async = self.match_token(&TokenKind::Async);
         self.expect(TokenKind::Fn)?;
 
@@ -471,6 +551,8 @@ impl Parser {
             params,
             return_type,
             body,
+            is_must_use,
+            must_use_message,
         })
     }
 

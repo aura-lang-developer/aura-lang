@@ -57,6 +57,7 @@ Aura compiles directly into **standalone native executable binaries** (Mach-O on
    - [16. Compilation Directives, Build Tags, and Struct Tags](#16-compilation-directives-build-tags-and-struct-tags)
    - [17. TypeScript Ingestion (`.d.ts`) and Static Embedding (`embed`)](#17-typescript-ingestion-dts-and-static-asset-embedding-embed)
    - [18. Testing Directives, Assertions, and Benchmarking](#18-testing-directives-assertions-and-benchmarking)
+   - [19. Rust-Inspired Features: Derives, Must-Use, Auto-Fix, and Doctests](#19-rust-inspired-features-derives-must-use-auto-fix-and-doctests)
 7. [🗄️ Standard Library, Web Server, and Databases](#️-standard-library-web-server-and-databases)
    - [HTTP Web Server & ServeMux Router (`net/http`)](#-http-web-server-and-routing-mux-nethttp)
    - [Prometheus Metrics and W3C Traceparent Tracing](#-prometheus-metrics-and-distributed-tracing)
@@ -1312,6 +1313,93 @@ aurac examples/tests/math_unit_test.aura --test --coverage
 
 # Generate coverage profile and interactive HTML report
 aurac --test -coverprofile coverage.out --coverage-html coverage.html ./...
+```
+
+---
+
+### 19. Rust-Inspired Features: Derives, Must-Use, Auto-Fix, and Doctests
+
+Aura incorporates static ergonomics and robustness patterns directly inspired by **Rust**:
+
+#### A. Automatic Type Derivation (`#[derive(...)]`)
+
+Automatically synthesizes standard helper and receiver methods on `type` (record aliases) and `type` (sum types / ADTs) to eliminate boilerplate:
+
+```aura
+#[derive(Debug, Clone, Eq, Json, Hash)]
+export type User = {
+    id: Int,
+    username: String,
+    active: Bool,
+};
+```
+
+* **`Debug`**: Synthesizes `User.debug(u)`, `.debug()`, and `.toString()`.
+* **`Clone`**: Synthesizes deep structured cloning with `User.clone(u)` and `.clone()`.
+* **`Eq`**: Synthesizes structural value equality comparison `User.equals(a, b)` and `.equals(other)`.
+* **`Json`**: Synthesizes `User.toJson(u)`, `.toJson()`, and typed parsing `User.fromJson(str)`.
+* **`Hash`**: Synthesizes deterministic 32-bit FNV-1a integer hashing `User.hash(u)` and `.hash()`.
+
+#### B. `#[must_use]` Directive for Discarded Value Protection
+
+Emits static linter warnings if the return value of a critical function or handle is discarded without inspection:
+
+```aura
+#[must_use = "Database transaction handle must be committed or rolled back"]
+fn beginTx(): Int => {
+    return 1001;
+};
+
+fn main(): Unit => {
+    beginTx(); // Triggers LINT003 warning in `aura lint`
+};
+```
+
+#### C. Linter with Automated Code Repair (`aura fix` / `aurac lint --fix`)
+
+Automatically repairs static analysis findings, such as variables declared with `let mut` that are never reassigned:
+
+```bash
+# Automatically repair issues in file
+aura fix src/main.aura
+
+# Or via linter flag:
+aura lint src/main.aura --fix
+```
+
+#### D. Executable Documentation Tests (*Doctests*) with `auratest --doc`
+
+Documentation code snippets embedded in triple-slash comments (`/// ```aura ... ``` `) are automatically discovered, compiled, and executed:
+
+```aura
+/// Adds two integers.
+/// ```aura
+/// let res = add(10, 20);
+/// assert(res == 30, "10 + 20 must equal 30");
+/// ```
+pub fn add(a: Int, b: Int): Int => a + b;
+```
+
+Run only documentation tests via:
+```bash
+auratest --doc
+# Or with the primary compiler CLI:
+aura test --doc
+```
+
+#### E. Modular Feature Flags in `aura.mod`
+
+Enable conditional submodules and optional feature drivers within decentralized dependency declarations:
+
+```mod
+module my-service/api
+
+aura 0.8.3
+
+require (
+    github.com/aura/db v1.2.0 [postgres, sqlite]
+    github.com/aura/metrics v0.4.0
+)
 ```
 
 ---

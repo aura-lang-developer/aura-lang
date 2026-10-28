@@ -246,6 +246,22 @@ pub struct Dependency {
     pub path: String,
     pub version: String,
     pub indirect: bool,
+    pub features: Vec<String>,
+}
+
+fn parse_features_from_line(line: &str) -> Vec<String> {
+    if let Some(start) = line.find('[') {
+        if let Some(end) = line.find(']') {
+            if end > start {
+                return line[start + 1..end]
+                    .split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect();
+            }
+        }
+    }
+    Vec::new()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -299,10 +315,12 @@ impl ModuleFile {
                     let path = parts[0].to_string();
                     let version = parts[1].to_string();
                     let indirect = line.contains("// indirect");
+                    let features = parse_features_from_line(line);
                     require.push(Dependency {
                         path,
                         version,
                         indirect,
+                        features,
                     });
                 }
                 continue;
@@ -333,10 +351,12 @@ impl ModuleFile {
                 let parts: Vec<&str> = rest.split_whitespace().collect();
                 if parts.len() >= 2 {
                     let indirect = rest.contains("// indirect");
+                    let features = parse_features_from_line(rest);
                     require.push(Dependency {
                         path: parts[0].to_string(),
                         version: parts[1].to_string(),
                         indirect,
+                        features,
                     });
                 }
             } else if line == "replace (" {
@@ -379,6 +399,29 @@ impl ModuleFile {
                 path: path.to_string(),
                 version: version.to_string(),
                 indirect,
+                features: Vec::new(),
+            });
+            self.require.sort_by(|a, b| a.path.cmp(&b.path));
+        }
+    }
+
+    pub fn add_require_with_features(
+        &mut self,
+        path: &str,
+        version: &str,
+        features: &[String],
+        indirect: bool,
+    ) {
+        if let Some(existing) = self.require.iter_mut().find(|d| d.path == path) {
+            existing.version = version.to_string();
+            existing.indirect = indirect;
+            existing.features = features.to_vec();
+        } else {
+            self.require.push(Dependency {
+                path: path.to_string(),
+                version: version.to_string(),
+                indirect,
+                features: features.to_vec(),
             });
             self.require.sort_by(|a, b| a.path.cmp(&b.path));
         }
@@ -551,10 +594,15 @@ impl std::fmt::Display for ModuleFile {
         if !self.require.is_empty() {
             writeln!(f, "require (")?;
             for dep in &self.require {
-                if dep.indirect {
-                    writeln!(f, "    {} {} // indirect", dep.path, dep.version)?;
+                let feat_str = if dep.features.is_empty() {
+                    String::new()
                 } else {
-                    writeln!(f, "    {} {}", dep.path, dep.version)?;
+                    format!(" [{}]", dep.features.join(", "))
+                };
+                if dep.indirect {
+                    writeln!(f, "    {} {}{} // indirect", dep.path, dep.version, feat_str)?;
+                } else {
+                    writeln!(f, "    {} {}{}", dep.path, dep.version, feat_str)?;
                 }
             }
             writeln!(f, ")\n")?;

@@ -56,6 +56,7 @@ Aura se compila directamente a **binarios nativos ejecutables autónomos** (form
    - [16. Directivas de Compilación, Build Tags y Struct Tags](#16-directivas-de-compilación-build-tags-y-struct-tags)
    - [17. Ingestión de TypeScript (`.d.ts`) e Inclusión Estática (`embed`)](#17-ingestión-de-typescript-dts-e-inclusión-estática-embed)
    - [18. Directivas de Prueba, Aserciones y Benchmarks](#18-directivas-de-prueba-aserciones-y-benchmarks)
+   - [19. Características Inspiradas en Rust: Derivaciones, Must-Use, Auto-Fix y Doctests](#19-características-inspiradas-en-rust-derivaciones-must-use-auto-fix-y-doctests)
 7. [🗄️ Librería Estándar, Servidor Web y Bases de Datos](#️-librería-estándar-servidor-web-y-bases-de-datos)
    - [Servidor Web HTTP ServeMux (`net/http`)](#-servidor-web-http-y-mux-de-enrutamiento-nethttp)
    - [Métricas Prometheus y Trazabilidad W3C Traceparent](#-métricas-prometheus-y-trazabilidad-distribuida)
@@ -1311,6 +1312,93 @@ aurac examples/tests/math_unit_test.aura --test --coverage
 
 # Generar perfil de cobertura para CI/CD y reporte HTML interactivo
 aurac --test -coverprofile coverage.out --coverage-html coverage.html ./...
+```
+
+---
+
+### 19. Características Inspiradas en Rust: Derivaciones, Must-Use, Auto-Fix y Doctests
+
+Aura incorpora patrones de ergonomía estática y robustez directamente inspirados en el ecosistema y diseño de **Rust**:
+
+#### A. Derivación Automática de Tipos (`#[derive(...)]`)
+
+Permite generar automáticamente métodos estándar en `type` (records) y `type` (sum types / ADTs) sin escribir código repetitivo (*boilerplate*):
+
+```aura
+#[derive(Debug, Clone, Eq, Json, Hash)]
+export type User = {
+    id: Int,
+    username: String,
+    active: Bool,
+};
+```
+
+* **`Debug`**: Añade `User.debug(u)`, `.debug()` y `.toString()`.
+* **`Clone`**: Añade `User.clone(u)` y `.clone()` para duplicación profunda.
+* **`Eq`**: Añade `User.equals(a, b)` y `.equals(other)` para comparación estructural por valor.
+* **`Json`**: Añade serialización `User.toJson(u)`, `.toJson()` y parseo tipado `User.fromJson(str)`.
+* **`Hash`**: Añade `User.hash(u)` y `.hash()` calculando el código hash entero determinista (FNV-1a).
+
+#### B. Directiva `#[must_use]` y Detección de Errores Descartados
+
+Emite diagnósticos estáticos inmediatos si el valor de retorno de una función crítica no es verificado, asignado o desenvuelto:
+
+```aura
+#[must_use = "La transacción en base de datos debe confirmarse o abortarse"]
+fn iniciarTransaccion(): Int => {
+    return 1001;
+};
+
+fn main(): Unit => {
+    iniciarTransaccion(); // Genera advertencia LINT003 en `aura lint`
+};
+```
+
+#### C. Linter con Auto-Reparación (`aura fix` / `aurac lint --fix`)
+
+Corrige automáticamente problemas comunes detectados por el análisis estático, como variables declaradas con `let mut` que nunca son reasignadas:
+
+```bash
+# Corregir código automáticamente en el archivo
+aura fix src/main.aura
+
+# O mediante el flag del linter:
+aura lint src/main.aura --fix
+```
+
+#### D. Documentación Ejecutable y Probada (*Doctests*) con `auratest --doc`
+
+Los ejemplos de código dentro de comentarios de documentación triple barra (`/// ```aura ... ``` `) se compilan y validan automáticamente:
+
+```aura
+/// Suma dos números enteros.
+/// ```aura
+/// let res = add(10, 20);
+/// assert(res == 30, "10 + 20 debe ser 30");
+/// ```
+pub fn add(a: Int, b: Int): Int => a + b;
+```
+
+Ejecuta únicamente las pruebas de documentación con:
+```bash
+auratest --doc
+# O mediante el compilador:
+aura test --doc
+```
+
+#### E. Feature Flags Condicionales en `aura.mod`
+
+Permite seleccionar módulos o controladores específicos al declarar dependencias en el manifiesto descentralizado:
+
+```mod
+module mi-servicio/api
+
+aura 0.8.3
+
+require (
+    github.com/aura/db v1.2.0 [postgres, sqlite]
+    github.com/aura/metrics v0.4.0
+)
 ```
 
 ---

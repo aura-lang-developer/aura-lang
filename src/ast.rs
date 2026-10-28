@@ -94,6 +94,10 @@ pub struct FunctionDecl {
     pub return_type: Option<Type>,
     /// Body expression of the function (often a `Block` or single expression).
     pub body: Expr,
+    /// Whether the return value must be explicitly used or handled (Rust `#[must_use]`).
+    pub is_must_use: bool,
+    /// Optional custom warning message explaining why the value must be used.
+    pub must_use_message: Option<String>,
 }
 
 /// A formal parameter in a function or lambda declaration.
@@ -122,6 +126,8 @@ pub struct TypeAliasDecl {
     pub type_params: Vec<String>,
     /// Underlying target type representation.
     pub target: Type,
+    /// Automatically derived traits / behaviors (Rust `#[derive(...)]` or `@derive(...)`).
+    pub derives: Vec<String>,
 }
 
 /// Algebraic Data Type (Sum type / tagged union) declaration.
@@ -135,6 +141,8 @@ pub struct SumTypeDecl {
     pub type_params: Vec<String>,
     /// List of mutually exclusive variants comprising this sum type.
     pub variants: Vec<Variant>,
+    /// Automatically derived traits / behaviors (Rust `#[derive(...)]` or `@derive(...)`).
+    pub derives: Vec<String>,
 }
 
 /// An individual variant arm of a sum type.
@@ -896,6 +904,7 @@ mod tests {
                         name: "Int".to_string(),
                         type_args: vec![],
                     },
+                    derives: vec!["Clone".to_string(), "Eq".to_string()],
                 }),
                 Item::SumType(SumTypeDecl {
                     name: "Result".to_string(),
@@ -911,6 +920,7 @@ mod tests {
                             fields: VariantFields::Tuple(vec![Type::TypeVar("E".to_string())]),
                         },
                     ],
+                    derives: vec!["Debug".to_string()],
                 }),
             ],
         };
@@ -991,6 +1001,8 @@ mod tests {
                 type_params: vec![],
                 params: vec![],
                 return_type: None,
+                is_must_use: false,
+                must_use_message: None,
                 body: Expr::Block(vec![
                     Statement::Let {
                         name: "a".to_string(),

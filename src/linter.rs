@@ -52,6 +52,8 @@ pub struct Linter {
     pub diagnostics: Vec<LintDiagnostic>,
     /// Map of variables declared with `let mut` to whether they were ever reassigned.
     mut_vars: HashMap<String, bool>,
+    /// Map of functions marked with `#[must_use]` or returning `Result`/`Option`.
+    must_use_functions: HashMap<String, Option<String>>,
 }
 
 impl Linter {
@@ -64,6 +66,7 @@ impl Linter {
     pub fn analyze(&mut self, module: &Module) -> Vec<LintDiagnostic> {
         self.diagnostics.clear();
         self.mut_vars.clear();
+        self.must_use_functions.clear();
 
         self.visit_module(module);
 
@@ -190,6 +193,21 @@ impl Linter {
 }
 
 impl AstVisitor for Linter {
+    fn visit_module(&mut self, module: &Module) {
+        for item in &module.items {
+            if let Item::Function(f) = item {
+                let is_ret_must_use = matches!(
+                    &f.return_type,
+                    Some(Type::Named { name, .. }) if name == "Result" || name == "Option"
+                );
+                if f.is_must_use || is_ret_must_use {
+                    self.must_use_functions.insert(f.name.clone(), f.must_use_message.clone());
+                }
+            }
+        }
+        walk_module(self, module);
+    }
+
     fn visit_statement(&mut self, stmt: &Statement) {
         match stmt {
             Statement::Let {
@@ -208,6 +226,35 @@ impl AstVisitor for Linter {
                 if let Expr::Identifier(name) = target {
                     if let Some(entry) = self.mut_vars.get_mut(name) {
                         *entry = true;
+                    }
+                }
+            }
+            Statement::Expr(expr) => {
+                let callee_name = match expr {
+                    Expr::FunctionCall { callee, .. } => match callee.as_ref() {
+                        Expr::Identifier(name) => Some(name.clone()),
+                        Expr::MemberAccess { member, .. } => Some(member.clone()),
+                        _ => None,
+                    },
+                    _ => None,
+                };
+                if let Some(name) = callee_name {
+                    if let Some(msg_opt) = self.must_use_functions.get(&name) {
+                        let message = match msg_opt {
+                            Some(m) => format!(
+                                "Unused return value from #[must_use] function '{}': {}",
+                                name, m
+                            ),
+                            None => format!(
+                                "Unused return value from #[must_use] function '{}'; the result must be handled.",
+                                name
+                            ),
+                        };
+                        self.diagnostics.push(LintDiagnostic {
+                            code: "LINT003",
+                            severity: LintSeverity::Warning,
+                            message,
+                        });
                     }
                 }
             }
@@ -260,4 +307,57 @@ pub fn lint_source(source: &str) -> Result<Vec<LintDiagnostic>, String> {
     let module = parser.parse_module()?;
     let mut linter = Linter::new();
     Ok(linter.analyze(&module))
+}
+
+/// Automatically fixes lintable issues in source code (e.g. `let mut` -> `let`).
+pub fn fix_source(source: &str) -> (String, usize) {
+    let mut lexer = Lexer::new(source);
+    let Ok(tokens) = lexer.tokenize() else {
+        return (source.to_string(), 0);
+    };
+    let mut parser = Parser::new(tokens);
+    let Ok(module) = parser.parse_module() else {
+        return (source.to_string(), 0);
+    };
+    let mut linter = Linter::new();
+    let diags = linter.analyze(&module);
+
+    let mut unneeded_muts = Vec::new();
+    for d in diags {
+        if d.code == "LINT001" {
+            if let Some(start) = d.message.find('\'') {
+                if let Some(end) = d.message[start + 1..].find('\'') {
+                    let var_name = &d.message[start + 1..start + 1 + end];
+                    unneeded_muts.push(var_name.to_string());
+                }
+            }
+        }
+    }
+
+    if unneeded_muts.is_empty() {
+        return (source.to_string(), 0);
+    }
+
+    let mut fixed = source.to_string();
+    let mut count = 0;
+    for var in unneeded_muts {
+        let pattern = format!("let mut {}", var);
+        let replacement = format!("let {}", var);
+        if fixed.contains(&pattern) {
+            fixed = fixed.replace(&pattern, &replacement);
+            count += 1;
+        }
+    }
+
+    (fixed, count)
+}
+
+/// Reads, auto-fixes, and saves a file in-place if issues were repaired.
+pub fn fix_file(path: &std::path::Path) -> Result<usize, String> {
+    let content = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+    let (fixed, count) = fix_source(&content);
+    if count > 0 {
+        std::fs::write(path, fixed).map_err(|e| e.to_string())?;
+    }
+    Ok(count)
 }

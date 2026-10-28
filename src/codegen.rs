@@ -3392,6 +3392,13 @@ const __aura_import = async (m) => {
                 ));
             }
         }
+
+        self.emit_derives_for_type(&sum.name, &sum.derives);
+        for variant in &sum.variants {
+            if !matches!(variant.fields, VariantFields::Unit) {
+                self.emit_derives_for_type(&variant.name, &sum.derives);
+            }
+        }
         self.write_line("");
 
         if sum.is_exported {
@@ -3414,10 +3421,59 @@ const __aura_import = async (m) => {
         }
     }
 
+    fn register_aura_receiver_method(&mut self, base_type: &str, method_name: &str, fn_expr: &str) {
+        self.write_line(&format!(
+            "if (typeof globalThis !== 'undefined') {{\n  if (!globalThis.__aura_methods) globalThis.__aura_methods = Object.create(null);\n  if (!globalThis.__aura_methods[\"{base}\"]) globalThis.__aura_methods[\"{base}\"] = Object.create(null);\n  globalThis.__aura_methods[\"{base}\"][\"{mname}\"] = {fn_expr};\n  if (!Object.prototype.{mname}) {{\n    Object.defineProperty(Object.prototype, \"{mname}\", {{\n      value: function(...args) {{\n        const __target = (this && typeof this === 'object' && ('_get' in this)) ? this.val : this;\n        if (__target && __target.__aura_type && globalThis.__aura_methods[__target.__aura_type] && Object.prototype.hasOwnProperty.call(globalThis.__aura_methods[__target.__aura_type], \"{mname}\")) {{\n          return globalThis.__aura_methods[__target.__aura_type][\"{mname}\"](__target, ...args);\n        }}\n        for (const __t in globalThis.__aura_methods) {{\n          if (Object.prototype.hasOwnProperty.call(globalThis.__aura_methods[__t], \"{mname}\")) {{\n            const __m = globalThis.__aura_methods[__t][\"{mname}\"];\n            if (__m) return __m(__target, ...args);\n          }}\n        }}\n        throw new TypeError(\"Method '{mname}' is not defined\");\n      }},\n      writable: true,\n      configurable: true,\n      enumerable: false,\n    }});\n  }}\n}}\n",
+            base = base_type,
+            mname = method_name,
+            fn_expr = fn_expr
+        ));
+    }
+
+    fn emit_derives_for_type(&mut self, type_name: &str, derives: &[String]) {
+        for derive in derives {
+            match derive.as_str() {
+                "Debug" => {
+                    self.write_line(&format!("{}.debug = (x) => JSON.stringify(x, null, 2);", type_name));
+                    self.write_line(&format!("{}.toString = (x) => JSON.stringify(x);", type_name));
+                    self.register_aura_receiver_method(type_name, "debug", "(x) => JSON.stringify(x, null, 2)");
+                    self.register_aura_receiver_method(type_name, "toString", "(x) => JSON.stringify(x)");
+                }
+                "Clone" => {
+                    self.write_line(&format!("{}.clone = (x) => (typeof structuredClone === 'function' ? structuredClone(x) : JSON.parse(JSON.stringify(x)));", type_name));
+                    self.register_aura_receiver_method(type_name, "clone", "(x) => (typeof structuredClone === 'function' ? structuredClone(x) : JSON.parse(JSON.stringify(x)))");
+                }
+                "Eq" | "PartialEq" => {
+                    self.write_line(&format!("{}.equals = (a, b) => JSON.stringify(a) === JSON.stringify(b);", type_name));
+                    self.register_aura_receiver_method(type_name, "equals", "(a, b) => JSON.stringify(a) === JSON.stringify(b)");
+                }
+                "Json" | "Serialize" | "Deserialize" => {
+                    self.write_line(&format!("{}.toJson = (x) => JSON.stringify(x);", type_name));
+                    self.write_line(&format!("{}.fromJson = (s) => JSON.parse(s);", type_name));
+                    self.register_aura_receiver_method(type_name, "toJson", "(x) => JSON.stringify(x)");
+                }
+                "Hash" => {
+                    let hash_fn = "(x) => { const s = JSON.stringify(x); let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }";
+                    self.write_line(&format!("{}.hash = {};", type_name, hash_fn));
+                    self.register_aura_receiver_method(type_name, "hash", hash_fn);
+                }
+                _ => {}
+            }
+        }
+    }
+
     fn emit_type_alias(&mut self, alias: &TypeAliasDecl) {
         if alias.is_distinct {
             let exp = if alias.is_exported { "export " } else { "" };
             self.write_line(&format!("{}const {} = (x) => x;", exp, alias.name));
+            self.emit_derives_for_type(&alias.name, &alias.derives);
+        } else {
+            let exp = if alias.is_exported { "export " } else { "" };
+            self.write_line(&format!(
+                "{}const {} = {{ isPacked: {} }};",
+                exp, alias.name, alias.is_packed
+            ));
+            self.emit_derives_for_type(&alias.name, &alias.derives);
         }
         if alias.is_packed {
             self.write_line(&format!(
@@ -3426,10 +3482,6 @@ const __aura_import = async (m) => {
             ));
         }
         if alias.is_exported {
-            self.write_line(&format!(
-                "export const {} = {{ isPacked: {} }};",
-                alias.name, alias.is_packed
-            ));
             let target_dts = self.ast_type_to_dts(&alias.target);
             let type_params_str = if alias.type_params.is_empty() {
                 String::new()

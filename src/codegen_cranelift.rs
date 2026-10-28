@@ -911,6 +911,8 @@ impl CraneliftBackend {
                 params: vec![],
                 return_type: Some(Type::Unit),
                 body: Expr::Block(top_level_stmts),
+                is_must_use: false,
+                must_use_message: None,
             })
         } else {
             None

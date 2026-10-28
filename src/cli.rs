@@ -53,7 +53,8 @@ pub fn print_usage() {
     println!("  {bin} debug <file.aura> [--step] [--port <port>] [--no-brk] [--tags <tags>]");
     println!("  {bin} step <file.aura> [--port <port>] [--tags <tags>]");
     println!("  {bin} check <file.aura> [--tags <tags>]");
-    println!("  {bin} lint <file.aura>");
+    println!("  {bin} lint <file.aura> [--fix]");
+    println!("  {bin} fix <file.aura>");
     println!("  {bin} emit-go <file.aura> [-o <output.go>]");
     println!("  {bin} watch <file.aura> [-o <binary>] [--run]");
     println!("  {bin} test [flags] [paths...]");
@@ -291,15 +292,34 @@ impl CliCommand for CheckCommand {
     }
 }
 
-/// Command encapsulating static security and code quality linting (`aurac lint <file.aura>`).
+/// Command encapsulating static security and code quality linting (`aurac lint <file.aura> [--fix]`).
 pub struct LintCommand {
     /// Path to the Aura source file to lint.
     pub filename: String,
+    /// Whether to automatically repair lint issues (such as `let mut` -> `let`).
+    pub fix: bool,
 }
 
 impl CliCommand for LintCommand {
     fn execute(&self) {
         let filename = &self.filename;
+        if self.fix {
+            match aura_lang::linter::fix_file(Path::new(filename)) {
+                Ok(fixed_count) => {
+                    if fixed_count > 0 {
+                        println!("✓ Auto-fixed {} issue(s) in '{}'.", fixed_count, filename);
+                    } else {
+                        println!("✓ No auto-fixable issues found in '{}'.", filename);
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Error auto-fixing '{}': {}", filename, e);
+                    std::process::exit(1);
+                }
+            }
+            return;
+        }
+
         let content = match fs::read_to_string(filename) {
             Ok(c) => c,
             Err(e) => {
@@ -331,6 +351,22 @@ impl CliCommand for LintCommand {
                 std::process::exit(1);
             }
         }
+    }
+}
+
+/// Command encapsulating automated linting code fixes (`aurac fix <file.aura>`).
+pub struct FixCommand {
+    /// Path to the Aura source file to auto-fix.
+    pub filename: String,
+}
+
+impl CliCommand for FixCommand {
+    fn execute(&self) {
+        let cmd = LintCommand {
+            filename: self.filename.clone(),
+            fix: true,
+        };
+        cmd.execute();
     }
 }
 
@@ -620,8 +656,32 @@ pub fn run_cli(args: &[String]) {
                 eprintln!("Error: Missing input file for 'lint'.");
                 return;
             }
-            let filename = args[2].clone();
-            let cmd = LintCommand { filename };
+            let fix = args.iter().skip(2).any(|a| a == "--fix" || a == "-fix");
+            let filename = args
+                .iter()
+                .skip(2)
+                .find(|a| !a.starts_with('-'))
+                .cloned()
+                .unwrap_or_else(|| args[2].clone());
+            let cmd = LintCommand { filename, fix };
+            cmd.execute();
+        }
+        "fix" => {
+            if args.iter().skip(2).any(|a| a == "--version" || a == "-V") {
+                print_version();
+                return;
+            }
+            if args.len() < 3 {
+                eprintln!("Error: Missing input file for 'fix'.");
+                return;
+            }
+            let filename = args
+                .iter()
+                .skip(2)
+                .find(|a| !a.starts_with('-'))
+                .cloned()
+                .unwrap_or_else(|| args[2].clone());
+            let cmd = FixCommand { filename };
             cmd.execute();
         }
         "run" => {
