@@ -8,13 +8,26 @@ use crate::record::{
     AuraRecord, AuraVal, aura_record_new, aura_record_set_val, infer_val_from_i64,
 };
 use crate::string::{AuraString, aura_string_from_rust_str};
+#[cfg(feature = "sqlite")]
 use rusqlite::types::{Value, ValueRef};
+#[cfg(feature = "sqlite")]
 use rusqlite::{Connection as SqliteConnection, params_from_iter};
+
+#[cfg(not(feature = "sqlite"))]
+#[derive(Clone, Debug, PartialEq)]
+pub enum Value {
+    Null,
+    Integer(i64),
+    Real(f64),
+    Text(String),
+    Blob(Vec<u8>),
+}
 use std::slice;
 use std::str;
 use std::sync::{Arc, Condvar, Mutex};
 
 pub enum DbBackend {
+    #[cfg(feature = "sqlite")]
     Sqlite(SqliteConnection),
     Postgres(PgConnection),
     MySql(MySqlConnection),
@@ -75,6 +88,7 @@ impl AuraDbPool {
 
     fn create_connection(&self) -> Result<AuraDbConn, String> {
         match self.driver.to_lowercase().as_str() {
+            #[cfg(feature = "sqlite")]
             "sqlite" | "sqlite3" => {
                 let conn =
                     if self.dsn.is_empty() || self.dsn == ":memory:" || self.dsn == "memory://" {
@@ -93,6 +107,10 @@ impl AuraDbPool {
                 Ok(AuraDbConn {
                     backend: DbBackend::Sqlite(conn),
                 })
+            }
+            #[cfg(not(feature = "sqlite"))]
+            "sqlite" | "sqlite3" => {
+                Err("SQLite support is disabled in this runtime build profile. Use profile with SQLite enabled.".to_string())
             }
             "postgres" | "postgresql" | "pg" => {
                 let config = PgConfig::from_conn_str(&self.dsn)?;
@@ -370,6 +388,7 @@ fn execute_query_on_conn(
     params: *mut AuraList,
 ) -> Result<AuraDbRows, String> {
     match &mut conn.backend {
+        #[cfg(feature = "sqlite")]
         DbBackend::Sqlite(sqlite) => {
             let sql_params = extract_aura_params(params);
             let stmt_res = sqlite.prepare(sql);
@@ -487,6 +506,7 @@ fn execute_exec_on_conn(
     params: *mut AuraList,
 ) -> Result<(i64, i64), String> {
     match &mut conn.backend {
+        #[cfg(feature = "sqlite")]
         DbBackend::Sqlite(sqlite) => {
             let sql_params = extract_aura_params(params);
             if sql_params.is_empty() {
@@ -680,6 +700,7 @@ pub extern "C" fn aura_db_begin(pool: *mut AuraDbPool) -> *mut AuraDbTx {
 
     // Execute BEGIN
     let begin_res = match &mut conn.backend {
+        #[cfg(feature = "sqlite")]
         DbBackend::Sqlite(sqlite) => sqlite
             .execute_batch("BEGIN TRANSACTION;")
             .map_err(|e| e.to_string()),
@@ -718,6 +739,7 @@ pub extern "C" fn aura_db_tx_commit(tx: *mut AuraDbTx) -> i32 {
 
         let mut conn = t.conn.take().unwrap();
         let res = match &mut conn.backend {
+            #[cfg(feature = "sqlite")]
             DbBackend::Sqlite(sqlite) => sqlite.execute_batch("COMMIT;").map_err(|e| e.to_string()),
             DbBackend::Postgres(pg) => pg.query("COMMIT;").map(|_| ()),
             DbBackend::MySql(mysql) => mysql.query("COMMIT;").map(|_| ()),
@@ -743,6 +765,7 @@ pub extern "C" fn aura_db_tx_rollback(tx: *mut AuraDbTx) -> i32 {
 
         let mut conn = t.conn.take().unwrap();
         let res = match &mut conn.backend {
+            #[cfg(feature = "sqlite")]
             DbBackend::Sqlite(sqlite) => {
                 sqlite.execute_batch("ROLLBACK;").map_err(|e| e.to_string())
             }
@@ -767,6 +790,7 @@ pub extern "C" fn aura_db_tx_close(tx: *mut AuraDbTx) {
                 if let Some(conn) = t.conn.take() {
                     let mut c = conn;
                     let _ = match &mut c.backend {
+                        #[cfg(feature = "sqlite")]
                         DbBackend::Sqlite(sqlite) => {
                             sqlite.execute_batch("ROLLBACK;").map_err(|e| e.to_string())
                         }

@@ -518,6 +518,7 @@ Located in [`crates/aura-runtime/`](crates/aura-runtime), this is a static Rust 
 - **Concurrent Compact Garbage Collector (`gc.rs`)**: Fast Mark-and-Sweep GC with 64 pointer shards protected by `RwLock` and `rustc-hash` (`FxHashMap`) for lock-free parallel reads during root and pointer validation phases.
 - **Synchronization Primitives (`sync.rs`)**: Native Mutex, RWMutex, Once, Pool, and WaitGroup with cooperative fiber yielding and spin loops.
 - **High-Speed JSON & Record Serializers (`json.rs`, `record.rs`)**: High-speed binary and text encoding/decoding, with `FxHashMap` powering 2x-4x faster record field lookups.
+- **Adaptive Runtime Profiles (`RuntimeProfile::Core` & `RuntimeProfile::Full`)**: The compiler automatically inspects the AST of your project to detect imported subsystems. When compiling CLI utilities, computational algorithms, or pure network/HTTP apps without embedded databases, it links against `libaura_runtime_core.a` (0 KB SQLite overhead, ultra-fast cold start, binary sizes down to ~0.49 MB). When `database/sqlite` or `sqlite.open()` is referenced, it seamlessly links the full profile with embedded SQLite C engine support.
 
 ---
 

@@ -381,6 +381,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "sqlite")]
     fn test_native_sqlite_db_lifecycle_and_crud() {
         let driver = "sqlite";
         let dsn = ":memory:";

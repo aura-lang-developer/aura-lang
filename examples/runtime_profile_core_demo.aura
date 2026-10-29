@@ -1,0 +1,33 @@
+// =============================================================================
+// Aura Language: Core Profile Native CLI Demonstration
+// =============================================================================
+// This example illustrates an ultra-lightweight CLI application compiling with
+// the 'core' runtime profile. Because no embedded database engine (e.g. SQLite)
+// is imported or referenced, the compiler links against 'libaura_runtime_core.a',
+// producing a standalone native binary with zero database overhead.
+// =============================================================================
+
+fn compute_fibonacci(n: Int): Int => {
+    if n <= 1 {
+        n
+    } else {
+        compute_fibonacci(n - 1) + compute_fibonacci(n - 2)
+    }
+}
+
+export fn main(): Unit => {
+    println("⚡ Aura Native Lightweight Binary (Core Profile)");
+    println("--------------------------------------------------");
+    println("✓ Running with M:N Fiber Scheduler and GC");
+    println("✓ Zero embedded database dependencies linked");
+
+    let count = 10;
+    let mut i = 0;
+    while i < count {
+        let fib = compute_fibonacci(i);
+        println(`  Fib(${i}) = ${fib}`);
+        i = i + 1;
+    }
+
+    println("🚀 Ultra-lightweight standalone binary executed successfully!");
+}

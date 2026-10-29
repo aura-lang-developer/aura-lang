@@ -114,6 +114,8 @@ Ubicados en la carpeta [`generics/`](generics/):
 | Archivo | Concepto y Características Clave |
 | :--- | :--- |
 | [`defer_demo.aura`](defer_demo.aura) | **Limpieza LIFO Garantizada (`defer`)**: Cierre determinístico de descriptores, conexiones y desbloqueo de mutexes al salir del ámbito léxico. |
+| [`runtime_profile_core_demo.aura`](runtime_profile_core_demo.aura) | **Perfil de Runtime Core Mínimo**: Binario CLI standalone ultra ligero con cero sobrecarga de motores de bases de datos embebidos (`core`). |
+| [`runtime_profile_full_demo.aura`](runtime_profile_full_demo.aura) | **Perfil de Runtime Full con SQLite**: Detección estática del AST de llamadas/importaciones de BD para enlazar el motor embebido SQLite (`full`). |
 | [`slices_golang_model.aura`](slices_golang_model.aura) | **Modelo de Slices de Go**: Sintaxis `[]T`, segmentación `s[low:high:max]`, funciones integradas `len()`, `cap()`, `append()` y paso eficiente por referencia. |
 | [`golang_methods_visibility.aura`](golang_methods_visibility.aura) | **Receiver Methods y Reglas de Visibilidad**: Métodos de struct públicos (`PascalCase`) vs privados (`camelCase`), mutabilidad in-place con `*Receiver` y aislamiento de datos bancarios. |
 | [`labeled_loops_demo.aura`](labeled_loops_demo.aura) | **Bucles Etiquetados**: Romper o continuar bucles anidados con etiquetas explícitas (`break 'outer;`, `continue 'outer;`). |

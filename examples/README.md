@@ -114,6 +114,8 @@ Located in the [`generics/`](generics/) directory:
 | File | Core Concepts & Key Features |
 | :--- | :--- |
 | [`defer_demo.aura`](defer_demo.aura) | **Deterministic LIFO Cleanup (`defer`)**: Reliable file descriptor closing, connection disposal, and mutex unlocking on scope exit. |
+| [`runtime_profile_core_demo.aura`](runtime_profile_core_demo.aura) | **Minimal Core Runtime Profile**: Lightweight standalone CLI binary compiling with zero embedded database overhead (`core` profile). |
+| [`runtime_profile_full_demo.aura`](runtime_profile_full_demo.aura) | **Full Runtime Profile with SQLite**: Automatic AST detection of database imports/calls linking the embedded SQLite engine (`full` profile). |
 | [`slices_golang_model.aura`](slices_golang_model.aura) | **Go-Style Slices**: Dynamic arrays `[]T`, sub-slicing `s[low:high:max]`, built-in functions `len()`, `cap()`, `append()`, and memory-efficient referencing. |
 | [`golang_methods_visibility.aura`](golang_methods_visibility.aura) | **Receiver Methods & Visibility Conventions**: Public methods (`PascalCase`) vs. private internal methods (`camelCase`), pointer receivers, and struct encapsulation. |
 | [`labeled_loops_demo.aura`](labeled_loops_demo.aura) | **Labeled Loops**: Escaping or continuing nested loops using explicit labels (`break 'outer;`, `continue 'outer;`). |

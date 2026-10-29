@@ -517,6 +517,7 @@ Ubicado en [`crates/aura-runtime/`](/aura-lang/crates/aura-runtime), es una bibl
 - **Recolector de Basura Compacto y Concurrente (`gc.rs`)**: GC rápido de tipo Mark-and-Sweep con 64 shards de punteros protegidos mediante `RwLock` y `rustc-hash` (`FxHashMap`) para lecturas paralelas sin bloqueos durante el escaneo de raíces.
 - **Primitivas de Sincronización (`sync.rs`)**: Mutex, RWMutex, Once, Pool y WaitGroup nativos con yielding cooperativo y spin loops.
 - **Serializador JSON y Registros de Alta Velocidad (`json.rs`, `record.rs`)**: Codificación y decodificación binaria y de texto, con `FxHashMap` acelerando el acceso a campos de registros de 2x a 4x frente a SipHash.
+- **Perfiles de Runtime Adaptativos (`RuntimeProfile::Core` y `RuntimeProfile::Full`)**: El compilador inspecciona automáticamente el AST del proyecto para determinar qué subsistemas son necesarios. Al compilar herramientas CLI, scripts de cálculo numérico o servicios que no requieren bases de datos embebidas, se enlaza automáticamente `libaura_runtime_core.a` (cero sobrecarga de SQLite, menor tamaño de binario ~0.49 MB). Si el programa utiliza `database/sqlite` o invoca `sqlite.open()`, el compilador selecciona automáticamente el perfil `full` con soporte completo de SQLite embebido.
 
 ---
 

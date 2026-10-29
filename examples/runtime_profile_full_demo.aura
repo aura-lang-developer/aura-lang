@@ -1,0 +1,40 @@
+// =============================================================================
+// Aura Language: Full Profile Native Database Application
+// =============================================================================
+// This example illustrates an application that utilizes Aura's embedded SQLite
+// subsystem. The compiler statically inspects the AST, detects database usage,
+// and automatically links against the 'full' runtime profile containing the
+// embedded SQLite C engine.
+// =============================================================================
+
+export fn main(): Unit => {
+    println("⚡ Aura Native Database Binary (Full Profile)");
+    println("----------------------------------------------");
+    println("✓ Automatic AST detection triggered: SQLite engine linked");
+
+    let db: DB = sqlite.open(":memory:", 2);
+    defer db.close();
+
+    // 1. Initialize schema
+    let createSql = "CREATE TABLE metrics (id INTEGER PRIMARY KEY, service TEXT, latency_ms REAL);";
+    db.exec(createSql, []);
+
+    // 2. Insert metrics
+    db.exec("INSERT INTO metrics (service, latency_ms) VALUES (?, ?);", ["auth_service", 12.4]);
+    db.exec("INSERT INTO metrics (service, latency_ms) VALUES (?, ?);", ["gateway", 4.8]);
+    db.exec("INSERT INTO metrics (service, latency_ms) VALUES (?, ?);", ["orders_db", 19.2]);
+
+    // 3. Query metrics
+    let rows: Rows = db.query("SELECT id, service, latency_ms FROM metrics ORDER BY latency_ms ASC;", []);
+    defer rows.close();
+
+    println("Recorded Service Latencies:");
+    while (rows.next()) {
+        let id = rows.getInt(0);
+        let service = rows.getString(1);
+        let latency = rows.getFloat(2);
+        println(`  [#${id}] ${service} => ${latency} ms`);
+    }
+
+    println("🚀 Full profile standalone native binary executed successfully!");
+}

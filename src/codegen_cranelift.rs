@@ -3764,6 +3764,85 @@ pub fn build_native_binary_with_base_path(
     build_native_binary_with_options(source, out_path, base_path, target, false)
 }
 
+/// Profile representing the runtime features required by an Aura program.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RuntimeProfile {
+    /// Minimal core runtime: fibers, GC, primitives, channels (excludes embedded SQLite).
+    Core,
+    /// Full runtime: includes embedded SQLite database engine.
+    Full,
+}
+
+impl RuntimeProfile {
+    pub fn name(&self) -> &'static str {
+        match self {
+            RuntimeProfile::Core => "core (minimal, zero-db-overhead)",
+            RuntimeProfile::Full => "full (with embedded sqlite engine)",
+        }
+    }
+}
+
+/// Detects whether an AST Module requires the embedded SQLite database engine.
+pub fn detect_runtime_profile(module: &crate::ast::Module) -> RuntimeProfile {
+    struct SqliteDetector {
+        uses_sqlite: bool,
+    }
+
+    impl crate::ast::AstVisitor for SqliteDetector {
+        fn visit_item(&mut self, item: &crate::ast::Item) {
+            if self.uses_sqlite {
+                return;
+            }
+            if let crate::ast::Item::Import(imp) = item {
+                let src = imp.source.to_lowercase();
+                if src.contains("sqlite") || src == "std/database/sqlite" || src == "database/sqlite" {
+                    self.uses_sqlite = true;
+                    return;
+                }
+            }
+            crate::ast::walk_item(self, item);
+        }
+
+        fn visit_expr(&mut self, expr: &crate::ast::Expr) {
+            if self.uses_sqlite {
+                return;
+            }
+            match expr {
+                crate::ast::Expr::FunctionCall { callee, .. } => {
+                    if let crate::ast::Expr::MemberAccess { object, member } = callee.as_ref() {
+                        if let crate::ast::Expr::Identifier(obj_name) = object.as_ref() {
+                            if (obj_name == "sqlite" || obj_name == "sqlite3")
+                                && (member == "open" || member == "connect")
+                            {
+                                self.uses_sqlite = true;
+                                return;
+                            }
+                        }
+                    }
+                }
+                crate::ast::Expr::Literal(crate::ast::Literal::String(s)) => {
+                    let s_low = s.to_lowercase();
+                    if s_low.starts_with("sqlite://") || s_low == ":memory:" {
+                        self.uses_sqlite = true;
+                        return;
+                    }
+                }
+                _ => {}
+            }
+            crate::ast::walk_expr(self, expr);
+        }
+    }
+
+    let mut detector = SqliteDetector { uses_sqlite: false };
+    detector.visit_module(module);
+
+    if detector.uses_sqlite {
+        RuntimeProfile::Full
+    } else {
+        RuntimeProfile::Core
+    }
+}
+
 /// Builds a native standalone binary executable with full optimization options (SIMD, LTO dead-stripping).
 pub fn build_native_binary_with_options(
     source: &str,
@@ -3777,6 +3856,8 @@ pub fn build_native_binary_with_options(
     let mut parser = crate::parser::Parser::new(tokens);
     let module = parser.parse_module()?;
     let bundled = crate::bundle_module(&module, base_path)?;
+
+    let profile = detect_runtime_profile(&bundled);
 
     let backend = CraneliftBackend::with_options(target, release)?;
     let object_bytes = backend.compile_module(&bundled)?;
@@ -3796,8 +3877,8 @@ pub fn build_native_binary_with_options(
         )
     })?;
 
-    // Locate or build libaura_runtime.a
-    let runtime_lib = find_or_build_runtime_lib()?;
+    // Locate or build libaura_runtime.a for the detected profile
+    let runtime_lib = find_or_build_runtime_lib_for_profile(profile)?;
 
     let mut link_cmd = Command::new("cc");
     #[cfg(target_os = "macos")]
@@ -3847,7 +3928,11 @@ pub fn build_native_binary_with_options(
     }
 }
 
-fn find_or_build_runtime_lib() -> Result<PathBuf, String> {
+pub fn find_or_build_runtime_lib() -> Result<PathBuf, String> {
+    find_or_build_runtime_lib_for_profile(RuntimeProfile::Full)
+}
+
+pub fn find_or_build_runtime_lib_for_profile(profile: RuntimeProfile) -> Result<PathBuf, String> {
     // 1. Check explicit environment override
     if let Ok(env_path) = std::env::var("AURA_RUNTIME_LIB") {
         let p = PathBuf::from(env_path);
@@ -3856,15 +3941,27 @@ fn find_or_build_runtime_lib() -> Result<PathBuf, String> {
         }
     }
 
+    let profile_subdir = match profile {
+        RuntimeProfile::Core => "runtime_core",
+        RuntimeProfile::Full => "",
+    };
+
     // 2. Check adjacent to current compiler binary (e.g. /usr/local/bin/aura -> /usr/local/lib/aura/)
     if let Ok(current_exe) = std::env::current_exe()
         && let Some(exe_dir) = current_exe.parent()
     {
-        let exe_candidates = [
-            exe_dir.join("libaura_runtime.a"),
-            exe_dir.join("../lib/libaura_runtime.a"),
-            exe_dir.join("../lib/aura/libaura_runtime.a"),
-        ];
+        let exe_candidates = if profile_subdir.is_empty() {
+            vec![
+                exe_dir.join("libaura_runtime.a"),
+                exe_dir.join("../lib/libaura_runtime.a"),
+                exe_dir.join("../lib/aura/libaura_runtime.a"),
+            ]
+        } else {
+            vec![
+                exe_dir.join(format!("libaura_runtime_{}.a", profile_subdir)),
+                exe_dir.join(format!("../lib/libaura_runtime_{}.a", profile_subdir)),
+            ]
+        };
         for c in &exe_candidates {
             if c.exists() {
                 return Ok(c.canonicalize().unwrap_or(c.clone()));
@@ -3873,16 +3970,22 @@ fn find_or_build_runtime_lib() -> Result<PathBuf, String> {
     }
 
     // 3. Check ~/.aura/lib/libaura_runtime.a and system paths
+    let lib_filename = if profile_subdir.is_empty() {
+        "libaura_runtime.a".to_string()
+    } else {
+        format!("libaura_runtime_{}.a", profile_subdir)
+    };
+
     if let Some(home) = std::env::var_os("HOME") {
-        let home_lib = PathBuf::from(home).join(".aura").join("lib").join("libaura_runtime.a");
+        let home_lib = PathBuf::from(home).join(".aura").join("lib").join(&lib_filename);
         if home_lib.exists() {
             return Ok(home_lib.canonicalize().unwrap_or(home_lib));
         }
     }
 
     let system_candidates = [
-        PathBuf::from("/usr/local/lib/aura/libaura_runtime.a"),
-        PathBuf::from("/usr/lib/aura/libaura_runtime.a"),
+        PathBuf::from(format!("/usr/local/lib/aura/{}", lib_filename)),
+        PathBuf::from(format!("/usr/lib/aura/{}", lib_filename)),
     ];
     for c in &system_candidates {
         if c.exists() {
@@ -3890,11 +3993,18 @@ fn find_or_build_runtime_lib() -> Result<PathBuf, String> {
         }
     }
 
-    // 4. Check workspace build targets
-    let release_candidates = [
-        PathBuf::from("target/release/libaura_runtime.a"),
-        PathBuf::from("../target/release/libaura_runtime.a"),
-    ];
+    // 4. Check workspace build targets based on profile
+    let release_candidates = if profile_subdir.is_empty() {
+        vec![
+            PathBuf::from("target/release/libaura_runtime.a"),
+            PathBuf::from("../target/release/libaura_runtime.a"),
+        ]
+    } else {
+        vec![
+            PathBuf::from(format!("target/{}/release/libaura_runtime.a", profile_subdir)),
+            PathBuf::from(format!("../target/{}/release/libaura_runtime.a", profile_subdir)),
+        ]
+    };
 
     for c in &release_candidates {
         if c.exists() {
@@ -3902,13 +4012,19 @@ fn find_or_build_runtime_lib() -> Result<PathBuf, String> {
         }
     }
 
-    // Attempt to build it in release mode
-    let status = Command::new("cargo")
-        .arg("build")
-        .arg("--release")
-        .arg("--package")
-        .arg("aura-runtime")
-        .status();
+    // Attempt to build it in release mode with proper cargo features
+    let mut cargo_cmd = Command::new("cargo");
+    cargo_cmd.arg("build").arg("--release").arg("--package").arg("aura-runtime");
+
+    match profile {
+        RuntimeProfile::Core => {
+            cargo_cmd.arg("--no-default-features");
+            cargo_cmd.arg("--target-dir").arg("target/runtime_core");
+        }
+        RuntimeProfile::Full => {}
+    }
+
+    let status = cargo_cmd.status();
 
     if let Ok(s) = status
         && s.success()
@@ -3920,10 +4036,17 @@ fn find_or_build_runtime_lib() -> Result<PathBuf, String> {
         }
     }
 
-    let debug_candidates = [
-        PathBuf::from("target/debug/libaura_runtime.a"),
-        PathBuf::from("../target/debug/libaura_runtime.a"),
-    ];
+    let debug_candidates = if profile_subdir.is_empty() {
+        vec![
+            PathBuf::from("target/debug/libaura_runtime.a"),
+            PathBuf::from("../target/debug/libaura_runtime.a"),
+        ]
+    } else {
+        vec![
+            PathBuf::from(format!("target/{}/debug/libaura_runtime.a", profile_subdir)),
+            PathBuf::from(format!("../target/{}/debug/libaura_runtime.a", profile_subdir)),
+        ]
+    };
     for c in &debug_candidates {
         if c.exists() {
             return Ok(c.canonicalize().unwrap_or(c.clone()));

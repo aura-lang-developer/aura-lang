@@ -145,6 +145,17 @@ fn execute_build(
     let base_path = Path::new(input_file).parent();
 
     if _target_backend == "native" || _target_backend == "cranelift" || explicit_target.is_some() {
+        let detected_profile = match (aura_lang::lexer::Lexer::new(&source).tokenize(),) {
+            (Ok(tokens),) => match aura_lang::parser::Parser::new(tokens).parse_module() {
+                Ok(mod_ast) => match aura_lang::bundle_module(&mod_ast, base_path) {
+                    Ok(bundled) => Some(aura_lang::detect_runtime_profile(&bundled)),
+                    Err(_) => None,
+                },
+                Err(_) => None,
+            },
+            _ => None,
+        };
+
         println!(
             "⚡ Compiling standalone native binary executable via Cranelift{}{}...",
             explicit_target
@@ -179,7 +190,10 @@ fn execute_build(
                 if let Some(t) = explicit_target {
                     println!("   ➜ Target Triple: {}", t);
                 }
-                println!("   ➜ Runtime: Aura M:N Fiber Scheduler + GC (libaura_runtime.a)");
+                if let Some(profile) = detected_profile {
+                    println!("   ➜ Runtime Profile: {}", profile.name());
+                }
+                println!("   ➜ Runtime: Aura M:N Fiber Scheduler + GC");
                 println!("   ➜ Size: {:.2} MB", mb);
                 println!("   ➜ Zero external runtime dependencies");
                 println!("   ➜ Execute: ./{}", out_path);

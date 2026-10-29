@@ -42,8 +42,9 @@ pub use backend::{
 pub use bindgen::{AuraBindgen, BindgenConfig};
 use codegen::CodeGen;
 pub use codegen_cranelift::{
-    build_native_binary, build_native_binary_with_base_path, build_native_binary_with_options,
-    build_native_binary_with_target,
+    RuntimeProfile, build_native_binary, build_native_binary_with_base_path,
+    build_native_binary_with_options, build_native_binary_with_target, detect_runtime_profile,
+    find_or_build_runtime_lib, find_or_build_runtime_lib_for_profile,
 };
 use dts_parser::DtsParser;
 pub use formatter::{
