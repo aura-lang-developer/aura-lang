@@ -327,7 +327,10 @@ fn test_try_operator_static_typing() {
     "#;
 
     let res = compile(source, &[]);
-    assert!(res.is_ok(), "Try operator must unwrap Result<Int, E> to Int");
+    assert!(
+        res.is_ok(),
+        "Try operator must unwrap Result<Int, E> to Int"
+    );
 }
 
 #[test]
@@ -360,7 +363,8 @@ fn test_concurrency_spawn_raw_pointer_capture_rejection() {
         }
     "#;
 
-    let err = compile(source, &[]).expect_err("Must reject raw pointer capture across spawn boundary");
+    let err =
+        compile(source, &[]).expect_err("Must reject raw pointer capture across spawn boundary");
     assert!(
         err.contains("Concurrency Safety Error [E0401]"),
         "Unexpected error: {}",

@@ -1673,8 +1673,8 @@ impl Parser {
                     second_var = Some(self.expect_ident()?);
                 }
                 let closed_paren_before_in = has_paren && self.match_token(&TokenKind::RParen);
-                let is_colon_eq_range = self.peek() == &TokenKind::Colon
-                    && self.peek_next() == &TokenKind::Equal;
+                let is_colon_eq_range =
+                    self.peek() == &TokenKind::Colon && self.peek_next() == &TokenKind::Equal;
                 if is_colon_eq_range {
                     self.advance(); // :
                     self.advance(); // =

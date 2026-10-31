@@ -80,7 +80,10 @@ fn test_must_use_attribute_and_linter_detection() {
 
     let diags = lint_source(source).expect("Linter failed on source");
     let must_use_finding = diags.iter().find(|d| d.code == "LINT003");
-    assert!(must_use_finding.is_some(), "Expected LINT003 diagnostic finding");
+    assert!(
+        must_use_finding.is_some(),
+        "Expected LINT003 diagnostic finding"
+    );
     let msg = &must_use_finding.unwrap().message;
     assert!(msg.contains("Transaction must be committed or rolled back"));
 }
@@ -137,10 +140,21 @@ require (
 
     let parsed = ModuleFile::parse(mod_content).expect("Failed to parse aura.mod with features");
     assert_eq!(parsed.require.len(), 2);
-    let db_dep = parsed.require.iter().find(|d| d.path == "github.com/aura/db").unwrap();
-    assert_eq!(db_dep.features, vec!["postgres".to_string(), "sqlite".to_string()]);
+    let db_dep = parsed
+        .require
+        .iter()
+        .find(|d| d.path == "github.com/aura/db")
+        .unwrap();
+    assert_eq!(
+        db_dep.features,
+        vec!["postgres".to_string(), "sqlite".to_string()]
+    );
 
-    let metrics_dep = parsed.require.iter().find(|d| d.path == "github.com/aura/metrics").unwrap();
+    let metrics_dep = parsed
+        .require
+        .iter()
+        .find(|d| d.path == "github.com/aura/metrics")
+        .unwrap();
     assert!(metrics_dep.features.is_empty());
 
     // Verify roundtrip serialization preserves features

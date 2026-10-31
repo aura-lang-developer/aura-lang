@@ -203,7 +203,10 @@ fn test_golang_style_tests_subtests_benchmarks_and_examples() {
     config.bench_pattern = Some(".".to_string());
 
     let summary = run_tests(&config).expect("Go-style test suite should execute");
-    assert!(summary.success, "All Go-style tests and examples should pass");
+    assert!(
+        summary.success,
+        "All Go-style tests and examples should pass"
+    );
     assert!(
         summary
             .test_results
@@ -250,7 +253,10 @@ export fn TestErrorVsFatal(t: *testing.T) => {
     config.paths = vec![temp_file.clone()];
 
     let summary = run_tests(&config).expect("Runner should execute");
-    assert!(!summary.success, "Suite should fail because sub_errorf_continues failed");
+    assert!(
+        !summary.success,
+        "Suite should fail because sub_errorf_continues failed"
+    );
     let sibling = summary
         .test_results
         .iter()
@@ -264,4 +270,3 @@ export fn TestErrorVsFatal(t: *testing.T) => {
 
     let _ = fs::remove_file(temp_file);
 }
-

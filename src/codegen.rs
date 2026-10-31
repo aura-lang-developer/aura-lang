@@ -259,12 +259,16 @@ const __aura_import = async (m) => {
         self.write_line("  base64UrlDecode: (data) => {");
         self.write_line("    try { return Ok(Buffer.from(String(data ?? ''), 'base64url').toString('utf8')); } catch (e) { return Err(String(e)); }");
         self.write_line("  },");
-        self.write_line("  randomBytes: (size) => cryptoMod.randomBytes(Number(size || 32)).toString('hex'),");
+        self.write_line(
+            "  randomBytes: (size) => cryptoMod.randomBytes(Number(size || 32)).toString('hex'),",
+        );
         self.write_line("  randomUUID: () => (cryptoMod.randomUUID ? cryptoMod.randomUUID() : cryptoMod.randomBytes(16).toString('hex')),");
         self.write_line("  timingSafeEqual: (a, b) => {");
         self.write_line("    const bufA = Buffer.from(String(a ?? ''));");
         self.write_line("    const bufB = Buffer.from(String(b ?? ''));");
-        self.write_line("    return bufA.length === bufB.length && cryptoMod.timingSafeEqual(bufA, bufB);");
+        self.write_line(
+            "    return bufA.length === bufB.length && cryptoMod.timingSafeEqual(bufA, bufB);",
+        );
         self.write_line("  },");
         self.write_line("});");
         self.write_line("");
@@ -3434,23 +3438,48 @@ const __aura_import = async (m) => {
         for derive in derives {
             match derive.as_str() {
                 "Debug" => {
-                    self.write_line(&format!("{}.debug = (x) => JSON.stringify(x, null, 2);", type_name));
-                    self.write_line(&format!("{}.toString = (x) => JSON.stringify(x);", type_name));
-                    self.register_aura_receiver_method(type_name, "debug", "(x) => JSON.stringify(x, null, 2)");
-                    self.register_aura_receiver_method(type_name, "toString", "(x) => JSON.stringify(x)");
+                    self.write_line(&format!(
+                        "{}.debug = (x) => JSON.stringify(x, null, 2);",
+                        type_name
+                    ));
+                    self.write_line(&format!(
+                        "{}.toString = (x) => JSON.stringify(x);",
+                        type_name
+                    ));
+                    self.register_aura_receiver_method(
+                        type_name,
+                        "debug",
+                        "(x) => JSON.stringify(x, null, 2)",
+                    );
+                    self.register_aura_receiver_method(
+                        type_name,
+                        "toString",
+                        "(x) => JSON.stringify(x)",
+                    );
                 }
                 "Clone" => {
                     self.write_line(&format!("{}.clone = (x) => (typeof structuredClone === 'function' ? structuredClone(x) : JSON.parse(JSON.stringify(x)));", type_name));
                     self.register_aura_receiver_method(type_name, "clone", "(x) => (typeof structuredClone === 'function' ? structuredClone(x) : JSON.parse(JSON.stringify(x)))");
                 }
                 "Eq" | "PartialEq" => {
-                    self.write_line(&format!("{}.equals = (a, b) => JSON.stringify(a) === JSON.stringify(b);", type_name));
-                    self.register_aura_receiver_method(type_name, "equals", "(a, b) => JSON.stringify(a) === JSON.stringify(b)");
+                    self.write_line(&format!(
+                        "{}.equals = (a, b) => JSON.stringify(a) === JSON.stringify(b);",
+                        type_name
+                    ));
+                    self.register_aura_receiver_method(
+                        type_name,
+                        "equals",
+                        "(a, b) => JSON.stringify(a) === JSON.stringify(b)",
+                    );
                 }
                 "Json" | "Serialize" | "Deserialize" => {
                     self.write_line(&format!("{}.toJson = (x) => JSON.stringify(x);", type_name));
                     self.write_line(&format!("{}.fromJson = (s) => JSON.parse(s);", type_name));
-                    self.register_aura_receiver_method(type_name, "toJson", "(x) => JSON.stringify(x)");
+                    self.register_aura_receiver_method(
+                        type_name,
+                        "toJson",
+                        "(x) => JSON.stringify(x)",
+                    );
                 }
                 "Hash" => {
                     let hash_fn = "(x) => { const s = JSON.stringify(x); let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }";
@@ -5892,8 +5921,8 @@ const __aura_import = async (m) => {
             }) => {
                 let iter_js = self.expr_to_js_with_renames(iterable, renames);
                 let b_js = self.block_or_expr_to_statements_js(body, renames);
-                let is_for_async = self.expr_contains_async(iterable)
-                    || self.expr_contains_async(body);
+                let is_for_async =
+                    self.expr_contains_async(iterable) || self.expr_contains_async(body);
                 let for_kw = if is_for_async { "for await" } else { "for" };
                 let lbl_prefix = if let Some(lbl) = label {
                     format!("{}: ", lbl)

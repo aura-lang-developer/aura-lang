@@ -600,7 +600,11 @@ impl std::fmt::Display for ModuleFile {
                     format!(" [{}]", dep.features.join(", "))
                 };
                 if dep.indirect {
-                    writeln!(f, "    {} {}{} // indirect", dep.path, dep.version, feat_str)?;
+                    writeln!(
+                        f,
+                        "    {} {}{} // indirect",
+                        dep.path, dep.version, feat_str
+                    )?;
                 } else {
                     writeln!(f, "    {} {}{}", dep.path, dep.version, feat_str)?;
                 }
@@ -1578,6 +1582,10 @@ pub fn run_cli(args: &[String]) {
                 std::process::exit(1);
             }
         },
+        "audit" | "vuln" => {
+            let vuln_args: Vec<String> = args.iter().skip(1).cloned().collect();
+            crate::vuln::run_vuln_cli(&vuln_args);
+        }
         other => {
             eprintln!("Unknown mod subcommand: '{}'", other);
             print_mod_usage();
@@ -1606,6 +1614,9 @@ pub fn print_mod_usage() {
     );
     println!(
         "  aurac mod verify               Verify cryptographic SHA-256 integrity against aura.lock"
+    );
+    println!(
+        "  aurac mod audit [options]      Audit dependencies for known vulnerabilities (OSV reachability)"
     );
     println!("  aurac mod list                 List all resolved dependencies and their status");
 }

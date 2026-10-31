@@ -373,6 +373,76 @@ mod tests {
     }
 
     #[test]
+    fn test_security_http_request_smuggling_defenses() {
+        use std::io::{Read, Write};
+        use std::net::{TcpListener, TcpStream};
+        use std::thread;
+
+        let test_smuggling_payload = |payload: &[u8]| -> String {
+            let listener = TcpListener::bind("127.0.0.1:0").expect("bind listener");
+            let local_addr = listener.local_addr().unwrap();
+
+            let mux = http::aura_http_new_serve_mux();
+            let mux_arc = std::sync::Arc::new(unsafe { &*mux });
+
+            let server_thread = thread::spawn(move || {
+                if let Ok((stream, _)) = listener.accept() {
+                    http::handle_connection(stream, &mux_arc);
+                }
+            });
+
+            let mut client = TcpStream::connect(local_addr).expect("connect client");
+            client.write_all(payload).unwrap();
+            let _ = client.shutdown(std::net::Shutdown::Write);
+
+            let mut response = Vec::new();
+            let _ = client.read_to_end(&mut response);
+            let _ = server_thread.join();
+            unsafe {
+                drop(Box::from_raw(mux));
+            }
+            String::from_utf8_lossy(&response).to_string()
+        };
+
+        // 1. Whitespace before colon (RFC 7230 §3.2.4 smuggling vector)
+        let resp1 = test_smuggling_payload(b"GET / HTTP/1.1\r\nContent-Length : 5\r\n\r\n12345");
+        assert!(
+            resp1.contains("400 Bad Request"),
+            "Should reject whitespace before colon: {}",
+            resp1
+        );
+
+        // 2. Conflicting Transfer-Encoding and Content-Length (RFC 7230 §3.3.3 CL.TE / TE.CL smuggling vector)
+        let resp2 = test_smuggling_payload(
+            b"GET / HTTP/1.1\r\nContent-Length: 5\r\nTransfer-Encoding: chunked\r\n\r\n12345",
+        );
+        assert!(
+            resp2.contains("400 Bad Request"),
+            "Should reject conflicting Transfer-Encoding and Content-Length: {}",
+            resp2
+        );
+
+        // 3. Duplicate Content-Length headers
+        let resp3 = test_smuggling_payload(
+            b"GET / HTTP/1.1\r\nContent-Length: 5\r\nContent-Length: 6\r\n\r\n12345",
+        );
+        assert!(
+            resp3.contains("400 Bad Request"),
+            "Should reject duplicate Content-Length: {}",
+            resp3
+        );
+
+        // 4. Null byte in URI
+        let resp4 =
+            test_smuggling_payload(b"GET /test\x00malicious HTTP/1.1\r\nHost: localhost\r\n\r\n");
+        assert!(
+            resp4.contains("400 Bad Request"),
+            "Should reject null byte in URI: {}",
+            resp4
+        );
+    }
+
+    #[test]
     fn test_security_channel_send_closed_no_panic() {
         let chan = channel::AuraChannel::new(1);
         chan.close();
@@ -737,7 +807,9 @@ mod tests {
 
     #[test]
     fn test_postgres_scram_sha256_cryptography() {
-        use crate::postgres_client::{base64_decode, base64_encode, hmac_sha256, pbkdf2_hmac_sha256, sha256_hash};
+        use crate::postgres_client::{
+            base64_decode, base64_encode, hmac_sha256, pbkdf2_hmac_sha256, sha256_hash,
+        };
 
         // 1. Test Base64 encode/decode
         let sample = b"hello aura postgres";
@@ -749,12 +821,18 @@ mod tests {
         // ba7816bf 8f01cfea 414140de 5dae2223 b00361a3 96177a9c b410ff61 f20015ad
         let hash = sha256_hash(b"abc");
         let hex: String = hash.iter().map(|b| format!("{:02x}", b)).collect();
-        assert_eq!(hex, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+        assert_eq!(
+            hex,
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
 
         // 3. Test HMAC-SHA256
         let hmac = hmac_sha256(b"key", b"The quick brown fox jumps over the lazy dog");
         let hmac_hex: String = hmac.iter().map(|b| format!("{:02x}", b)).collect();
-        assert_eq!(hmac_hex, "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8");
+        assert_eq!(
+            hmac_hex,
+            "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8"
+        );
 
         // 4. Test RFC 7677 SCRAM-SHA-256 vector
         // password="pencil", salt="W22ZaJ0SNY7soNVgvFoSnQ==", iterations=4096
@@ -764,6 +842,9 @@ mod tests {
         let stored_key = sha256_hash(&client_key);
         let stored_key_hex: String = stored_key.iter().map(|b| format!("{:02x}", b)).collect();
         // RFC 7677 Section 3: StoredKey matches exact SHA-256 PBKDF2 derivative
-        assert_eq!(stored_key_hex, "a07156c3493aec5e8b30542f283009d2c210b21ada2ca3f061dfd440162cea2c");
+        assert_eq!(
+            stored_key_hex,
+            "a07156c3493aec5e8b30542f283009d2c210b21ada2ca3f061dfd440162cea2c"
+        );
     }
 }

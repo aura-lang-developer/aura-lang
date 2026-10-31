@@ -336,7 +336,7 @@ pub extern "C" fn aura_http_listen_and_serve_tls(
     -1
 }
 
-fn handle_connection(stream: TcpStream, mux: &AuraServeMux) {
+pub(crate) fn handle_connection(stream: TcpStream, mux: &AuraServeMux) {
     let _ = stream.set_nodelay(true);
     let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(5)));
     let _ = stream.set_write_timeout(Some(std::time::Duration::from_secs(10)));
@@ -374,6 +374,14 @@ fn handle_connection(stream: TcpStream, mux: &AuraServeMux) {
         }
 
         let uri = parts[1];
+        if uri.bytes().any(|b| b.is_ascii_control()) {
+            let raw_stream = reader.get_mut();
+            let _ = raw_stream.write_all(
+                b"HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",
+            );
+            break;
+        }
+
         let http_version = if parts.len() >= 3 {
             parts[2]
         } else {
@@ -391,10 +399,13 @@ fn handle_connection(stream: TcpStream, mux: &AuraServeMux) {
         }
 
         let mut content_length = 0;
+        let mut content_length_seen = false;
+        let mut has_transfer_encoding = false;
         let mut client_close = false;
         let mut client_keep_alive = false;
         let mut header_count = 0;
         let mut header_overflow = false;
+        let mut bad_request = false;
         let mut incoming_traceparent: Option<String> = None;
 
         loop {
@@ -415,11 +426,65 @@ fn handle_connection(stream: TcpStream, mux: &AuraServeMux) {
                 break;
             }
             let trimmed = header_line.trim_end();
-            if let Some((k, v)) = trimmed.split_once(':') {
-                let k_trim = k.trim();
+            if let Some((raw_k, v)) = trimmed.split_once(':') {
+                // RFC 7230 §3.2.4: Reject whitespace between header field-name and colon (Request Smuggling defense)
+                if raw_k.ends_with(' ') || raw_k.ends_with('\t') {
+                    bad_request = true;
+                    break;
+                }
+                // RFC 7230 §3.2: Header name must consist only of valid tchar characters
+                if raw_k.is_empty()
+                    || !raw_k.bytes().all(|b| {
+                        matches!(
+                            b,
+                            b'a'..=b'z'
+                                | b'A'..=b'Z'
+                                | b'0'..=b'9'
+                                | b'!'
+                                | b'#'
+                                | b'$'
+                                | b'%'
+                                | b'&'
+                                | b'\''
+                                | b'*'
+                                | b'+'
+                                | b'-'
+                                | b'.'
+                                | b'^'
+                                | b'_'
+                                | b'`'
+                                | b'|'
+                                | b'~'
+                        )
+                    })
+                {
+                    bad_request = true;
+                    break;
+                }
+
+                let k_trim = raw_k.trim();
                 let v_trim = v.trim();
                 if k_trim.eq_ignore_ascii_case("content-length") {
-                    content_length = v_trim.parse::<usize>().unwrap_or(0);
+                    // RFC 7230 §3.3.2: Reject duplicate or non-numeric Content-Length
+                    if content_length_seen
+                        || v_trim.is_empty()
+                        || !v_trim.chars().all(|c| c.is_ascii_digit())
+                    {
+                        bad_request = true;
+                        break;
+                    }
+                    match v_trim.parse::<usize>() {
+                        Ok(cl) => {
+                            content_length = cl;
+                            content_length_seen = true;
+                        }
+                        Err(_) => {
+                            bad_request = true;
+                            break;
+                        }
+                    }
+                } else if k_trim.eq_ignore_ascii_case("transfer-encoding") {
+                    has_transfer_encoding = true;
                 } else if k_trim.eq_ignore_ascii_case("connection") {
                     if v_trim.eq_ignore_ascii_case("close") {
                         client_close = true;
@@ -429,7 +494,23 @@ fn handle_connection(stream: TcpStream, mux: &AuraServeMux) {
                 } else if k_trim.eq_ignore_ascii_case("traceparent") {
                     incoming_traceparent = Some(v_trim.to_string());
                 }
+            } else {
+                bad_request = true;
+                break;
             }
+        }
+
+        // RFC 7230 §3.3.3: Reject conflicting Transfer-Encoding and Content-Length (CL.TE / TE.CL smuggling defense)
+        if has_transfer_encoding && content_length_seen {
+            bad_request = true;
+        }
+
+        if bad_request {
+            let raw_stream = reader.get_mut();
+            let _ = raw_stream.write_all(
+                b"HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",
+            );
+            break;
         }
 
         if header_overflow {

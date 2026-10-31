@@ -88,7 +88,9 @@ impl Linter {
     }
 
     fn check_sql_injection_template(&mut self, segments: &[TemplateSegment]) {
-        let has_expr = segments.iter().any(|s| matches!(s, TemplateSegment::Expr(_)));
+        let has_expr = segments
+            .iter()
+            .any(|s| matches!(s, TemplateSegment::Expr(_)));
         if !has_expr {
             return;
         }
@@ -131,7 +133,13 @@ impl Linter {
     fn check_hardcoded_secret(&mut self, name: &str, value: &Expr) {
         let name_lower = name.to_lowercase();
         let sensitive_keywords = [
-            "password", "api_key", "apikey", "secret", "auth_token", "jwt_secret", "access_token",
+            "password",
+            "api_key",
+            "apikey",
+            "secret",
+            "auth_token",
+            "jwt_secret",
+            "access_token",
             "private_key",
         ];
 
@@ -166,7 +174,10 @@ impl Linter {
             "token", "secret", "salt", "iv", "nonce", "key", "password", "session", "auth",
         ];
 
-        if sensitive_token_indicators.iter().any(|k| name_lower.contains(k)) {
+        if sensitive_token_indicators
+            .iter()
+            .any(|k| name_lower.contains(k))
+        {
             let mut uses_math_random = false;
             if let Expr::FunctionCall { callee, .. } = value {
                 if let Expr::MemberAccess { object, member } = callee.as_ref() {
@@ -201,7 +212,8 @@ impl AstVisitor for Linter {
                     Some(Type::Named { name, .. }) if name == "Result" || name == "Option"
                 );
                 if f.is_must_use || is_ret_must_use {
-                    self.must_use_functions.insert(f.name.clone(), f.must_use_message.clone());
+                    self.must_use_functions
+                        .insert(f.name.clone(), f.must_use_message.clone());
                 }
             }
         }

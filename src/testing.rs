@@ -280,7 +280,10 @@ pub fn extract_doctests(source: &str, file_path: &Path) -> (Vec<TestFunction>, S
     for (line_idx, line) in source.lines().enumerate() {
         let trimmed = line.trim();
         if trimmed.starts_with("///") || trimmed.starts_with("//!") {
-            let doc_line = trimmed.trim_start_matches("///").trim_start_matches("//!").trim();
+            let doc_line = trimmed
+                .trim_start_matches("///")
+                .trim_start_matches("//!")
+                .trim();
             if doc_line.starts_with("```aura") || (doc_line == "```" && !in_block) {
                 in_block = true;
                 start_line = line_idx + 1;
@@ -369,7 +372,7 @@ fn process_test_file(path: &Path) -> Result<Option<TestFile>, String> {
         Err(e) => return Err(format!("Parse error in '{}': {}", path.display(), e)),
     };
 
-        let default_kind = determine_test_kind(path);
+    let default_kind = determine_test_kind(path);
     let mut functions = Vec::new();
     let mut has_top_level_assertions = false;
 

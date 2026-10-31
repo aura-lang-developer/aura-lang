@@ -1232,13 +1232,19 @@ impl TypeEnv {
             },
         );
         // Go testing.TB / testing.T methods (PascalCase & camelCase)
-        for name in ["Error", "error", "Fatal", "fatal", "Log", "log", "Skip", "skip", "Fail", "fail"] {
+        for name in [
+            "Error", "error", "Fatal", "fatal", "Log", "log", "Skip", "skip", "Fail", "fail",
+        ] {
             t_methods.insert(name.to_string(), variadic_any_fn.clone());
         }
-        for name in ["Errorf", "errorf", "Fatalf", "fatalf", "Logf", "logf", "Skipf", "skipf"] {
+        for name in [
+            "Errorf", "errorf", "Fatalf", "fatalf", "Logf", "logf", "Skipf", "skipf",
+        ] {
             t_methods.insert(name.to_string(), format_any_fn.clone());
         }
-        for name in ["FailNow", "failNow", "SkipNow", "skipNow", "Parallel", "parallel", "Helper", "helper"] {
+        for name in [
+            "FailNow", "failNow", "SkipNow", "skipNow", "Parallel", "parallel", "Helper", "helper",
+        ] {
             t_methods.insert(name.to_string(), unit_to_unit_fn.clone());
         }
         for name in ["Failed", "failed", "Skipped", "skipped"] {
@@ -1286,8 +1292,7 @@ impl TypeEnv {
             .insert("TestingT".to_string(), testing_t_type.clone());
         env.types
             .insert("TestingContext".to_string(), testing_t_type.clone());
-        env.types
-            .insert("TB".to_string(), testing_t_type.clone());
+        env.types.insert("TB".to_string(), testing_t_type.clone());
         env.types.insert("T".to_string(), testing_t_type);
 
         let mut b_methods = t_methods;
@@ -6175,7 +6180,9 @@ impl TypeChecker {
             Expr::Block(stmts) => {
                 for s in stmts {
                     match s {
-                        Statement::Expr(e) | Statement::Return(Some(e)) => self.check_spawn_safety(e, env)?,
+                        Statement::Expr(e) | Statement::Return(Some(e)) => {
+                            self.check_spawn_safety(e, env)?
+                        }
                         Statement::Let { value, .. } => self.check_spawn_safety(value, env)?,
                         Statement::Assign { target, value } => {
                             self.check_spawn_safety(target, env)?;

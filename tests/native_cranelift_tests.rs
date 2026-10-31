@@ -118,6 +118,9 @@ fn test_native_cranelift_modulo_zero_safety() {
     let _ = fs::remove_file(out_bin);
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(output.status.success(), "Process must not crash on modulo by zero");
+    assert!(
+        output.status.success(),
+        "Process must not crash on modulo by zero"
+    );
     assert!(stdout.contains("Modulo by zero handled safely without SIGFPE"));
 }

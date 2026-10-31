@@ -26,5 +26,9 @@ export fn main(): Unit => {
 }
 "#;
     let res = aura_lang::compile(code, &[]);
-    assert!(res.is_ok(), "Expected crypto CSPRNG and timingSafeEqual to compile cleanly: {:?}", res.err());
+    assert!(
+        res.is_ok(),
+        "Expected crypto CSPRNG and timingSafeEqual to compile cleanly: {:?}",
+        res.err()
+    );
 }

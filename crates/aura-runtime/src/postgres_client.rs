@@ -296,7 +296,10 @@ impl PgConnection {
         // 2. Read AuthenticationSASLContinue ('R', 11)
         let msg_type = self.read_byte()?;
         if msg_type != b'R' {
-            return Err(format!("Expected Authentication message (R), got '{}'", msg_type as char));
+            return Err(format!(
+                "Expected Authentication message (R), got '{}'",
+                msg_type as char
+            ));
         }
         let msg_len = self.read_i32()? as usize;
         let mut body = vec![0u8; msg_len - 4];
@@ -341,7 +344,10 @@ impl PgConnection {
 
         let channel_binding = "c=biws"; // base64("n,,")
         let client_final_without_proof = format!("{},r={}", channel_binding, server_nonce);
-        let auth_message = format!("{},{},{}", client_first_bare, server_first, client_final_without_proof);
+        let auth_message = format!(
+            "{},{},{}",
+            client_first_bare, server_first, client_final_without_proof
+        );
 
         let client_signature = hmac_sha256(&stored_key, auth_message.as_bytes());
         let mut client_proof = [0u8; 32];
@@ -349,7 +355,11 @@ impl PgConnection {
             client_proof[i] = client_key[i] ^ client_signature[i];
         }
 
-        let client_final = format!("{},p={}", client_final_without_proof, base64_encode(&client_proof));
+        let client_final = format!(
+            "{},p={}",
+            client_final_without_proof,
+            base64_encode(&client_proof)
+        );
 
         // 4. Send SASLResponse ('p')
         let mut resp_msg = Vec::new();
@@ -365,7 +375,10 @@ impl PgConnection {
         // 5. Read AuthenticationSASLFinal ('R', 12)
         let final_type = self.read_byte()?;
         if final_type != b'R' {
-            return Err(format!("Expected SASLFinal (R), got '{}'", final_type as char));
+            return Err(format!(
+                "Expected SASLFinal (R), got '{}'",
+                final_type as char
+            ));
         }
         let final_len = self.read_i32()? as usize;
         let mut final_body = vec![0u8; final_len - 4];
@@ -374,9 +387,13 @@ impl PgConnection {
             .map_err(|e| format!("Failed to read SASLFinal body: {}", e))?;
 
         if final_body.len() >= 4 {
-            let final_sub_type = i32::from_be_bytes([final_body[0], final_body[1], final_body[2], final_body[3]]);
+            let final_sub_type =
+                i32::from_be_bytes([final_body[0], final_body[1], final_body[2], final_body[3]]);
             if final_sub_type != 12 {
-                return Err(format!("Expected AuthenticationSASLFinal (12), got {}", final_sub_type));
+                return Err(format!(
+                    "Expected AuthenticationSASLFinal (12), got {}",
+                    final_sub_type
+                ));
             }
         }
 
@@ -671,7 +688,13 @@ const SHA256_K: [u32; 64] = [
 
 pub fn sha256_hash(data: &[u8]) -> [u8; 32] {
     let mut state = [
-        0x6a09e667u32, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
+        0x6a09e667u32,
+        0xbb67ae85,
+        0x3c6ef372,
+        0xa54ff53a,
+        0x510e527f,
+        0x9b05688c,
+        0x1f83d9ab,
         0x5be0cd19,
     ];
     let bit_len = (data.len() as u64) * 8;
@@ -695,7 +718,10 @@ pub fn sha256_hash(data: &[u8]) -> [u8; 32] {
         for i in 16..64 {
             let s0 = w[i - 15].rotate_right(7) ^ w[i - 15].rotate_right(18) ^ (w[i - 15] >> 3);
             let s1 = w[i - 2].rotate_right(17) ^ w[i - 2].rotate_right(19) ^ (w[i - 2] >> 10);
-            w[i] = w[i - 16].wrapping_add(s0).wrapping_add(w[i - 7]).wrapping_add(s1);
+            w[i] = w[i - 16]
+                .wrapping_add(s0)
+                .wrapping_add(w[i - 7])
+                .wrapping_add(s1);
         }
         let mut a = state[0];
         let mut b = state[1];
@@ -709,7 +735,11 @@ pub fn sha256_hash(data: &[u8]) -> [u8; 32] {
         for i in 0..64 {
             let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
             let ch = (e & f) ^ ((!e) & g);
-            let temp1 = h.wrapping_add(s1).wrapping_add(ch).wrapping_add(SHA256_K[i]).wrapping_add(w[i]);
+            let temp1 = h
+                .wrapping_add(s1)
+                .wrapping_add(ch)
+                .wrapping_add(SHA256_K[i])
+                .wrapping_add(w[i]);
             let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
             let maj = (a & b) ^ (a & c) ^ (b & c);
             let temp2 = s0.wrapping_add(maj);

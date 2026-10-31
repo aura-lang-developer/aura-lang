@@ -1,4 +1,4 @@
-use aura_lang::linter::{lint_source, LintSeverity};
+use aura_lang::linter::{LintSeverity, lint_source};
 
 #[test]
 fn test_linter_detects_sql_injection_template() {
@@ -10,7 +10,9 @@ fn test_linter_detects_sql_injection_template() {
 
     let diags = lint_source(code).expect("should parse");
     assert!(
-        diags.iter().any(|d| d.code == "SEC001" && d.severity == LintSeverity::Error),
+        diags
+            .iter()
+            .any(|d| d.code == "SEC001" && d.severity == LintSeverity::Error),
         "Expected SEC001 error for SQL injection in template string, got: {:?}",
         diags
     );
@@ -26,7 +28,9 @@ fn test_linter_detects_sql_injection_concat() {
 
     let diags = lint_source(code).expect("should parse");
     assert!(
-        diags.iter().any(|d| d.code == "SEC001" && d.severity == LintSeverity::Error),
+        diags
+            .iter()
+            .any(|d| d.code == "SEC001" && d.severity == LintSeverity::Error),
         "Expected SEC001 error for SQL injection in string concat, got: {:?}",
         diags
     );
@@ -58,7 +62,9 @@ fn test_linter_detects_hardcoded_secrets() {
 
     let diags = lint_source(code).expect("should parse");
     assert!(
-        diags.iter().any(|d| d.code == "SEC002" && d.severity == LintSeverity::Warning),
+        diags
+            .iter()
+            .any(|d| d.code == "SEC002" && d.severity == LintSeverity::Warning),
         "Expected SEC002 for hardcoded api_key, got: {:?}",
         diags
     );
@@ -91,7 +97,9 @@ fn test_linter_detects_unused_let_mut() {
 
     let diags = lint_source(code).expect("should parse");
     assert!(
-        diags.iter().any(|d| d.code == "LINT001" && d.severity == LintSeverity::Warning),
+        diags
+            .iter()
+            .any(|d| d.code == "LINT001" && d.severity == LintSeverity::Warning),
         "Expected LINT001 for unused let mut count, got: {:?}",
         diags
     );

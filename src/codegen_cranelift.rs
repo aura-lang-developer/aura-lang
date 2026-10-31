@@ -1776,9 +1776,13 @@ impl CraneliftBackend {
                                             obj_val,
                                             zero,
                                         );
-                                        builder
-                                            .ins()
-                                            .brif(not_null, check_block, &[], slow_block, &[]);
+                                        builder.ins().brif(
+                                            not_null,
+                                            check_block,
+                                            &[],
+                                            slow_block,
+                                            &[],
+                                        );
                                     }
 
                                     builder.switch_to_block(check_block);
@@ -3795,7 +3799,10 @@ pub fn detect_runtime_profile(module: &crate::ast::Module) -> RuntimeProfile {
             }
             if let crate::ast::Item::Import(imp) = item {
                 let src = imp.source.to_lowercase();
-                if src.contains("sqlite") || src == "std/database/sqlite" || src == "database/sqlite" {
+                if src.contains("sqlite")
+                    || src == "std/database/sqlite"
+                    || src == "database/sqlite"
+                {
                     self.uses_sqlite = true;
                     return;
                 }
@@ -3977,7 +3984,10 @@ pub fn find_or_build_runtime_lib_for_profile(profile: RuntimeProfile) -> Result<
     };
 
     if let Some(home) = std::env::var_os("HOME") {
-        let home_lib = PathBuf::from(home).join(".aura").join("lib").join(&lib_filename);
+        let home_lib = PathBuf::from(home)
+            .join(".aura")
+            .join("lib")
+            .join(&lib_filename);
         if home_lib.exists() {
             return Ok(home_lib.canonicalize().unwrap_or(home_lib));
         }
@@ -4001,8 +4011,14 @@ pub fn find_or_build_runtime_lib_for_profile(profile: RuntimeProfile) -> Result<
         ]
     } else {
         vec![
-            PathBuf::from(format!("target/{}/release/libaura_runtime.a", profile_subdir)),
-            PathBuf::from(format!("../target/{}/release/libaura_runtime.a", profile_subdir)),
+            PathBuf::from(format!(
+                "target/{}/release/libaura_runtime.a",
+                profile_subdir
+            )),
+            PathBuf::from(format!(
+                "../target/{}/release/libaura_runtime.a",
+                profile_subdir
+            )),
         ]
     };
 
@@ -4014,7 +4030,11 @@ pub fn find_or_build_runtime_lib_for_profile(profile: RuntimeProfile) -> Result<
 
     // Attempt to build it in release mode with proper cargo features
     let mut cargo_cmd = Command::new("cargo");
-    cargo_cmd.arg("build").arg("--release").arg("--package").arg("aura-runtime");
+    cargo_cmd
+        .arg("build")
+        .arg("--release")
+        .arg("--package")
+        .arg("aura-runtime");
 
     match profile {
         RuntimeProfile::Core => {
@@ -4044,7 +4064,10 @@ pub fn find_or_build_runtime_lib_for_profile(profile: RuntimeProfile) -> Result<
     } else {
         vec![
             PathBuf::from(format!("target/{}/debug/libaura_runtime.a", profile_subdir)),
-            PathBuf::from(format!("../target/{}/debug/libaura_runtime.a", profile_subdir)),
+            PathBuf::from(format!(
+                "../target/{}/debug/libaura_runtime.a",
+                profile_subdir
+            )),
         ]
     };
     for c in &debug_candidates {

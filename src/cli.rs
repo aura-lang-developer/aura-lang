@@ -61,8 +61,9 @@ pub fn print_usage() {
     println!("  {bin} --test [flags] [paths...]");
     println!("  {bin} <file.aura> --test [flags...]");
     println!("  {bin} fmt [-w] [-l] [-d] [-c] [--tabs] [--indent <N>] [paths...]");
-    println!("  {bin} mod <init|tidy|get|vendor|verify|list> [args...]");
-    println!("  {bin} pkg <init|tidy|get|vendor|verify|list> [args...]");
+    println!("  {bin} vuln [options] [path]");
+    println!("  {bin} mod <init|tidy|get|vendor|verify|audit|list> [args...]");
+    println!("  {bin} pkg <init|tidy|get|vendor|verify|audit|list> [args...]");
     println!("  {bin} dts-import <file.d.ts>");
     println!("  {bin} bindgen <header.h> [-o <output.aura>] [--name <module>]");
     println!("  {bin} lsp");
@@ -734,7 +735,14 @@ pub fn run_cli(args: &[String]) {
                         return;
                     }
 
-                    let run_id = format!("{}_{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_micros()).unwrap_or(0));
+                    let run_id = format!(
+                        "{}_{}",
+                        std::process::id(),
+                        std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|d| d.as_micros())
+                            .unwrap_or(0)
+                    );
                     let tmp_js = format!("{}.tmp.{}.mjs", filename, run_id);
                     let tmp_map = format!("{}.map", tmp_js);
 
@@ -967,6 +975,10 @@ pub fn run_cli(args: &[String]) {
         "fmt" => {
             let fmt_args: Vec<String> = args.iter().skip(2).cloned().collect();
             aura_lang::formatter::run_cli(&fmt_args);
+        }
+        "vuln" => {
+            let vuln_args: Vec<String> = args.iter().skip(2).cloned().collect();
+            aura_lang::vuln::run_vuln_cli(&vuln_args);
         }
         "mod" | "pkg" => {
             let mod_args: Vec<String> = args.iter().skip(2).cloned().collect();

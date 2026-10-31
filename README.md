@@ -80,11 +80,12 @@ Aura compiles directly into **standalone native executable binaries** (Mach-O on
    - [Opinionated Code Formatter (`aurafmt`)](#3-opinionated-code-formatter-aurafmt-gofmt-style)
    - [Language Server (`auralsp`)](#4-language-server-auralsp--aurac-lsp)
    - [Decentralized Module Manager (`auramod` / `aurac mod`)](#5-decentralized-module-manager-auramod--aurac-mod)
-   - [C/Rust FFI Binding Generator (`aurabindgen`)](#6-c-rust-ffi-binding-generator-aurabindgen--aurac-bindgen)
-   - [Interactive Web Playground (`aurac playground`)](#7-interactive-web-playground)
+   - [Vulnerability Scanner & Reachability Analyzer (`auravuln` / `aurac vuln` / `aurac mod audit`)](#6-vulnerability-scanner--reachability-analyzer-auravuln--aurac-vuln--aurac-mod-audit)
+   - [C/Rust FFI Binding Generator (`aurabindgen`)](#7-c-rust-ffi-binding-generator-aurabindgen--aurac-bindgen)
+   - [Interactive Web Playground (`aurac playground`)](#8-interactive-web-playground)
 10. [🧩 Editor Configuration](#-editor-configuration)
 11. [🔄 Self-Hosted Compiler and Bootstrapping](#-self-hosted-compiler-and-bootstrapping)
-12. [🛡️ Security and Runtime Hardening (v0.8.1)](#️-security-and-runtime-hardening-v081)
+12. [🛡️ Security, Runtime Hardening, and Vulnerability Analysis (v0.8.3)](#️-security-runtime-hardening-and-vulnerability-analysis-v083)
 13. [🗺️ Current Status, Roadmap, and Milestones](#️-current-status-roadmap-and-milestones)
 14. [📄 License and Trademarks](#-license)
 
@@ -514,7 +515,7 @@ Located in [`crates/aura-runtime/`](crates/aura-runtime), this is a static Rust 
 
 - **M:N Fiber Scheduler (`scheduler.rs`, `fiber.rs`)**: Executes thousands of cooperative fibers over a pool of operating system threads using lightweight stack switching. Uses zero-overhead static scheduler references (`&'static Scheduler`) without atomic reference counted wrappers (`Arc`), eliminating heap allocations on startup and context switch contention across worker threads.
 - **CSP Channels & Deadlock Sentinel (`channel.rs`)**: Thread-safe concurrent circular queues for message passing, operational channel metrics, and automated deadlock detection.
-- **Zero-Alloc HTTP Server (`http.rs`)**: HTTP/1.1 server with persistent Keep-Alive, `TCP_NODELAY`, reusable buffers, coalesced header/body writes, zero-intermediate-allocation `/metrics` Prometheus endpoint via `writeln!`, and W3C `traceparent` propagation.
+- **Zero-Alloc Hardened HTTP Server (`http.rs`)**: HTTP/1.1 server with persistent Keep-Alive, `TCP_NODELAY`, reusable buffers, coalesced header/body writes, zero-intermediate-allocation `/metrics` Prometheus endpoint via `writeln!`, W3C `traceparent` propagation, and RFC 7230 §3.2.4 / §3.3.3 request smuggling defenses (whitespace-before-colon rejection, conflicting TE/CL detection, duplicate Content-Length rejection, and URI control byte sanitization).
 - **Concurrent Compact Garbage Collector (`gc.rs`)**: Fast Mark-and-Sweep GC with 64 pointer shards protected by `RwLock` and `rustc-hash` (`FxHashMap`) for lock-free parallel reads during root and pointer validation phases.
 - **Synchronization Primitives (`sync.rs`)**: Native Mutex, RWMutex, Once, Pool, and WaitGroup with cooperative fiber yielding and spin loops.
 - **High-Speed JSON & Record Serializers (`json.rs`, `record.rs`)**: High-speed binary and text encoding/decoding, with `FxHashMap` powering 2x-4x faster record field lookups.
@@ -1864,6 +1865,11 @@ aurac build main.aura -o dist/my-app --dts node_modules/@types/node/index.d.ts
 aurac --test
 aurac --test ./...
 aurac main_test.aura --test
+
+# 12. Vulnerability scanning & static call-graph reachability check (OSV)
+aura vuln .
+aura vuln --strict
+aura vuln --json
 ```
 
 ### 2. Test, Benchmark, and Coverage Runner (`aurac --test` / `auratest`)
@@ -1975,18 +1981,46 @@ aurac mod vendor
 # Verify SHA-256 cryptographic integrity against aura.lock
 aurac mod verify
 
+# Audit dependencies for known vulnerabilities via OSV reachability
+aurac mod audit
+
 # Visualize the module dependency graph
 aurac mod graph
 ```
 
-### 6. C/Rust FFI Binding Generator (`aurabindgen` / `aurac bindgen`)
+### 6. Vulnerability Scanner & Reachability Analyzer (`auravuln` / `aurac vuln` / `aurac mod audit`)
+
+Inspired by the Go vulnerability management architecture (`golang.org/x/vuln` / `govulncheck`), Aura provides an integrated vulnerability auditing engine that adheres to the Open Source Vulnerability (**OSV**) schema. 
+
+Unlike traditional Software Composition Analysis (SCA) tools that emit noisy false positives based solely on version manifests, Aura uses **Static AST Call-Graph Reachability Analysis**: it traces function invocations from application entrypoints (`main()`, exported functions) to determine if your code actively calls the vulnerable function symbol.
+
+```bash
+# Scan current project dependencies and static call graph
+aura vuln .
+
+# Enforce strict mode for CI/CD (exits with code 1 if reachable vulnerabilities are detected)
+aura vuln --strict
+
+# Output machine-readable JSON for security pipelines
+aura vuln --json
+
+# Show all matching advisories (including uncalled dependencies)
+aura vuln --show-all
+```
+
+#### Graded Risk Categorization:
+- 🚨 **`Reachable` (Critical/High)**: The vulnerable function symbol is actively reachable from `main()`. Displays the full call graph trace (e.g., `main() ➔ handleAuth() ➔ jwt.verifyToken()`).
+- ⚠️ **`ImportedUncalled` (Mitigated/Low)**: The dependency is imported, but static analysis confirms that the vulnerable function is **never called** (eliminating false positive alarms).
+- ℹ️ **`RequiredUnused` (Informational)**: Tracked in `aura.mod` / `aura.lock`, but never imported in application source code.
+
+### 7. C/Rust FFI Binding Generator (`aurabindgen` / `aurac bindgen`)
 
 ```bash
 # Generate typed Aura bindings from C header files
 aurac bindgen /usr/include/sqlite3.h -o src/sqlite3.aura --name SQLite3 --strip-prefix "sqlite3_"
 ```
 
-### 7. Interactive Web Playground
+### 8. Interactive Web Playground
 
 ```bash
 aurac playground --port 3000
@@ -2155,9 +2189,9 @@ cargo test --test bootstrap_tests -- --test-threads=1
 
 ---
 
-## 🛡️ Security and Runtime Hardening (v0.8.1)
+## 🛡️ Security, Runtime Hardening, and Vulnerability Analysis (v0.8.3)
 
-Aura v0.8.1 introduces extensive defense-in-depth security hardening across the compiler, typechecker, garbage collector, and native standard runtime:
+Aura v0.8.3 introduces extensive defense-in-depth security hardening across the compiler, typechecker, garbage collector, vulnerability management toolchain, and native standard runtime:
 
 ### Evaluated Risk Vectors and Results / Vectores de Riesgo Evaluados y Resultados
 
@@ -2171,6 +2205,8 @@ Aura v0.8.1 introduces extensive defense-in-depth security hardening across the 
 | **JSON Depth DoS (JSON Bomb)** | Recursive call stack overflow via deeply nested payloads | Runtime enforcement of `MAX_JSON_DEPTH = 64` across parser entrypoints (`crates/aura-runtime/src/json.rs`). | 🟢 **Protected** |
 | **Fiber Buffer Overflow** | Fiber heap corruption under deep execution frames | **Stack Canaries**: `verify_canary()` in runtime detects stack buffer tampering before recycling fiber memory. | 🟢 **Protected** |
 | **Channel Saturation & Leaks** | Fiber deadlocks from orphaned or full CSP channels | CSP channels safely drain buffered items and emit clean `None` EOF values upon `Channel.close()`. | 🟢 **Protected** |
+| **HTTP Request Smuggling** | Desynchronization between reverse proxies and Aura runtime | **RFC 7230 §3.2.4 & §3.3.3**: Strict zero-allocation validation rejecting whitespace before colon (`Header : value`), conflicting `Transfer-Encoding` + `Content-Length` (CL.TE/TE.CL), duplicate `Content-Length`, and null/control bytes in URIs. | 🟢 **Protected** |
+| **Vulnerable Dependencies (Supply Chain)** | Exploitation of unpatched third-party CVEs | **OSV Static Call-Graph Reachability Engine (`aura vuln` / `aura mod audit`)**: Analyzes the AST from `main()` to determine whether vulnerable symbols are actively reachable in code, eliminating false positive alerts. | 🟢 **Protected** |
 
 ### Detailed Subsystem Hardening Matrix
 
@@ -2183,6 +2219,8 @@ Aura v0.8.1 introduces extensive defense-in-depth security hardening across the 
 | **Database Subsystem** | SQL Injection & Parameter Misalignment | Strictly typed parameter formatting and dialect-specific placeholder binding (`bind_postgres_sql` with `$1..$N`, `bind_mysql_sql` with `?`), plus handle type validation preventing pointer confusion. |
 | **Database Lifecycle** | Double-free & dangling pointers in `Tx`/`Pool` | Idempotent transaction and connection pool closing with atomic de-registration from runtime pool registry. |
 | **HTTP Web Server** | HTTP Response Splitting, Slowloris & DoS | Response header sanitization (CRLF rejection); dual read/write socket timeouts (5s/10s); method validation (405); auto-injection of `X-Content-Type-Options: nosniff` and `X-Frame-Options: SAMEORIGIN`. |
+| **HTTP Request Smuggling Defense** | CL.TE & TE.CL request desynchronization (RFC 7230 §3.2.4 / §3.3.3) | Strict zero-allocation parser rejection of whitespace before colon in header names, conflicting `Transfer-Encoding` + `Content-Length`, duplicate `Content-Length`, non-numeric bytes, and control/null bytes in URIs (`crates/aura-runtime/src/http.rs`). |
+| **Vulnerability & Reachability Engine** | Unnecessary alert fatigue and hidden reachable vulnerabilities | Integrated Google/OpenSSF OSV vulnerability engine (`src/vuln.rs`) with AST call-graph reachability traversal (`aura vuln` / `aura mod audit`), reporting active execution exposure vs uncalled dependencies. |
 | **TLS / HTTPS Subsystem** | Insecure silent fallback / false TLS indicator | Server startup aborts with explicit error code (`-1`) and log warnings if TLS configuration is supplied without linked native TLS provider. |
 | **JSON Parser** | Stack Overflow DoS via nested payloads | Recursive depth validation enforcing `MAX_JSON_DEPTH = 64` across all native parser entrypoints. |
 | **Crypto & Auth** | Side-Channel Timing Attacks on JWT | Constant-time signature verification using `timingSafeEqual` (Node.js) and `hmac.Equal` (Go). |
@@ -2224,7 +2262,7 @@ Aura v0.8.1 introduces extensive defense-in-depth security hardening across the 
 - [x] **C/Rust FFI Generator (`aurabindgen`)**: Automatic conversion of `.h` headers into safe Aura interfaces.
 - [x] **Production-Grade Tooling**: Official LSP server (`auralsp`), terminal step debugger (`aurac step`), V8 DAP server (`aurac debug`), test runner (`auratest`), opinionated formatter (`aurafmt`), and type-safe `serde_json` Web Playground.
 - [x] **Rust 2024 Modernization & Toolchain Optimization**: Centralized Cargo workspace dependencies and lints, deduplicated crate tree (`object 0.39`), Thin LTO release profile (`[profile.release]`), `RwLock` + `FxHashMap` concurrent runtime GC, zero-overhead static scheduler, zero-alloc HTTP metric formatting, $O(1)$ scope entry with `Arc<TypeEnv>`, and structured `TypeError` diagnostics.
-- [x] **Security & Runtime Hardening (v0.8.1 - v0.8.3)**: TLAB lock-free GC allocations, adaptive memory GC with dynamic thresholding, binary search GC marking, fiber stack canaries, constant-time JWT verification (`timingSafeEqual` / `hmac.Equal`), native CSPRNG primitives (`crypto.randomBytes`, `crypto.randomUUID`, `crypto.timingSafeEqual`), linter rule `SEC003` against insecure `Math.random`, typed `SqlQuery` objects (OWASP ASVS), HTTP defense headers (`applySecurityHeaders`), hardened playground CSP without `unsafe-eval`, JSON DoS depth limiting (depth <= 64), Slowloris socket timeouts, HTTP security headers (`nosniff`, `SAMEORIGIN`), Stop-The-World GC synchronization, SQL injection prevention ($1..$N, ?), strict DB pool bounding, pure-Rust PostgreSQL `SCRAM-SHA-256` auth, compile-time match exhaustiveness, supply-chain package sanitization, isolated process-unique `aura run` temp execution with RAII cleanup, static immutability enforcement (`let mut`), Cranelift modulo zero safety (`SIGFPE` guard), formal static type unwrapping for `?`, fiber boundary raw pointer safety (`spawn`), iterative GC worklist, raw string literals (`r"..."`), and integrated static security linter (`aura lint`).
+- [x] **Security & Runtime Hardening (v0.8.1 - v0.8.3)**: TLAB lock-free GC allocations, adaptive memory GC with dynamic thresholding, binary search GC marking, fiber stack canaries, constant-time JWT verification (`timingSafeEqual` / `hmac.Equal`), native CSPRNG primitives (`crypto.randomBytes`, `crypto.randomUUID`, `crypto.timingSafeEqual`), linter rule `SEC003` against insecure `Math.random`, typed `SqlQuery` objects (OWASP ASVS), HTTP defense headers (`applySecurityHeaders`), hardened playground CSP without `unsafe-eval`, JSON DoS depth limiting (depth <= 64), Slowloris socket timeouts, HTTP security headers (`nosniff`, `SAMEORIGIN`), RFC 7230 §3.2.4 & §3.3.3 HTTP request smuggling defenses (whitespace-before-colon, conflicting TE/CL, and duplicate Content-Length rejection), OSV static call-graph reachability vulnerability scanner (`aura vuln` / `aura mod audit`), Stop-The-World GC synchronization, SQL injection prevention ($1..$N, ?), strict DB pool bounding, pure-Rust PostgreSQL `SCRAM-SHA-256` auth, compile-time match exhaustiveness, supply-chain package sanitization, isolated process-unique `aura run` temp execution with RAII cleanup, static immutability enforcement (`let mut`), Cranelift modulo zero safety (`SIGFPE` guard), formal static type unwrapping for `?`, fiber boundary raw pointer safety (`spawn`), iterative GC worklist, raw string literals (`r"..."`), and integrated static security linter (`aura lint`).
 - [x] **Rust-Inspired Ergonomics & Invariants**: Automatic derive generation `#[derive(Debug, Clone, Eq, Json, Hash)]` for structs and sum types, `#[must_use]` attribute for critical return values, auto-fixing linter (`aura fix` / `aurac lint --fix`), executable doc-tests runner (`auratest --doc` / `aura test --doc`), conditional feature flags in `aura.mod`, and high-performance array zeroing/filling in Cranelift (`std::ptr::write_bytes` with fast known-list indexing).
 - [x] **Quality Suite, Examples & Tests**: **330+ automated tests passing successfully** across the repository and a catalog of **100 verified algorithms and functions** in `examples/algorithms_and_functions/`.
 - [ ] **WebAssembly Backend (WASM/WASI)**: WebAssembly binary emission for serverless edge microservices.

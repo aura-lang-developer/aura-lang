@@ -486,7 +486,6 @@ impl<'a> Lexer<'a> {
             });
         }
 
-
         if ch == '"' {
             self.advance();
             let mut s = String::new();

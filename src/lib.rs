@@ -19,6 +19,7 @@ pub mod playground;
 pub mod sourcemap;
 pub mod testing;
 pub mod typechecker;
+pub mod vuln;
 pub mod watcher;
 
 /// The version of the Aura Language compiler and toolchain.
