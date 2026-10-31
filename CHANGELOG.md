@@ -6,6 +6,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.4] - 2026-10-31
+
+### 🛡️ OSV Static Call-Graph Reachability Engine (`aura vuln`), RFC 7230 HTTP Request Smuggling Defenses & Adaptive Runtime Profiles
+
+Aura v0.8.4 introduces advanced vulnerability auditing inspired by Go's vulnerability management architecture (`golang.org/x/vuln` / `govulncheck`), utilizing the Open Source Vulnerabilities (OSV) metadata schema and static AST Call-Graph Reachability analysis to eliminate false-positive security alerts. Additionally, this release hardens the native zero-allocation HTTP/1.1 runtime against HTTP Request Smuggling (RFC 7230 §3.2.4 & §3.3.3) and integrates Adaptive Runtime Build Profiles (`Core` vs. `Full`) to produce ultra-compact binary executables.
+
+#### 1. OSV Vulnerability Scanner & Reachability Engine (`src/vuln.rs`, `src/cli.rs`, `src/package.rs`)
+- **Open Source Vulnerability (OSV) Integration**: Adopts the open OSV specification standard for tracking security advisories across ecosystem packages.
+- **Static Call-Graph Reachability Analysis**:
+  - Traverses the project's Abstract Syntax Tree (AST) starting from application entrypoints (`main()`, exported library functions, and top-level expressions) to build a static call graph.
+  - Distinguishes between active, exploitable vulnerability exposures and safe uncalled dependencies.
+  - **Risk Classification Hierarchy**:
+    - 🚨 `Reachable` (Critical/High): The vulnerable function symbol is actively invoked in the call graph. Displays the exact execution call path (e.g. `main() ➔ handleAuth() ➔ jwt.verifyToken()`) and provides actionable remediation instructions (`aura mod get <pkg>@<fixed>`).
+    - ⚠️ `ImportedUncalled` (Mitigated/Low): The package is imported, but the vulnerable symbols are confirmed unreachable (eliminates false-positive noise in CI/CD).
+    - ℹ️ `RequiredUnused` (Informational): Present in `aura.mod` / `aura.lock`, but never imported in source code.
+- **CLI Commands & Tooling Integration**:
+  - `aura vuln [options] [path]`: Dedicated vulnerability scanner command.
+  - `aurac mod audit [options] [path]`: Package manager audit integration.
+  - CLI flags: `--strict` (exits with code 1 if reachable vulnerabilities are detected), `--json` (machine-readable report for CI/CD pipelines), and `--show-all`.
+
+#### 2. HTTP Request Smuggling & Protocol Hardening (`crates/aura-runtime/src/http.rs`, `crates/aura-runtime/src/lib.rs`)
+- **RFC 7230 §3.2.4 (Whitespace Before Colon)**: Strict zero-allocation parser rejection (`400 Bad Request`) upon encountering whitespace between header field-names and the colon (`Header : value`), mitigating request smuggling attacks against upstream reverse proxies.
+- **RFC 7230 §3.3.3 (Conflicting Transfer-Encoding / Content-Length)**: Enforces immediate `400 Bad Request` rejection when a request presents both `Transfer-Encoding` and `Content-Length`, defeating classic CL.TE and TE.CL desynchronization vectors.
+- **RFC 7230 §3.3.2 (Content-Length Validation)**: Immediate rejection of duplicate or non-numeric `Content-Length` headers.
+- **URI Control Byte Sanitization**: Rejection of null bytes (`\0`) and ASCII control characters in request lines and URIs.
+- **Zero-Allocation Execution**: All RFC checks operate over stack-allocated slices in a single pass, maintaining peak microservice throughput.
+
+#### 3. Adaptive Runtime Build Profiles (`src/codegen_cranelift.rs`, `crates/aura-runtime/`)
+- **Automatic AST Profile Detection**: The Cranelift compiler automatically inspects the AST of the target project to determine whether embedded database drivers are referenced:
+  - Programs without `database/sqlite` automatically link against `libaura_runtime_core.a` (0 KB SQLite overhead, ultra-fast cold start, binary sizes down to ~0.49 MB).
+  - Programs importing `database/sqlite` seamlessly link against the full profile with embedded SQLite C engine support.
+
+#### 4. Compiler Pipeline & Standard Library Enhancements
+- **Functional Pipeline Operator (`|>`)**: Refinements and optimizations to pipeline expression chaining and closures.
+- **Standard Library Imports**: Cleaned and optimized import resolution for stdlib modules.
+
+---
+
 ## [0.8.3] - 2026-10-25
 
 ### 🛡️ Pentest Security Hardening, Cryptographic Primitives (CSPRNG), OWASP ASVS & 100 Verified Algorithm Examples
