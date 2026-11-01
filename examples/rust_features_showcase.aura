@@ -11,7 +11,7 @@
 // ------------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Eq, Json, Hash)]
-export type User = {
+type User = {
     id: Int,
     username: String,
     email: String,
@@ -19,7 +19,7 @@ export type User = {
 };
 
 #[derive(Debug, Clone, Eq, Json)]
-export type OrderStatus =
+type OrderStatus =
     | Pending
     | Processing
     | Completed(String)

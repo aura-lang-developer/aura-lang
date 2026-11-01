@@ -10,7 +10,7 @@
 
 import { bunWrite, bunHash, bunNow } from "./bun_runtime.aura";
 
-export type PackageSpec = {
+type PackageSpec = {
   name: String,
   version: String,
   resolvedUrl: String,
@@ -18,7 +18,7 @@ export type PackageSpec = {
   dependenciesCount: Int
 };
 
-export type InstallSummary = {
+type InstallSummary = {
   totalPackages: Int,
   resolvedInMs: Int,
   lockfileSaved: Bool

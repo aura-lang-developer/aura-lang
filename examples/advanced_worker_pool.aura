@@ -13,26 +13,26 @@
 
 // --- 1. Domain Types & ADTs ---
 
-export type Priority =
+type Priority =
 | Low
 | Normal
 | High
 | Critical;
 
-export type TaskPayload =
+type TaskPayload =
 | EmailNotification(String, String)
 | DatabaseSync(Int, String)
 | ImageResize(String, Int, Int)
 | HealthCheck;
 
-export type TaskItem = {
+type TaskItem = {
   id: Int,
   priority: Priority,
   payload: TaskPayload,
   retries: Int
 }
 
-export type TaskResult = {
+type TaskResult = {
   taskId: Int,
   workerId: Int,
   success: Bool,
@@ -41,7 +41,7 @@ export type TaskResult = {
 
 // --- 2. Interface (Structural Duck Typing) ---
 
-export interface Executable {
+interface Executable {
   Execute(workerId: Int): Result<String, String>;
   PriorityWeight(): Int;
 };

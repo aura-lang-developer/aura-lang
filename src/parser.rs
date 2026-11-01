@@ -290,6 +290,7 @@ impl Parser {
                 self.advance();
                 let _ = self.match_token(&TokenKind::Struct);
                 let name = self.expect_ident()?;
+                let has_explicit_export = is_exported;
                 let is_exported = is_exported || name.chars().next().is_some_and(|c| c.is_uppercase());
                 let type_params = self.parse_optional_type_params()?;
                 if self.peek() == &TokenKind::Equal {
@@ -300,6 +301,7 @@ impl Parser {
                 Ok(Item::TypeAlias(TypeAliasDecl {
                     name,
                     is_exported,
+                    has_explicit_export,
                     is_packed: true,
                     is_distinct: false,
                     type_params,
@@ -310,6 +312,7 @@ impl Parser {
             TokenKind::Struct => {
                 self.advance();
                 let name = self.expect_ident()?;
+                let has_explicit_export = is_exported;
                 let is_exported = is_exported || name.chars().next().is_some_and(|c| c.is_uppercase());
                 let type_params = self.parse_optional_type_params()?;
                 let target = self.parse_type()?;
@@ -317,6 +320,7 @@ impl Parser {
                 Ok(Item::TypeAlias(TypeAliasDecl {
                     name,
                     is_exported,
+                    has_explicit_export,
                     is_packed: false,
                     is_distinct: false,
                     type_params,
@@ -348,6 +352,7 @@ impl Parser {
                     false
                 };
 
+                let has_explicit_export = is_exported;
                 let is_exported = is_exported || name.chars().next().is_some_and(|c| c.is_uppercase());
 
                 if is_sum_type {
@@ -356,6 +361,7 @@ impl Parser {
                     Ok(Item::SumType(SumTypeDecl {
                         name,
                         is_exported,
+                        has_explicit_export,
                         type_params,
                         variants,
                         derives,
@@ -366,6 +372,7 @@ impl Parser {
                     Ok(Item::TypeAlias(TypeAliasDecl {
                         name,
                         is_exported,
+                        has_explicit_export,
                         is_packed,
                         is_distinct,
                         type_params,
@@ -544,6 +551,7 @@ impl Parser {
             ));
         };
 
+        let has_explicit_export = is_exported;
         let is_exported = is_exported || name.chars().next().is_some_and(|c| c.is_uppercase());
 
         Ok(FunctionDecl {
@@ -551,6 +559,7 @@ impl Parser {
             receiver,
             is_async,
             is_exported,
+            has_explicit_export,
             type_params,
             params,
             return_type,
@@ -565,6 +574,7 @@ impl Parser {
             self.match_token(&TokenKind::Trait);
         }
         let name = self.expect_ident()?;
+        let has_explicit_export = is_exported;
         let is_exported = is_exported || name.chars().next().is_some_and(|c| c.is_uppercase());
         let type_params = self.parse_optional_type_params()?;
         self.expect(TokenKind::LBrace)?;
@@ -588,6 +598,7 @@ impl Parser {
         Ok(InterfaceDecl {
             name,
             is_exported,
+            has_explicit_export,
             type_params,
             methods,
         })

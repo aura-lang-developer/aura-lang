@@ -10,14 +10,14 @@
 
 import { bunFile, bunWrite, bunHash, bunNow } from "./bun_runtime.aura";
 
-export type BundleChunk = {
+type BundleChunk = {
   id: String,
   path: String,
   code: String,
   sizeBytes: Int
 };
 
-export type BundleReport = {
+type BundleReport = {
   entrypoint: String,
   totalChunks: Int,
   bundleSize: Int,

@@ -25,7 +25,7 @@ fn swapValues(a: * Int, b: * Int): Unit => {
 
 // --- 2. Structs and Pointer Receiver Methods (*Receiver) ---
 
-export struct ServerConfig {
+struct ServerConfig {
   host: String,
   port: Int,
   maxConnections: Int,
@@ -53,7 +53,7 @@ fn(cfg: ServerConfig)ConnectionString(): String => {
 
 // --- 3. Pointer-Based Node for Dynamic Data Structures ---
 
-export struct IntNode {
+struct IntNode {
   value: Int,
   hasChild: Bool,
   childValue: Int

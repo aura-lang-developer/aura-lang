@@ -6,13 +6,13 @@ module Concurrency.CspPipeline
 // `select` multiplexing with `timeout` & `default`, and `WaitGroup` sync.
 // =============================================================================
 
-export type Job = {
+type Job = {
   id: Int,
   payload: String,
   costMs: Int
 }
 
-export type JobResult = {
+type JobResult = {
   jobId: Int,
   output: String,
   processedBy: String

@@ -7,7 +7,7 @@
 // - Destructuring and swapping values between generic fields
 // ==============================================================================
 
-export type KeyValuePair<KeyType, ValType> =
+type KeyValuePair<KeyType, ValType> =
 | Pair(KeyType, ValType);
 
 fn makePair<KeyType, ValType>(k: KeyType, v: ValType): KeyValuePair<KeyType, ValType> => {

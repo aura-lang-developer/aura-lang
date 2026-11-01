@@ -7,7 +7,7 @@
 // - Functional composition over generic outcomes
 // ==============================================================================
 
-export type Outcome<SuccType, ErrType> =
+type Outcome<SuccType, ErrType> =
 | Success(SuccType)
 | Failure(ErrType);
 

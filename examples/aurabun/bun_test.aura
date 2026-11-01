@@ -9,14 +9,14 @@
 
 import { bunNow } from "./bun_runtime.aura";
 
-export type TestCase = {
+type TestCase = {
   name: String,
   passed: Bool,
   durationMs: Int,
   errorMsg: String
 };
 
-export type TestSuite = {
+type TestSuite = {
   name: String,
   cases: List<TestCase>,
   passedCount: Int,

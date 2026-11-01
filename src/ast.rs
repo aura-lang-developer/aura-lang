@@ -40,6 +40,8 @@ pub struct InterfaceDecl {
     pub name: String,
     /// Indicates whether the interface is visible outside its defining module.
     pub is_exported: bool,
+    /// Whether explicit 'export' keyword was provided in source.
+    pub has_explicit_export: bool,
     /// Generic type parameters (e.g. `['T', 'U']`).
     pub type_params: Vec<String>,
     /// Method signatures required by this interface.
@@ -86,6 +88,8 @@ pub struct FunctionDecl {
     pub is_async: bool,
     /// Whether the function is public and exported to module consumers.
     pub is_exported: bool,
+    /// Whether explicit 'export' keyword was provided in source.
+    pub has_explicit_export: bool,
     /// Generic type parameters declared for this function (e.g. `<T, E>`).
     pub type_params: Vec<String>,
     /// List of formal parameters accepted by the function.
@@ -118,6 +122,8 @@ pub struct TypeAliasDecl {
     pub name: String,
     /// Whether this type alias is visible to importing modules.
     pub is_exported: bool,
+    /// Whether explicit 'export' keyword was provided in source.
+    pub has_explicit_export: bool,
     /// Whether the underlying struct has zero padding and packed binary alignment (Zig model).
     pub is_packed: bool,
     /// Whether this is a distinct nominal newtype incompatible with other types of the same shape.
@@ -137,6 +143,8 @@ pub struct SumTypeDecl {
     pub name: String,
     /// Whether the sum type is exported from the module.
     pub is_exported: bool,
+    /// Whether explicit 'export' keyword was provided in source.
+    pub has_explicit_export: bool,
     /// Generic type parameters (e.g. `<T, E>`).
     pub type_params: Vec<String>,
     /// List of mutually exclusive variants comprising this sum type.
@@ -897,6 +905,7 @@ mod tests {
                 Item::TypeAlias(TypeAliasDecl {
                     name: "Id".to_string(),
                     is_exported: true,
+                    has_explicit_export: true,
                     is_packed: false,
                     is_distinct: false,
                     type_params: vec![],
@@ -909,6 +918,7 @@ mod tests {
                 Item::SumType(SumTypeDecl {
                     name: "Result".to_string(),
                     is_exported: true,
+                    has_explicit_export: true,
                     type_params: vec!["T".to_string(), "E".to_string()],
                     variants: vec![
                         Variant {
@@ -998,6 +1008,7 @@ mod tests {
                 receiver: None,
                 is_async: false,
                 is_exported: true,
+                has_explicit_export: true,
                 type_params: vec![],
                 params: vec![],
                 return_type: None,

@@ -5,7 +5,7 @@
 
 // --- Domain Types ---
 
-export type Author = {
+type Author = {
   id: String,
   name: String,
   email: String,
@@ -14,7 +14,7 @@ export type Author = {
   birthYear: Int
 }
 
-export type Editorial = {
+type Editorial = {
   id: String,
   name: String,
   country: String,
@@ -22,7 +22,7 @@ export type Editorial = {
   website: String
 }
 
-export type Book = {
+type Book = {
   id: String,
   title: String,
   isbn: String,
@@ -34,7 +34,7 @@ export type Book = {
   publishedYear: Int
 }
 
-export type Article = {
+type Article = {
   id: String,
   title: String,
   summary: String,
@@ -44,7 +44,7 @@ export type Article = {
   publishedAt: String
 }
 
-export type SaleRecord = {
+type SaleRecord = {
   id: String,
   bookId: String,
   bookTitle: String,
@@ -224,7 +224,7 @@ let mut articles: List<Any> = [
 }
 ];
 
-let mut sales: List<Any> = [
+let sales: List<Any> = [
 {
   id: "sale-1001",
   bookId: "bk-1",
@@ -576,7 +576,7 @@ mux.delete("/api/authors/:id", fn(req: Any, res: Any) => {
     return();
   }
 
-  let mut newAuthors: List<Any> = [];
+  let newAuthors: List<Any> = [];
   for a in authors {
     if (a.id != authorId) {
       newAuthors.push(a);
@@ -740,7 +740,7 @@ mux.delete("/api/editorials/:id", fn(req: Any, res: Any) => {
     return();
   }
 
-  let mut newEditorials: List<Any> = [];
+  let newEditorials: List<Any> = [];
   for e in editorials {
     if (e.id != editorialId) {
       newEditorials.push(e);
@@ -999,7 +999,7 @@ mux.delete("/api/books/:id", fn(req: Any, res: Any) => {
     return();
   }
 
-  let mut newBooks: List<Any> = [];
+  let newBooks: List<Any> = [];
   for b in books {
     if (b.id != bookId) {
       newBooks.push(b);
@@ -1198,7 +1198,7 @@ mux.delete("/api/articles/:id", fn(req: Any, res: Any) => {
     return();
   }
 
-  let mut newArticles: List<Any> = [];
+  let newArticles: List<Any> = [];
   for a in articles {
     if (a.id != articleId) {
       newArticles.push(a);

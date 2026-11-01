@@ -1,11 +1,11 @@
 module Api.Service
 
-export type ServiceError =
+type ServiceError =
 | NotFound {id: String}
 | Unauthorized
 | NetworkFailure {message: String}
 
-export type Session = {
+type Session = {
   token: String,
   userId: String,
   userName: String

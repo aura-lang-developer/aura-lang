@@ -7,7 +7,7 @@
 // - Operating on Stack<Int>, Stack<String>, etc.
 // ==============================================================================
 
-export type Stack<ElemType> =
+type Stack<ElemType> =
 | EmptyStack
 | StackNode(ElemType, Stack<ElemType>);
 

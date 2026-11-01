@@ -14,7 +14,7 @@
 
 // --- 1. Domain Struct Definition ---
 
-export struct BankAccount {
+struct BankAccount {
   accountNumber: String,
   owner: String,
   balance: Float,
@@ -91,7 +91,7 @@ fn(b: BankAccount)recordAudit(message: String): Unit => {
 
 // --- 4. Public Structural Interface (Go-Style Duck Typing) ---
 
-export interface AccountSummary {
+interface AccountSummary {
   GetBalance(): Float;
   Summary(): String;
 }
@@ -105,7 +105,7 @@ fn printAccountStatement(acc: AccountSummary): Unit => {
 // --- 5. Public & Private Standalone Functions & First-Class Functions ---
 
 // Public standalone function (PascalCase): exported and globally accessible
-export fn CalculateFee(amount: Float, feePercent: Float): Float => {
+fn CalculateFee(amount: Float, feePercent: Float): Float => {
   roundTwoDecimals(amount * (feePercent / 100.0))
 }
 
@@ -116,13 +116,13 @@ fn roundTwoDecimals(val: Float): Float => {
 }
 
 // Higher-order function: accepts a function as argument
-export fn ApplyTransactionFee(balance: Float, amount: Float, feePolicy: (Float, Float) -> Float): Float => {
+fn ApplyTransactionFee(balance: Float, amount: Float, feePolicy: (Float, Float) -> Float): Float => {
   let fee = feePolicy(amount, 1.5);
   balance - amount - fee
 }
 
 // First-class function factory: returns a closure
-export fn MakeInterestCalculator(annualRate: Float): (Float) -> Float => {
+fn MakeInterestCalculator(annualRate: Float): (Float) -> Float => {
   let monthlyRate = annualRate / 12.0 / 100.0;
   fn(principal: Float): Float => principal * monthlyRate
 }
@@ -135,7 +135,7 @@ export fn main(): Unit => {
   println("  ✨  INCLUDING STANDALONE & FIRST-CLASS FUNCTIONS (PASCALCASE)");
   println("==================================================================");
 
-  let mut account: BankAccount = {
+  let account: BankAccount = {
     accountNumber: "CL-849201",
     owner: "Ada Lovelace",
     balance: 1500.0,

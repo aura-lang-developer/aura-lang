@@ -909,6 +909,7 @@ impl CraneliftBackend {
                 receiver: None,
                 is_async: false,
                 is_exported: true,
+                has_explicit_export: false,
                 type_params: vec![],
                 params: vec![],
                 return_type: Some(Type::Unit),

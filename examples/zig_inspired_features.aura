@@ -5,7 +5,7 @@
 // 4. Cross-compilation: Build for target triples via `aurac build --target <triple>`
 
 // --- 1. Packed Structs (Bit-Level / Zero Padding Layout) ---
-export packed struct IPv4Header {
+packed struct IPv4Header {
     version_and_ihl: Uint8,
     type_of_service: Uint8,
     total_length: Uint16,
@@ -18,7 +18,7 @@ export packed struct IPv4Header {
     dst_ip: Uint32,
 };
 
-export type ArpHeader = packed struct {
+type ArpHeader = packed struct {
     hardware_type: Uint16,
     protocol_type: Uint16,
     hardware_size: Uint8,

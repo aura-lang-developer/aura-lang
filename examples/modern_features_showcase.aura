@@ -13,7 +13,7 @@
 
 // --- 1. Algebraic Data Types (ADTs) & Pattern Matching ---
 
-export type ProcessStatus =
+type ProcessStatus =
   | Pending
   | InProgress(Int)
   | Completed(String)
@@ -30,7 +30,7 @@ fn describeStatus(status: ProcessStatus): String => {
 
 // --- 2. Struct with Receiver Methods & Visibility ---
 
-export struct TelemetryRecord {
+struct TelemetryRecord {
   serviceId: String,
   latencyMs: Float,
   statusCode: Int
@@ -93,7 +93,7 @@ export fn main(): Task<Unit, String> => {
 
   // 2. Go-Style Slices
   println("\n--- 2. Go-Style Slices & Slicing Expressions ---");
-  let mut latencies: []Int = [12, 15, 28, 45, 90, 110, 240];
+  let latencies: []Int = [12, 15, 28, 45, 90, 110, 240];
   println(`Initial slice: len=${len(latencies)}, cap=${cap(latencies)}`);
 
   let sub = latencies[2: 5];

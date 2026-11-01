@@ -8,14 +8,14 @@
 // - Bun.serve (Fast HTTP server)
 // =============================================================================
 
-export type BunFileRef = {
+type BunFileRef = {
   path: String,
   exists: Bool,
   size: Int,
   content: String
 };
 
-export type BunServerConfig = {
+type BunServerConfig = {
   port: Int,
   hostname: String,
   version: String

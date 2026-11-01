@@ -217,7 +217,7 @@ impl AstVisitor for Linter {
                         self.must_use_functions
                             .insert(f.name.clone(), f.must_use_message.clone());
                     }
-                    if f.is_exported && f.name.chars().next().is_some_and(|c| c.is_uppercase()) {
+                    if f.has_explicit_export && f.name.chars().next().is_some_and(|c| c.is_uppercase()) {
                         self.diagnostics.push(LintDiagnostic {
                             code: "LINT004",
                             severity: LintSeverity::Warning,
@@ -229,7 +229,7 @@ impl AstVisitor for Linter {
                     }
                 }
                 Item::TypeAlias(t) => {
-                    if t.is_exported && t.name.chars().next().is_some_and(|c| c.is_uppercase()) {
+                    if t.has_explicit_export && t.name.chars().next().is_some_and(|c| c.is_uppercase()) {
                         self.diagnostics.push(LintDiagnostic {
                             code: "LINT004",
                             severity: LintSeverity::Warning,
@@ -241,7 +241,7 @@ impl AstVisitor for Linter {
                     }
                 }
                 Item::SumType(s) => {
-                    if s.is_exported && s.name.chars().next().is_some_and(|c| c.is_uppercase()) {
+                    if s.has_explicit_export && s.name.chars().next().is_some_and(|c| c.is_uppercase()) {
                         self.diagnostics.push(LintDiagnostic {
                             code: "LINT004",
                             severity: LintSeverity::Warning,
@@ -253,7 +253,7 @@ impl AstVisitor for Linter {
                     }
                 }
                 Item::Interface(i) => {
-                    if i.is_exported && i.name.chars().next().is_some_and(|c| c.is_uppercase()) {
+                    if i.has_explicit_export && i.name.chars().next().is_some_and(|c| c.is_uppercase()) {
                         self.diagnostics.push(LintDiagnostic {
                             code: "LINT004",
                             severity: LintSeverity::Warning,

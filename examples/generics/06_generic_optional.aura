@@ -7,7 +7,7 @@
 // - Transforming contents with fallback defaults
 // ==============================================================================
 
-export type OptionalState<ItemType> =
+type OptionalState<ItemType> =
 | Absent
 | Present(ItemType);
 

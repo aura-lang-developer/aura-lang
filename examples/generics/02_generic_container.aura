@@ -7,7 +7,7 @@
 // - Pattern matching to extract enclosed values safely
 // ==============================================================================
 
-export type Container<ItemType> =
+type Container<ItemType> =
 | Empty
 | Full(ItemType);
 

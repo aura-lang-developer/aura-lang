@@ -1,18 +1,18 @@
 // Integration Test Suite for E-Commerce Order Processing
 
-export type OrderStatus =
+type OrderStatus =
   | Pending
   | Processing { progress: Float }
   | Shipped { trackingCode: String }
   | Delivered
 
-export type Customer = {
+type Customer = {
   id: String,
   name: String,
   isVip: Bool
 }
 
-export type OrderItem = {
+type OrderItem = {
   productId: String,
   quantity: Int,
   unitPrice: Float

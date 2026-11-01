@@ -7,7 +7,7 @@
 // - Spawning fibers that produce and consume generic envelopes
 // ==============================================================================
 
-export type Message<DataType> =
+type Message<DataType> =
 | Data(DataType)
 | EndOfStream;
 

@@ -7,7 +7,7 @@
 // - Tree size and node verification
 // ==============================================================================
 
-export type Tree<ValType> =
+type Tree<ValType> =
 | Leaf
 | Node(ValType, Tree<ValType>, Tree<ValType>);
 

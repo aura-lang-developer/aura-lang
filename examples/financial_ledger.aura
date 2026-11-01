@@ -13,31 +13,31 @@
 
 // --- 1. Domain Types & Sum Types ---
 
-export type Currency =
+type Currency =
 | USD
 | EUR
 | GBP
 | JPY;
 
-export type TransactionKind =
+type TransactionKind =
 | Deposit(Float)
 | Withdrawal(Float)
 | Transfer(String, Float)// targetAccount, amount
 | FeeAdjustment(Float, String);// fee, reason
 
-export type TxStatus =
+type TxStatus =
 | Pending
 | Settled(String)// referenceId
 | Rejected(String);
 
-export struct TransactionRecord {
+struct TransactionRecord {
   id: String,
   timestampMs: Int,
   kind: TransactionKind,
   status: TxStatus
 };
 
-export struct LedgerAccount {
+struct LedgerAccount {
   accountNumber: String,
   owner: String,
   currency: Currency,
@@ -196,7 +196,7 @@ export fn main(): Unit => {
 
   let initialHistory: []TransactionRecord = [];
 
-  let mut account: LedgerAccount = {
+  let account: LedgerAccount = {
     accountNumber: "US-992-817203",
     owner: "Elena Rostova",
     currency: USD,

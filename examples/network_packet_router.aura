@@ -19,7 +19,7 @@ extern "C" {
 
 // --- 2. Low-Level Packed Structs for Network Packets ---
 
-export packed struct EthernetFrame {
+packed struct EthernetFrame {
   destMacHigh: Uint32,
   destMacLow: Uint16,
   srcMacHigh: Uint32,
@@ -27,7 +27,7 @@ export packed struct EthernetFrame {
   etherType: Uint16
 };
 
-export packed struct IPv4Header {
+packed struct IPv4Header {
   versionAndIhl: Uint8,
   typeOfService: Uint8,
   totalLength: Uint16,
@@ -42,13 +42,13 @@ export packed struct IPv4Header {
 
 // --- 3. High-Level Routing Domain ---
 
-export type TransportProtocol =
+type TransportProtocol =
 | ICMP
 | TCP(Uint16, Uint16)// srcPort, dstPort
 | UDP(Uint16, Uint16)
 | RawPayload(Int);
 
-export struct ParsedPacket {
+struct ParsedPacket {
   id: Int,
   srcAddress: String,
   dstAddress: String,
@@ -57,7 +57,7 @@ export struct ParsedPacket {
   payloadSize: Int
 };
 
-export struct RouterTelemetry {
+struct RouterTelemetry {
   bytesProcessed: Int,
   packetsDropped: Int,
   routingTableEntries: Int

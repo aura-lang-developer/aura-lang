@@ -1,26 +1,26 @@
 module Commerce.OrderProcessor
 
-export type OrderStatus =
+type OrderStatus =
 | Pending
 | Processing {progress: Float}
 | Shipped {trackingCode: String, estimatedDelivery: String}
 | Delivered
 | Cancelled {reason: String}
 
-export type Customer = {
+type Customer = {
   id: String,
   name: String,
   loyaltyYears: Int,
   isVip: Bool
 }
 
-export type OrderItem = {
+type OrderItem = {
   productId: String,
   quantity: Int,
   unitPrice: Float
 }
 
-export type Order = {
+type Order = {
   orderId: String,
   customer: Customer,
   items: List<OrderItem>,

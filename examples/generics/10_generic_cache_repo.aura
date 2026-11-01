@@ -7,7 +7,7 @@
 // - Generic Lookup / Cache hit vs miss resolution
 // ==============================================================================
 
-export type CacheEntry<ValType> =
+type CacheEntry<ValType> =
 | CacheMiss
 | Fresh(ValType, Int)// value, timestamp
 | Expired(ValType);
