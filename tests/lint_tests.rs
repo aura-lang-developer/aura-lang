@@ -122,3 +122,28 @@ fn test_linter_allows_used_let_mut() {
         diags
     );
 }
+
+#[test]
+fn test_linter_detects_redundant_export_and_auto_fixes() {
+    use aura_lang::linter::fix_source;
+
+    let code = r#"
+        export fn Add(a: Int, b: Int): Int => a + b;
+        export struct User { id: Int };
+        export type Status = | Active | Inactive;
+        export interface Greeter { fn Greet(): String; };
+        export fn helper(x: Int): Int => x;
+    "#;
+
+    let diags = lint_source(code).expect("should parse");
+    let redundant_count = diags.iter().filter(|d| d.code == "LINT004").count();
+    assert_eq!(redundant_count, 4, "Expected 4 LINT004 diagnostics, got: {:?}", diags);
+
+    let (fixed, count) = fix_source(code);
+    assert_eq!(count, 4, "Expected 4 auto-fixes");
+    assert!(fixed.contains("fn Add(a: Int, b: Int)"), "Should remove redundant export from PascalCase fn Add");
+    assert!(fixed.contains("struct User"), "Should remove redundant export from PascalCase struct User");
+    assert!(fixed.contains("type Status ="), "Should remove redundant export from PascalCase type Status");
+    assert!(fixed.contains("interface Greeter"), "Should remove redundant export from PascalCase interface Greeter");
+    assert!(fixed.contains("export fn helper"), "Should preserve necessary export for camelCase helper");
+}

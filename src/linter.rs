@@ -6,6 +6,7 @@
 //! - `SEC003`: Insecure PRNG (`Math.random`) usage for tokens, keys, passwords or cryptography.
 //! - `LINT001`: Variable declared with `let mut` but never reassigned.
 //! - `LINT002`: Exhaustive pattern match with empty arms.
+//! - `LINT004`: Redundant `export` keyword on PascalCase symbol (symbols starting with an uppercase letter are already exported by Go-style convention).
 
 use crate::ast::*;
 use crate::lexer::Lexer;
@@ -206,15 +207,64 @@ impl Linter {
 impl AstVisitor for Linter {
     fn visit_module(&mut self, module: &Module) {
         for item in &module.items {
-            if let Item::Function(f) = item {
-                let is_ret_must_use = matches!(
-                    &f.return_type,
-                    Some(Type::Named { name, .. }) if name == "Result" || name == "Option"
-                );
-                if f.is_must_use || is_ret_must_use {
-                    self.must_use_functions
-                        .insert(f.name.clone(), f.must_use_message.clone());
+            match item {
+                Item::Function(f) => {
+                    let is_ret_must_use = matches!(
+                        &f.return_type,
+                        Some(Type::Named { name, .. }) if name == "Result" || name == "Option"
+                    );
+                    if f.is_must_use || is_ret_must_use {
+                        self.must_use_functions
+                            .insert(f.name.clone(), f.must_use_message.clone());
+                    }
+                    if f.is_exported && f.name.chars().next().is_some_and(|c| c.is_uppercase()) {
+                        self.diagnostics.push(LintDiagnostic {
+                            code: "LINT004",
+                            severity: LintSeverity::Warning,
+                            message: format!(
+                                "Redundant 'export' keyword on PascalCase function '{}'. PascalCase symbols are automatically exported by Go-style visibility convention.",
+                                f.name
+                            ),
+                        });
+                    }
                 }
+                Item::TypeAlias(t) => {
+                    if t.is_exported && t.name.chars().next().is_some_and(|c| c.is_uppercase()) {
+                        self.diagnostics.push(LintDiagnostic {
+                            code: "LINT004",
+                            severity: LintSeverity::Warning,
+                            message: format!(
+                                "Redundant 'export' keyword on PascalCase type '{}'. PascalCase symbols are automatically exported by Go-style visibility convention.",
+                                t.name
+                            ),
+                        });
+                    }
+                }
+                Item::SumType(s) => {
+                    if s.is_exported && s.name.chars().next().is_some_and(|c| c.is_uppercase()) {
+                        self.diagnostics.push(LintDiagnostic {
+                            code: "LINT004",
+                            severity: LintSeverity::Warning,
+                            message: format!(
+                                "Redundant 'export' keyword on PascalCase sum type '{}'. PascalCase symbols are automatically exported by Go-style visibility convention.",
+                                s.name
+                            ),
+                        });
+                    }
+                }
+                Item::Interface(i) => {
+                    if i.is_exported && i.name.chars().next().is_some_and(|c| c.is_uppercase()) {
+                        self.diagnostics.push(LintDiagnostic {
+                            code: "LINT004",
+                            severity: LintSeverity::Warning,
+                            message: format!(
+                                "Redundant 'export' keyword on PascalCase interface '{}'. PascalCase symbols are automatically exported by Go-style visibility convention.",
+                                i.name
+                            ),
+                        });
+                    }
+                }
+                _ => {}
             }
         }
         walk_module(self, module);
@@ -335,6 +385,7 @@ pub fn fix_source(source: &str) -> (String, usize) {
     let diags = linter.analyze(&module);
 
     let mut unneeded_muts = Vec::new();
+    let mut redundant_export_symbols = Vec::new();
     for d in diags {
         if d.code == "LINT001" {
             if let Some(start) = d.message.find('\'') {
@@ -343,10 +394,22 @@ pub fn fix_source(source: &str) -> (String, usize) {
                     unneeded_muts.push(var_name.to_string());
                 }
             }
+        } else if d.code == "LINT004" {
+            if let Some(start) = d.message.find('\'') {
+                if let Some(second) = d.message[start + 1..].find('\'') {
+                    let rest = &d.message[start + 1 + second + 1..];
+                    if let Some(third) = rest.find('\'') {
+                        if let Some(fourth) = rest[third + 1..].find('\'') {
+                            let sym_name = &rest[third + 1..third + 1 + fourth];
+                            redundant_export_symbols.push(sym_name.to_string());
+                        }
+                    }
+                }
+            }
         }
     }
 
-    if unneeded_muts.is_empty() {
+    if unneeded_muts.is_empty() && redundant_export_symbols.is_empty() {
         return (source.to_string(), 0);
     }
 
@@ -358,6 +421,18 @@ pub fn fix_source(source: &str) -> (String, usize) {
         if fixed.contains(&pattern) {
             fixed = fixed.replace(&pattern, &replacement);
             count += 1;
+        }
+    }
+
+    for sym in redundant_export_symbols {
+        // Match patterns like "export fn Symbol", "export struct Symbol", "export type Symbol", "export interface Symbol"
+        for kw in &["fn", "struct", "type", "interface", "packed struct"] {
+            let pattern = format!("export {} {}", kw, sym);
+            let replacement = format!("{} {}", kw, sym);
+            if fixed.contains(&pattern) {
+                fixed = fixed.replace(&pattern, &replacement);
+                count += 1;
+            }
         }
     }
 

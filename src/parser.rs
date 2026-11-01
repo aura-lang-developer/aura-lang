@@ -290,6 +290,7 @@ impl Parser {
                 self.advance();
                 let _ = self.match_token(&TokenKind::Struct);
                 let name = self.expect_ident()?;
+                let is_exported = is_exported || name.chars().next().is_some_and(|c| c.is_uppercase());
                 let type_params = self.parse_optional_type_params()?;
                 if self.peek() == &TokenKind::Equal {
                     self.advance();
@@ -309,6 +310,7 @@ impl Parser {
             TokenKind::Struct => {
                 self.advance();
                 let name = self.expect_ident()?;
+                let is_exported = is_exported || name.chars().next().is_some_and(|c| c.is_uppercase());
                 let type_params = self.parse_optional_type_params()?;
                 let target = self.parse_type()?;
                 self.match_token(&TokenKind::Semicolon);
@@ -345,6 +347,8 @@ impl Parser {
                 } else {
                     false
                 };
+
+                let is_exported = is_exported || name.chars().next().is_some_and(|c| c.is_uppercase());
 
                 if is_sum_type {
                     let variants = self.parse_sum_type_variants()?;
