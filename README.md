@@ -543,10 +543,17 @@ let i64: Int64 = 9223372036854775807;
 let u8: Uint8 = 255;         // Unsigned: 0 to 255 (alias Byte)
 let u16: Uint16 = 65535;
 let u32: Uint32 = 4294967295;
-let u64: Uint64 = 18446744073709551615;
+let u64: Uint64 = 18446744073709551615; // Full 64-bit unsigned range (u64::MAX)
 let b: Byte = 255;           // Binary byte
 let r: Rune = 65;            // Unicode UTF-32 Rune (equivalent to 'A')
 let up: Uintptr = 0;         // Integer pointer for systems programming
+
+// Numeric Notations: Hexadecimal, Binary, Octal, and Type Suffixes
+let hex: Uint64 = 0xFFFFFFFFFFFFFFFF; // Hexadecimal literal (0x / 0X prefix)
+let bin: Uint8 = 0b11111111;           // Binary literal (0b / 0B prefix)
+let oct: Uint16 = 0o777;               // Octal literal (0o / 0O prefix)
+let suffixed = 100u64;                 // Suffixes: u64, i64, u32, i32, u16, i16, u8, i8
+let visualSep = 1_000_000_000;         // Visual separator '_' for high readability
 
 // Floating-point numbers
 let f: Float = 3.14159265;   // 64-bit float (default)

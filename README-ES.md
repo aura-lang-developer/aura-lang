@@ -542,10 +542,17 @@ let i64: Int64 = 9223372036854775807;
 let u8: Uint8 = 255;         // Sin signo: 0 a 255 (alias Byte)
 let u16: Uint16 = 65535;
 let u32: Uint32 = 4294967295;
-let u64: Uint64 = 18446744073709551615;
+let u64: Uint64 = 18446744073709551615; // Rango completo de 64 bits sin signo (u64::MAX)
 let b: Byte = 255;           // Byte binario
 let r: Rune = 65;            // Rune Unicode UTF-32 (equivalente a 'A')
 let up: Uintptr = 0;         // Puntero entero para sistemas
+
+// Notaciones numéricas: Hexadecimal, Binaria, Octal y Sufijos de tipo
+let hex: Uint64 = 0xFFFFFFFFFFFFFFFF; // Hexadecimal con prefijo 0x / 0X
+let bin: Uint8 = 0b11111111;           // Binario con prefijo 0b / 0B
+let oct: Uint16 = 0o777;               // Octal con prefijo 0o / 0O
+let conSufijo = 100u64;                // Sufijos enteros soportados: u64, i64, u32, i32, u16, i16, u8, i8
+let conSeparador = 1_000_000_000;      // Separadores visuales '_' para legibilidad
 
 // Números de coma flotante
 let f: Float = 3.14159265;   // Float de 64 bits (por defecto)
