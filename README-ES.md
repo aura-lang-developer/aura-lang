@@ -565,6 +565,17 @@ let flag: Bool = true;
 let empty: Unit = ();        // Representa la ausencia de valor (void)
 ```
 
+##### Arquitectura de Precisión y Zero-Overhead en Literales de 64 bits (`Uint64`)
+
+En Aura, los enteros son procesados con semántica de precisión exacta de 64 bits y cero sobrecoste de memoria (*zero-overhead bit-cast*):
+
+- **Modelo en el Compilador (`lexer.rs`)**: Los tokens enteros se transportan en una estructura compacta de 64 bits (`TokenKind::Int(i64)`). Cuando un literal decimal supera el valor máximo con signo `i64::MAX` (`9,223,372,036,854,775,807`), el lexer activa un análisis en cascada hacia `u64`. Al parsearlo como `u64` y aplicar una reinterpretación de bits exacta (`uv as i64`), preserva el patrón binario idéntico de 64 bits (por ejemplo, `18446744073709551615` corresponde a `0xFFFFFFFFFFFFFFFF`).
+- **Bit-cast a nivel de CPU**: La reinterpretación `as i64` sobre 64 bits es un *no-op* a nivel de ensamblador de la CPU. Los 64 bits de datos en los registros de la máquina (`RAX`, `X0`) no sufren alteraciones ni conversiones costosas en heap.
+- **Backends de Ejecución**:
+  - **Nativo (Cranelift JIT / Standalone)**: Carga constantes inmediatas de 64 bits (`iconst.i64`) ejecutadas de forma nativa en registros de hardware.
+  - **Golang**: Se traduce directamente a los tipos no signados nativos `uint64`.
+  - **JavaScript / TypeScript**: Se integra transparentemente con operaciones `BigInt` de 64 bits (`BigInt.asUintN(64, v)`).
+
 #### B. Punteros y Direccionamiento de Memoria
 
 Aura permite el uso de punteros para interoperabilidad con sistemas y mutación eficiente por referencia:
