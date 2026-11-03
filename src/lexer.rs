@@ -444,6 +444,167 @@ impl<'a> Lexer<'a> {
             let mut s = String::new();
             let mut has_dot = false;
 
+            // Check for hex (0x / 0X), binary (0b / 0B), or octal (0o / 0O) prefixes
+            if ch == '0' {
+                if let Some(next_c) = self.peek_next() {
+                    if next_c == 'x' || next_c == 'X' {
+                        // Hexadecimal integer literal
+                        self.advance(); // consume '0'
+                        self.advance(); // consume 'x' / 'X'
+                        let mut hex_str = String::new();
+                        while let Some(c) = self.peek() {
+                            if c.is_ascii_hexdigit() || c == '_' {
+                                if c != '_' {
+                                    hex_str.push(c);
+                                }
+                                self.advance();
+                            } else {
+                                break;
+                            }
+                        }
+                        if hex_str.is_empty() {
+                            return Err("Hexadecimal literal must have at least one digit after '0x'".to_string());
+                        }
+
+                        // Check optional type suffix (e.g. u64, i64, etc.)
+                        let mut suffix = String::new();
+                        while let Some(c) = self.peek() {
+                            if c.is_ascii_alphanumeric() {
+                                suffix.push(c);
+                                self.advance();
+                            } else {
+                                break;
+                            }
+                        }
+                        if !suffix.is_empty() && suffix != "u64" && suffix != "i64" && suffix != "u32" && suffix != "i32" && suffix != "u16" && suffix != "i16" && suffix != "u8" && suffix != "i8" {
+                            return Err(format!("Unsupported integer suffix '{}'", suffix));
+                        }
+
+                        let val: i64 = match i64::from_str_radix(&hex_str, 16) {
+                            Ok(v) => v,
+                            Err(_) => {
+                                match u64::from_str_radix(&hex_str, 16) {
+                                    Ok(uv) => uv as i64,
+                                    Err(e) => return Err(format!("Invalid hex int 0x{}: {}", hex_str, e)),
+                                }
+                            }
+                        };
+
+                        return Ok(Token {
+                            kind: TokenKind::Int(val),
+                            span: Span {
+                                start: start_pos,
+                                end: self.pos,
+                                line,
+                                column,
+                            },
+                        });
+                    } else if next_c == 'b' || next_c == 'B' {
+                        // Binary integer literal
+                        self.advance(); // consume '0'
+                        self.advance(); // consume 'b' / 'B'
+                        let mut bin_str = String::new();
+                        while let Some(c) = self.peek() {
+                            if c == '0' || c == '1' || c == '_' {
+                                if c != '_' {
+                                    bin_str.push(c);
+                                }
+                                self.advance();
+                            } else {
+                                break;
+                            }
+                        }
+                        if bin_str.is_empty() {
+                            return Err("Binary literal must have at least one digit after '0b'".to_string());
+                        }
+
+                        let mut suffix = String::new();
+                        while let Some(c) = self.peek() {
+                            if c.is_ascii_alphanumeric() {
+                                suffix.push(c);
+                                self.advance();
+                            } else {
+                                break;
+                            }
+                        }
+                        if !suffix.is_empty() && suffix != "u64" && suffix != "i64" && suffix != "u32" && suffix != "i32" && suffix != "u16" && suffix != "i16" && suffix != "u8" && suffix != "i8" {
+                            return Err(format!("Unsupported integer suffix '{}'", suffix));
+                        }
+
+                        let val: i64 = match i64::from_str_radix(&bin_str, 2) {
+                            Ok(v) => v,
+                            Err(_) => {
+                                match u64::from_str_radix(&bin_str, 2) {
+                                    Ok(uv) => uv as i64,
+                                    Err(e) => return Err(format!("Invalid binary int 0b{}: {}", bin_str, e)),
+                                }
+                            }
+                        };
+
+                        return Ok(Token {
+                            kind: TokenKind::Int(val),
+                            span: Span {
+                                start: start_pos,
+                                end: self.pos,
+                                line,
+                                column,
+                            },
+                        });
+                    } else if next_c == 'o' || next_c == 'O' {
+                        // Octal integer literal
+                        self.advance(); // consume '0'
+                        self.advance(); // consume 'o' / 'O'
+                        let mut oct_str = String::new();
+                        while let Some(c) = self.peek() {
+                            if ('0'..='7').contains(&c) || c == '_' {
+                                if c != '_' {
+                                    oct_str.push(c);
+                                }
+                                self.advance();
+                            } else {
+                                break;
+                            }
+                        }
+                        if oct_str.is_empty() {
+                            return Err("Octal literal must have at least one digit after '0o'".to_string());
+                        }
+
+                        let mut suffix = String::new();
+                        while let Some(c) = self.peek() {
+                            if c.is_ascii_alphanumeric() {
+                                suffix.push(c);
+                                self.advance();
+                            } else {
+                                break;
+                            }
+                        }
+                        if !suffix.is_empty() && suffix != "u64" && suffix != "i64" && suffix != "u32" && suffix != "i32" && suffix != "u16" && suffix != "i16" && suffix != "u8" && suffix != "i8" {
+                            return Err(format!("Unsupported integer suffix '{}'", suffix));
+                        }
+
+                        let val: i64 = match i64::from_str_radix(&oct_str, 8) {
+                            Ok(v) => v,
+                            Err(_) => {
+                                match u64::from_str_radix(&oct_str, 8) {
+                                    Ok(uv) => uv as i64,
+                                    Err(e) => return Err(format!("Invalid octal int 0o{}: {}", oct_str, e)),
+                                }
+                            }
+                        };
+
+                        return Ok(Token {
+                            kind: TokenKind::Int(val),
+                            span: Span {
+                                start: start_pos,
+                                end: self.pos,
+                                line,
+                                column,
+                            },
+                        });
+                    }
+                }
+            }
+
             while let Some(c) = self.peek() {
                 if c.is_ascii_digit() || c == '_' {
                     if c != '_' {
@@ -465,13 +626,37 @@ impl<'a> Lexer<'a> {
                 }
             }
 
+            // Check optional type suffix (e.g. u64, i64, etc.) when there is no dot
+            let mut suffix = String::new();
+            if !has_dot {
+                while let Some(c) = self.peek() {
+                    if c.is_ascii_alphanumeric() {
+                        suffix.push(c);
+                        self.advance();
+                    } else {
+                        break;
+                    }
+                }
+                if !suffix.is_empty() && suffix != "u64" && suffix != "i64" && suffix != "u32" && suffix != "i32" && suffix != "u16" && suffix != "i16" && suffix != "u8" && suffix != "i8" {
+                    return Err(format!("Unsupported integer suffix '{}'", suffix));
+                }
+            }
+
             let kind = if has_dot {
                 let val: f64 = s
                     .parse()
                     .map_err(|e| format!("Invalid float {}: {}", s, e))?;
                 TokenKind::Float(val)
             } else {
-                let val: i64 = s.parse().map_err(|e| format!("Invalid int {}: {}", s, e))?;
+                let val: i64 = match s.parse::<i64>() {
+                    Ok(v) => v,
+                    Err(_) => {
+                        match s.parse::<u64>() {
+                            Ok(uv) => uv as i64,
+                            Err(e) => return Err(format!("Invalid int {}: {}", s, e)),
+                        }
+                    }
+                };
                 TokenKind::Int(val)
             };
 
@@ -824,7 +1009,7 @@ mod tests {
     #[test]
     #[allow(clippy::approx_constant)]
     fn test_identifiers_and_numbers() {
-        let input = "foo_bar _hidden count42 0 123 1_000_000 3.14 0.001 1_000.5";
+        let input = "foo_bar _hidden count42 0 123 1_000_000 3.14 0.001 1_000.5 18446744073709551615 0xFF 0x10u64 0b1010 0o77";
         let mut lexer = Lexer::new(input);
         let tokens = lexer.tokenize().expect("failed to tokenize");
         let kinds: Vec<TokenKind> = tokens.into_iter().map(|t| t.kind).collect();
@@ -840,6 +1025,11 @@ mod tests {
                 TokenKind::Float(3.14),
                 TokenKind::Float(0.001),
                 TokenKind::Float(1000.5),
+                TokenKind::Int(-1), // 18446744073709551615 as u64 as i64 is -1i64
+                TokenKind::Int(255),
+                TokenKind::Int(16),
+                TokenKind::Int(10),
+                TokenKind::Int(63),
                 TokenKind::Eof,
             ]
         );

@@ -17,7 +17,12 @@ fn test_fixed_size_numeric_types() {
             f32: Float32,
             f64: Float64
         ): Float64 {
-            let total = (a + b + c + d + u8 + u16 + u32 + u64 + bt + rn) + (f32 + f64);
+            let max_u64: Uint64 = 18446744073709551615;
+            let hex_val: Uint64 = 0xFFFFFFFFFFFFFFFF;
+            let bin_val: Uint8 = 0b11111111;
+            let oct_val: Uint16 = 0o777;
+            let suffixed: Uint64 = 100u64;
+            let total = (a + b + c + d + u8 + u16 + u32 + u64 + bt + rn + max_u64 + hex_val + bin_val + oct_val + suffixed) + (f32 + f64);
             return total;
         }
     "#;
