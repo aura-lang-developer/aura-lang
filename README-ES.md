@@ -988,6 +988,13 @@ fn displayBalance(viewer: AccountViewer): Unit => {
 }
 ```
 
+#### Symbol Mangling para Métodos con Receptor (Backend Cranelift)
+En el backend nativo Cranelift, los métodos con receptor generan símbolos unívocos con el patrón `TypeName__MethodName` (por ejemplo, `KRaftController__IsLeader` y `KafkaBroker__IsLeader`). Esto previene colisiones de símbolos y firmas entre tipos distintos que implementan métodos con el mismo nombre, garantizando llamadas estáticas directas de cero costo.
+
+#### Indexación Dinámica y Coerción de Tipos (Backend Golang)
+- **Indexación Dinámica**: Las operaciones de indexación sobre tipos dinámicos o interfaces no acotadas (`any`, `map[string]any`, `[]any`) se resuelven mediante el helper seguro de runtime `__auraIndex(obj, key)`, evitando panics o fallos de transpilación por indexación no soportada.
+- **Armonización de Enteros**: Las variables de inducción en bucles y comparaciones de longitud armonizan automáticamente entre el tipo nativo `int` retornado por `len()` en Go y la semántica formal de enteros de 64 bits de Aura (`int64`), eliminando errores de incompatibilidad en operaciones tipo `i < count` sin penalización de rendimiento.
+
 ---
 
 ### 12. Punteros Explícitos, Packed Structs y C FFI (`extern "C"`)

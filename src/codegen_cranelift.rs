@@ -925,12 +925,17 @@ impl CraneliftBackend {
         for item in &aura_module.items {
             if let Item::Function(f) = item {
                 let mut sig = Signature::new(call_conv);
+                if f.receiver.is_some() {
+                    sig.params.push(AbiParam::new(types::I64));
+                }
                 for _ in &f.params {
                     sig.params.push(AbiParam::new(types::I64));
                 }
                 sig.returns.push(AbiParam::new(types::I64));
 
-                let symbol_name = if f.name == "main" {
+                let symbol_name = if let Some(ref recv) = f.receiver {
+                    format!("{}__{}", recv.target_type, f.name)
+                } else if f.name == "main" {
                     "aura_user_main".to_string()
                 } else {
                     f.name.clone()
@@ -941,7 +946,15 @@ impl CraneliftBackend {
                     .declare_function(&symbol_name, Linkage::Export, &sig)
                     .map_err(|e| format!("Error declaring function '{}': {}", symbol_name, e))?;
 
-                self.func_ids.insert(f.name.clone(), func_id);
+                let lookup_key = if let Some(ref recv) = f.receiver {
+                    format!("{}__{}", recv.target_type, f.name)
+                } else {
+                    f.name.clone()
+                };
+                self.func_ids.insert(lookup_key, func_id);
+                if f.receiver.is_none() {
+                    self.func_ids.insert(f.name.clone(), func_id);
+                }
             }
         }
 
@@ -984,11 +997,22 @@ impl CraneliftBackend {
     }
 
     fn compile_function(&mut self, f: &FunctionDecl) -> Result<(), String> {
-        let func_id = self.func_ids[&f.name];
+        let lookup_key = if let Some(ref recv) = f.receiver {
+            format!("{}__{}", recv.target_type, f.name)
+        } else {
+            f.name.clone()
+        };
+        let func_id = self.func_ids[&lookup_key];
+        
         let target_config = self.module.target_config();
         let mut ctx = self.module.make_context();
         ctx.func.signature = Signature::new(target_config.default_call_conv);
 
+        let mut param_offset = 0;
+        if f.receiver.is_some() {
+            ctx.func.signature.params.push(AbiParam::new(types::I64));
+            param_offset = 1;
+        }
         for _ in &f.params {
             ctx.func.signature.params.push(AbiParam::new(types::I64));
         }
@@ -997,6 +1021,7 @@ impl CraneliftBackend {
         let mut fn_builder_ctx = FunctionBuilderContext::new();
         let mut builder = FunctionBuilder::new(&mut ctx.func, &mut fn_builder_ctx);
         let entry_block = builder.create_block();
+        
         builder.append_block_params_for_function_params(entry_block);
         builder.switch_to_block(entry_block);
         builder.seal_block(entry_block);
@@ -1004,9 +1029,16 @@ impl CraneliftBackend {
         let mut vars: HashMap<String, (Variable, types::Type)> = HashMap::new();
         let mut defers: Vec<(Expr, bool)> = Vec::new();
 
+        if let Some(ref recv) = f.receiver {
+            let var = builder.declare_var(types::I64);
+            let val = builder.block_params(entry_block)[0];
+            builder.def_var(var, val);
+            vars.insert(recv.name.clone(), (var, types::I64));
+        }
+
         for (i, p) in f.params.iter().enumerate() {
             let var = builder.declare_var(types::I64);
-            let val = builder.block_params(entry_block)[i];
+            let val = builder.block_params(entry_block)[i + param_offset];
             builder.def_var(var, val);
             vars.insert(p.name.clone(), (var, types::I64));
         }
@@ -1232,7 +1264,7 @@ impl CraneliftBackend {
                 Ok(current)
             }
             Expr::Identifier(name) => {
-                if name == "null" {
+                if name == "null" || name == "undefined" {
                     return Ok(builder.ins().iconst(types::I64, 0));
                 }
                 if let Some((var, _)) = vars.get(name) {
@@ -1310,6 +1342,7 @@ impl CraneliftBackend {
                 let slow_block = builder.create_block();
                 let fast_block = builder.create_block();
                 let merge_block = builder.create_block();
+                
 
                 if is_known {
                     builder.ins().jump(check_block, &[]);
@@ -1432,6 +1465,7 @@ impl CraneliftBackend {
                     let fast_block = builder.create_block();
                     let slow_block = builder.create_block();
                     let merge_block = builder.create_block();
+                
                     let res_var = builder.declare_var(types::I64);
 
                     builder
@@ -1528,6 +1562,7 @@ impl CraneliftBackend {
                 let present_block = builder.create_block();
                 let fallback_block = builder.create_block();
                 let merge_block = builder.create_block();
+                
                 let res_var = builder.declare_var(types::I64);
 
                 builder
@@ -1593,6 +1628,7 @@ impl CraneliftBackend {
                         let safe_div_block = builder.create_block();
                         let zero_div_block = builder.create_block();
                         let merge_block = builder.create_block();
+                
 
                         builder
                             .ins()
@@ -1624,6 +1660,7 @@ impl CraneliftBackend {
                         let safe_mod_block = builder.create_block();
                         let zero_mod_block = builder.create_block();
                         let merge_block = builder.create_block();
+                
 
                         builder
                             .ins()
@@ -1767,6 +1804,7 @@ impl CraneliftBackend {
                                     let slow_block = builder.create_block();
                                     let fast_block = builder.create_block();
                                     let merge_block = builder.create_block();
+                
 
                                     if is_known {
                                         builder.ins().jump(check_block, &[]);
@@ -1886,6 +1924,7 @@ impl CraneliftBackend {
                                 self.compile_expr(builder, condition, vars, defers, loop_ctx)?;
                             let cont_block = builder.create_block();
                             let else_block = builder.create_block();
+                
 
                             let zero = builder.ins().iconst(types::I64, 0);
                             let is_true = builder.ins().icmp(
@@ -1946,8 +1985,11 @@ impl CraneliftBackend {
             } => {
                 let cond_val = self.compile_expr(builder, condition, vars, defers, loop_ctx)?;
                 let then_block = builder.create_block();
+                
                 let else_block = builder.create_block();
+                
                 let merge_block = builder.create_block();
+                
 
                 let res_var = builder.declare_var(types::I64);
 
@@ -1965,11 +2007,14 @@ impl CraneliftBackend {
                 builder.switch_to_block(then_block);
                 builder.seal_block(then_block);
                 let then_res = self.compile_expr(builder, then_branch, vars, defers, loop_ctx)?;
+                
+                let mut then_jumped = false;
                 if let Some(cur) = builder.current_block()
                     && !is_block_terminated(builder, cur)
                 {
                     builder.def_var(res_var, then_res);
                     builder.ins().jump(merge_block, &[]);
+                    then_jumped = true;
                 }
 
                 // Else branch
@@ -1980,16 +2025,24 @@ impl CraneliftBackend {
                 } else {
                     builder.ins().iconst(types::I64, 0)
                 };
+                
+                let mut else_jumped = false;
                 if let Some(cur) = builder.current_block()
                     && !is_block_terminated(builder, cur)
                 {
                     builder.def_var(res_var, else_res);
                     builder.ins().jump(merge_block, &[]);
+                    else_jumped = true;
                 }
 
                 // Merge block
                 builder.switch_to_block(merge_block);
                 builder.seal_block(merge_block);
+                if !then_jumped && !else_jumped {
+                    let zero = builder.ins().iconst(types::I64, 0);
+                    builder.ins().return_(&[zero]);
+                    return Ok(zero);
+                }
                 Ok(builder.use_var(res_var))
             }
             Expr::While {
@@ -2161,6 +2214,7 @@ impl CraneliftBackend {
             Expr::Match { subject, arms } => {
                 let sub_val = self.compile_expr(builder, subject, vars, defers, loop_ctx)?;
                 let merge_block = builder.create_block();
+                
                 let res_var = builder.declare_var(types::I64);
 
                 let local_tag = self
@@ -2219,7 +2273,10 @@ impl CraneliftBackend {
 
                             let body_res =
                                 self.compile_expr(builder, &arm.body, vars, defers, loop_ctx)?;
-                            if !builder.is_unreachable() {
+                            if let Some(cur) = builder.current_block()
+                                && !is_block_terminated(builder, cur)
+                                && !builder.is_unreachable()
+                            {
                                 builder.def_var(res_var, body_res);
                                 builder.ins().jump(merge_block, &[]);
                             }
@@ -2298,7 +2355,10 @@ impl CraneliftBackend {
 
                             let body_res =
                                 self.compile_expr(builder, &arm.body, vars, defers, loop_ctx)?;
-                            if !builder.is_unreachable() {
+                            if let Some(cur) = builder.current_block()
+                                && !is_block_terminated(builder, cur)
+                                && !builder.is_unreachable()
+                            {
                                 builder.def_var(res_var, body_res);
                                 builder.ins().jump(merge_block, &[]);
                             }
@@ -2319,7 +2379,10 @@ impl CraneliftBackend {
 
                             let body_res =
                                 self.compile_expr(builder, &arm.body, vars, defers, loop_ctx)?;
-                            if !builder.is_unreachable() {
+                            if let Some(cur) = builder.current_block()
+                                && !is_block_terminated(builder, cur)
+                                && !builder.is_unreachable()
+                            {
                                 builder.def_var(res_var, body_res);
                                 builder.ins().jump(merge_block, &[]);
                             }
@@ -2331,7 +2394,10 @@ impl CraneliftBackend {
 
                             let body_res =
                                 self.compile_expr(builder, &arm.body, vars, defers, loop_ctx)?;
-                            if !builder.is_unreachable() {
+                            if let Some(cur) = builder.current_block()
+                                && !is_block_terminated(builder, cur)
+                                && !builder.is_unreachable()
+                            {
                                 builder.def_var(res_var, body_res);
                                 builder.ins().jump(merge_block, &[]);
                             }
@@ -2771,6 +2837,7 @@ impl CraneliftBackend {
                     let slow_block = builder.create_block();
                     let fast_block = builder.create_block();
                     let merge_block = builder.create_block();
+                
 
                     builder
                         .ins()
@@ -3626,6 +3693,7 @@ impl CraneliftBackend {
         let mut fn_builder_ctx = FunctionBuilderContext::new();
         let mut builder = FunctionBuilder::new(&mut ctx.func, &mut fn_builder_ctx);
         let entry_block = builder.create_block();
+        
         builder.append_block_params_for_function_params(entry_block);
         builder.switch_to_block(entry_block);
         builder.seal_block(entry_block);
@@ -3677,6 +3745,7 @@ impl CraneliftBackend {
         let mut fn_builder_ctx = FunctionBuilderContext::new();
         let mut builder = FunctionBuilder::new(&mut ctx.func, &mut fn_builder_ctx);
         let entry_block = builder.create_block();
+        
         builder.append_block_params_for_function_params(entry_block);
         builder.switch_to_block(entry_block);
         builder.seal_block(entry_block);
@@ -3721,6 +3790,7 @@ impl CraneliftBackend {
         let mut fn_builder_ctx = FunctionBuilderContext::new();
         let mut builder = FunctionBuilder::new(&mut ctx.func, &mut fn_builder_ctx);
         let entry_block = builder.create_block();
+        
         builder.switch_to_block(entry_block);
         builder.seal_block(entry_block);
 

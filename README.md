@@ -989,6 +989,13 @@ fn displayBalance(viewer: AccountViewer): Unit => {
 }
 ```
 
+#### Native Symbol Mangling for Receiver Methods (Cranelift Backend)
+In the native Cranelift compilation pipeline, receiver methods are deterministically mangled to `TypeName__MethodName` (e.g. `KRaftController__IsLeader` and `KafkaBroker__IsLeader`). This avoids symbol collisions across distinct struct types implementing identically-named methods and ensures zero-overhead static direct calls.
+
+#### Dynamic Indexing & Type Coercion (Golang Backend)
+- **Dynamic Indexing**: Indexing operations on dynamic or unconstrained interface targets (`any`, `map[string]any`, `[]any`) are routed via runtime helper `__auraIndex(obj, key)`, preventing runtime panic or transpilation type mismatch errors.
+- **Integer Harmonization**: Loop induction variables and length comparisons automatically harmonize between Go's standard `len()` / `int` returns and Aura's 64-bit integer semantics (`int64`), preventing type incompatibility errors in `i < count` loops without runtime overhead.
+
 ---
 
 ### 12. Explicit Pointers, Packed Structs, and C FFI (`extern "C"`)
