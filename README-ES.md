@@ -542,10 +542,17 @@ let i64: Int64 = 9223372036854775807;
 let u8: Uint8 = 255;         // Sin signo: 0 a 255 (alias Byte)
 let u16: Uint16 = 65535;
 let u32: Uint32 = 4294967295;
-let u64: Uint64 = 18446744073709551615;
+let u64: Uint64 = 18446744073709551615; // Rango completo de 64 bits sin signo (u64::MAX)
 let b: Byte = 255;           // Byte binario
 let r: Rune = 65;            // Rune Unicode UTF-32 (equivalente a 'A')
 let up: Uintptr = 0;         // Puntero entero para sistemas
+
+// Notaciones numéricas: Hexadecimal, Binaria, Octal y Sufijos de tipo
+let hex: Uint64 = 0xFFFFFFFFFFFFFFFF; // Hexadecimal con prefijo 0x / 0X
+let bin: Uint8 = 0b11111111;           // Binario con prefijo 0b / 0B
+let oct: Uint16 = 0o777;               // Octal con prefijo 0o / 0O
+let conSufijo = 100u64;                // Sufijos enteros soportados: u64, i64, u32, i32, u16, i16, u8, i8
+let conSeparador = 1_000_000_000;      // Separadores visuales '_' para legibilidad
 
 // Números de coma flotante
 let f: Float = 3.14159265;   // Float de 64 bits (por defecto)
@@ -557,6 +564,17 @@ let s: String = "Aura Language";
 let flag: Bool = true;
 let empty: Unit = ();        // Representa la ausencia de valor (void)
 ```
+
+##### Arquitectura de Precisión y Zero-Overhead en Literales de 64 bits (`Uint64`)
+
+En Aura, los enteros son procesados con semántica de precisión exacta de 64 bits y cero sobrecoste de memoria (*zero-overhead bit-cast*):
+
+- **Modelo en el Compilador (`lexer.rs`)**: Los tokens enteros se transportan en una estructura compacta de 64 bits (`TokenKind::Int(i64)`). Cuando un literal decimal supera el valor máximo con signo `i64::MAX` (`9,223,372,036,854,775,807`), el lexer activa un análisis en cascada hacia `u64`. Al parsearlo como `u64` y aplicar una reinterpretación de bits exacta (`uv as i64`), preserva el patrón binario idéntico de 64 bits (por ejemplo, `18446744073709551615` corresponde a `0xFFFFFFFFFFFFFFFF`).
+- **Bit-cast a nivel de CPU**: La reinterpretación `as i64` sobre 64 bits es un *no-op* a nivel de ensamblador de la CPU. Los 64 bits de datos en los registros de la máquina (`RAX`, `X0`) no sufren alteraciones ni conversiones costosas en heap.
+- **Backends de Ejecución**:
+  - **Nativo (Cranelift JIT / Standalone)**: Carga constantes inmediatas de 64 bits (`iconst.i64`) ejecutadas de forma nativa en registros de hardware.
+  - **Golang**: Se traduce directamente a los tipos no signados nativos `uint64`.
+  - **JavaScript / TypeScript**: Se integra transparentemente con operaciones `BigInt` de 64 bits (`BigInt.asUintN(64, v)`).
 
 #### B. Punteros y Direccionamiento de Memoria
 

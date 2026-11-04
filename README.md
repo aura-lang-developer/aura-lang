@@ -543,10 +543,17 @@ let i64: Int64 = 9223372036854775807;
 let u8: Uint8 = 255;         // Unsigned: 0 to 255 (alias Byte)
 let u16: Uint16 = 65535;
 let u32: Uint32 = 4294967295;
-let u64: Uint64 = 18446744073709551615;
+let u64: Uint64 = 18446744073709551615; // Full 64-bit unsigned range (u64::MAX)
 let b: Byte = 255;           // Binary byte
 let r: Rune = 65;            // Unicode UTF-32 Rune (equivalent to 'A')
 let up: Uintptr = 0;         // Integer pointer for systems programming
+
+// Numeric Notations: Hexadecimal, Binary, Octal, and Type Suffixes
+let hex: Uint64 = 0xFFFFFFFFFFFFFFFF; // Hexadecimal literal (0x / 0X prefix)
+let bin: Uint8 = 0b11111111;           // Binary literal (0b / 0B prefix)
+let oct: Uint16 = 0o777;               // Octal literal (0o / 0O prefix)
+let suffixed = 100u64;                 // Suffixes: u64, i64, u32, i32, u16, i16, u8, i8
+let visualSep = 1_000_000_000;         // Visual separator '_' for high readability
 
 // Floating-point numbers
 let f: Float = 3.14159265;   // 64-bit float (default)
@@ -558,6 +565,17 @@ let s: String = "Aura Language";
 let flag: Bool = true;
 let empty: Unit = ();        // Represents the absence of value (void)
 ```
+
+##### 64-Bit Integer Precision & Zero-Overhead Architecture (`Uint64`)
+
+In Aura, integer literals operate with full 64-bit precision semantics and zero-overhead memory guarantees (*zero-overhead bit-cast*):
+
+- **Compiler Internal Model (`lexer.rs`)**: Integer tokens are represented using a compact 64-bit structure (`TokenKind::Int(i64)`). When a decimal literal exceeds signed `i64::MAX` (`9,223,372,036,854,775,807`), the lexer cascades parsing to `u64`. By parsing it as `u64` and casting (`uv as i64`), the exact 64-bit binary pattern is preserved (e.g., `18446744073709551615` translates directly to `0xFFFFFFFFFFFFFFFF`).
+- **CPU Bit-Cast Semantics**: The `as i64` bit-cast over identical 64-bit widths is a *no-op* in machine assembly. Register bits (`RAX`, `X0`) remain untouched with zero heap allocations or boxing overhead.
+- **Backend Targets**:
+  - **Native (Cranelift JIT / Standalone)**: Emits immediate 64-bit constants (`iconst.i64`) executed natively in CPU registers.
+  - **Golang**: Maps cleanly to native Go `uint64` types.
+  - **JavaScript / TypeScript**: Operates seamlessly via 64-bit `BigInt` operations (`BigInt.asUintN(64, v)`).
 
 #### B. Pointers and Memory Addressing
 

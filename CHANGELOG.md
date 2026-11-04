@@ -6,6 +6,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.5] - 2026-11-03
+
+### 🔢 Full `Uint64` Range Literals, Hex/Binary/Octal Numeric Bases & Integer Type Suffixes
+
+Aura v0.8.5 expands the language's lexical and syntactic capabilities by providing complete native literal support for 64-bit unsigned integers (`Uint64`), hexadecimal (`0x`), binary (`0b`), and octal (`0o`) number representations, and explicit integer type suffixes. This resolves compiler limitations where unsigned integer literals exceeding `i64::MAX` (`9,223,372,036,854,775,807`) failed to compile, while preserving zero-overhead runtime performance, memory layout guarantees, and full type safety across all execution backends.
+
+#### 1. Full 64-Bit Unsigned Integer Range Support (`src/lexer.rs`)
+- **Large Decimal Literals**: Literals exceeding `i64::MAX` up to `u64::MAX` (`18,446,744,073,709,551,615`) are parsed and preserved in exact 64-bit binary representation.
+- **Eliminated Overflow Rejections**: Allows writing values like `let u64: Uint64 = 18446744073709551615;` directly in Aura source files without diagnostic errors.
+
+#### 2. Hexadecimal, Binary, and Octal Numeric Bases (`src/lexer.rs`)
+- **Hexadecimal Literals (`0x` / `0X`)**: Parse hex integer literals directly into 64-bit integers (e.g. `0xFF`, `0xFFFFFFFFFFFFFFFF`).
+- **Binary Literals (`0b` / `0B`)**: Parse binary bit patterns (e.g. `0b1010`, `0b11111111`).
+- **Octal Literals (`0o` / `0O`)**: Parse octal integers (e.g. `0o777`, `0o755`).
+- **Visual Digit Separators**: Full support for digit group separators (`_`) across all bases (e.g., `0xFF_FF_FF_FF`, `0b1111_0000`).
+
+#### 3. Integer Type Suffixes (`src/lexer.rs`)
+- **Explicit Suffix Parsing**: Compiler lexer support for standard integer type suffixes:
+  - Unsigned: `u8`, `u16`, `u32`, `u64`
+  - Signed: `i8`, `i16`, `i32`, `i64`
+- **Validation**: Strict rejection of invalid or malformed numeric suffixes at parse time.
+
+#### 4. Safety & Zero-Overhead Performance
+- **Zero-Allocation Literals**: The compiler AST and token representation remain compact 64-bit primitives without heap boxing or runtime overhead.
+- **Backend Compatibility**: Verified across all compilation targets:
+  - Cranelift JIT / Native binary backend: Emits optimal 64-bit constants (`iconst.i64`).
+  - Go Backend: Native mapping to `uint64` / `int64`.
+  - JS / TS Backend: Seamless integration with `BigInt` operations for 64-bit integer values.
+- **Test Suite**: New regression tests in `tests/struct_tags_and_numeric_tests.rs` and `src/lexer.rs`.
+
+---
+
 ## [0.8.4] - 2026-10-31
 
 ### 🛡️ OSV Static Call-Graph Reachability Engine (`aura vuln`), RFC 7230 HTTP Request Smuggling Defenses & Adaptive Runtime Profiles
