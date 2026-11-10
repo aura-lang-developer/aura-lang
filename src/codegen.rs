@@ -4839,6 +4839,9 @@ const __aura_import = async (m) => {
                 if member == "capacity" || member == "cap" || member == "len" {
                     return format!("{}.length", self.expr_to_js_with_renames(object, renames));
                 }
+                if let Ok(idx) = member.parse::<usize>() {
+                    return format!("{}[{}]", self.expr_to_js_with_renames(object, renames), idx);
+                }
                 format!(
                     "{}.{}",
                     self.expr_to_js_with_renames(object, renames),

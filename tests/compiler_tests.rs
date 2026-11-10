@@ -752,3 +752,83 @@ export fn computeFloatMath(): Float {
         "Expected COMPOUND_ASSIGN_SUCCESS output"
     );
 }
+
+#[test]
+fn test_tuple_access_by_index_and_dot_notation() {
+    let source = r#"
+export fn getTupleValues(): (Int, String, Float) => {
+    (42, "hello aura", 3.14)
+}
+
+export fn testTupleAccess(): Int {
+    let t: (Int, String, Float) = getTupleValues();
+    
+    // Index bracket access
+    let a: Int = t[0];
+    let b: String = t[1];
+    let c: Float = t[2];
+
+    // Dot notation access (Rust-style)
+    let d: Int = t.0;
+    let e: String = t.1;
+    let f: Float = t.2;
+
+    if (a == d && b == e && c == f) {
+        return a;
+    }
+    return 0;
+}
+"#;
+
+    let result = compile(source, &[]).expect("Compilation must succeed");
+    assert!(result.js_code.contains("t[0]"));
+    assert!(result.js_code.contains("t[1]"));
+    assert!(result.js_code.contains("t[2]"));
+
+    let runner_code = format!(
+        "{}\n\nfunction main() {{\n  const res = testTupleAccess();\n  if (res !== 42) throw new Error(`testTupleAccess failed, got ${{res}}`);\n  console.log('TUPLE_ACCESS_SUCCESS');\n}}\nmain();",
+        result.js_code
+    );
+
+    let test_file = "test_tuple_access_runner.mjs";
+    fs::write(test_file, runner_code).expect("Should write test runner file");
+
+    let output = Command::new("node")
+        .arg(test_file)
+        .output()
+        .expect("Failed to execute node command");
+
+    let _ = fs::remove_file(test_file);
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "Node.js failed: stdout: {}, stderr: {}",
+        stdout,
+        stderr
+    );
+    assert!(
+        stdout.contains("TUPLE_ACCESS_SUCCESS"),
+        "Expected TUPLE_ACCESS_SUCCESS output"
+    );
+}
+
+#[test]
+fn test_tuple_access_bounds_check() {
+    let out_of_bounds_bracket = r#"
+fn test(): Unit => {
+    let t = (1, 2);
+    let x = t[2];
+}
+"#;
+    assert!(compile(out_of_bounds_bracket, &[]).is_err());
+
+    let out_of_bounds_dot = r#"
+fn test(): Unit => {
+    let t = (1, 2);
+    let x = t.2;
+}
+"#;
+    assert!(compile(out_of_bounds_dot, &[]).is_err());
+}

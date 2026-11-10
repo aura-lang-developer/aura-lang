@@ -5575,16 +5575,61 @@ impl TypeChecker {
                         }
                         Ok(ConcreteType::Any)
                     }
+                    ConcreteType::Tuple(ref elems) => {
+                        if let Ok(idx) = member.parse::<usize>() {
+                            if idx < elems.len() {
+                                Ok(elems[idx].clone())
+                            } else {
+                                Err(format!(
+                                    "Tuple index out of bounds: index {} for tuple of length {}",
+                                    idx,
+                                    elems.len()
+                                ))
+                            }
+                        } else {
+                            Err(format!("Cannot access non-numeric property '{}' on tuple", member))
+                        }
+                    }
                     ConcreteType::Any => Ok(ConcreteType::Any),
                     other => Err(format!("Cannot access property on type {}", other)),
                 }
             }
             Expr::IndexAccess { object, index } => {
-                let _idx_ty = self.infer_expr(index, env)?;
+                let idx_ty = self.infer_expr(index, env)?;
                 let obj_ty = self.infer_expr(object, env)?;
                 match obj_ty {
-                    ConcreteType::List(elem) => Ok(*elem),
-                    ConcreteType::String => Ok(ConcreteType::String),
+                    ConcreteType::Tuple(ref elems) => {
+                        match &**index {
+                            Expr::Literal(crate::ast::Literal::Int(n)) => {
+                                if *n < 0 {
+                                    Err(format!("Tuple index cannot be negative: {}", n))
+                                } else {
+                                    let idx = *n as usize;
+                                    if idx < elems.len() {
+                                        Ok(elems[idx].clone())
+                                    } else {
+                                        Err(format!(
+                                            "Tuple index out of bounds: index {} for tuple of length {}",
+                                            idx,
+                                            elems.len()
+                                        ))
+                                    }
+                                }
+                            }
+                            _ => Err(
+                                "Tuple index must be a constant integer literal (e.g., tuple[0])"
+                                    .to_string(),
+                            ),
+                        }
+                    }
+                    ConcreteType::List(elem) => {
+                        self.unify(&ConcreteType::Int, &idx_ty, "List index must be Int")?;
+                        Ok(*elem)
+                    }
+                    ConcreteType::String => {
+                        self.unify(&ConcreteType::Int, &idx_ty, "String index must be Int")?;
+                        Ok(ConcreteType::String)
+                    }
                     ConcreteType::Any => Ok(ConcreteType::Any),
                     other => Err(format!("Cannot index into type {}", other)),
                 }

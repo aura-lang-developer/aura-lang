@@ -1322,7 +1322,14 @@ impl Parser {
                     };
                 }
             } else if self.match_token(&TokenKind::Dot) {
-                let member = self.expect_ident()?;
+                let member = match self.peek() {
+                    TokenKind::Int(n) => {
+                        let idx_str = n.to_string();
+                        self.advance();
+                        idx_str
+                    }
+                    _ => self.expect_ident()?,
+                };
                 expr = Expr::MemberAccess {
                     object: Box::new(expr),
                     member,

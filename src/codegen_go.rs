@@ -4902,6 +4902,10 @@ impl GoCodeGen {
                 format!("{}({})", callee_str, args_str.join(", "))
             }
             Expr::MemberAccess { object, member } => {
+                if let Ok(idx) = member.parse::<usize>() {
+                    let obj_str = self.emit_expr(object);
+                    return format!("{}[{}]", obj_str, idx);
+                }
                 if member == "length" || member == "len" {
                     let obj_str = self.emit_expr(object);
                     if self.is_dynamic_expr(object)

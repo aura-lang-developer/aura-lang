@@ -123,6 +123,22 @@ fn test_compile_to_go_code_generation() {
 }
 
 #[test]
+fn test_compile_tuple_access_to_go() {
+    let source = r#"
+        export fn main(): Unit => {
+            let t = (100, "aura");
+            let a = t[0];
+            let b = t.1;
+            println(`a: ${a}, b: ${b}`);
+        }
+    "#;
+
+    let go_code = compile_to_go(source).expect("Go compilation failed for tuple access");
+    assert!(go_code.contains("t[0]"));
+    assert!(go_code.contains("t[1]"));
+}
+
+#[test]
 fn test_build_backend_standalone_executable_binary() {
     let source = r#"
         export fn main(): Unit => {
