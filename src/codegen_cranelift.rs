@@ -3934,6 +3934,7 @@ pub fn build_native_binary_with_options(
     let mut parser = crate::parser::Parser::new(tokens);
     let module = parser.parse_module()?;
     let bundled = crate::bundle_module(&module, base_path)?;
+    let bundled = crate::desugar::desugar_module(bundled);
 
     let profile = detect_runtime_profile(&bundled);
 
