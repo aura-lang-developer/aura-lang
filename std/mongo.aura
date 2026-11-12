@@ -1,2 +1,0 @@
-// Aura Standard Library: mongo
-export { open, createClient, connect } from "./database/mongodb/mongodb";

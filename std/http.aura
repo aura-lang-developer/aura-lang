@@ -1,5 +1,6 @@
-// Aura Standard Library: http
-// Top-level HTTP interface re-exports
+// Aura Standard Library: http (Legacy Alias)
+// @deprecated Use 'std/net/http' or 'net/http' instead.
+// Canonical implementation located at: std/net/http/http.aura
 
 export {
     HttpRequest,
@@ -8,6 +9,7 @@ export {
     Response,
     ResponseWriter,
     Handler,
+    applySecurityHeaders,
     StatusOK,
     StatusCreated,
     StatusAccepted,

@@ -7,6 +7,8 @@
 //! - `LINT001`: Variable declared with `let mut` but never reassigned.
 //! - `LINT002`: Exhaustive pattern match with empty arms.
 //! - `LINT004`: Redundant `export` keyword on PascalCase symbol (symbols starting with an uppercase letter are already exported by Go-style convention).
+//! - `LINT005`: Deprecated concurrency synonym (`go` or `routine`); use canonical `spawn`.
+//! - `LINT006`: Deprecated `trait` keyword; use canonical `interface` for structural duck typing.
 
 use crate::ast::*;
 use crate::lexer::Lexer;
@@ -365,19 +367,58 @@ fn contains_sql_keyword(s: &str) -> bool {
 pub fn lint_source(source: &str) -> Result<Vec<LintDiagnostic>, String> {
     let mut lexer = Lexer::new(source);
     let tokens = lexer.tokenize()?;
-    let mut parser = Parser::new(tokens);
+    let mut parser = Parser::new(tokens.clone());
     let module = parser.parse_module()?;
     let mut linter = Linter::new();
-    Ok(linter.analyze(&module))
+    let mut diags = linter.analyze(&module);
+
+    // Syntax-level deprecation checks for non-canonical synonyms
+    for token in &tokens {
+        match token.kind {
+            crate::lexer::TokenKind::Go => {
+                diags.push(LintDiagnostic {
+                    code: "LINT005",
+                    severity: LintSeverity::Warning,
+                    message: format!(
+                        "line {}:{}: 'go' is deprecated for CSP concurrency; use canonical 'spawn' instead.",
+                        token.span.line, token.span.column
+                    ),
+                });
+            }
+            crate::lexer::TokenKind::Routine => {
+                diags.push(LintDiagnostic {
+                    code: "LINT005",
+                    severity: LintSeverity::Warning,
+                    message: format!(
+                        "line {}:{}: 'routine' is deprecated for CSP concurrency; use canonical 'spawn' instead.",
+                        token.span.line, token.span.column
+                    ),
+                });
+            }
+            crate::lexer::TokenKind::Trait => {
+                diags.push(LintDiagnostic {
+                    code: "LINT006",
+                    severity: LintSeverity::Warning,
+                    message: format!(
+                        "line {}:{}: 'trait' is deprecated; Aura uses structural duck typing, use canonical 'interface' instead.",
+                        token.span.line, token.span.column
+                    ),
+                });
+            }
+            _ => {}
+        }
+    }
+
+    Ok(diags)
 }
 
-/// Automatically fixes lintable issues in source code (e.g. `let mut` -> `let`).
+/// Automatically fixes lintable issues in source code (e.g. `let mut` -> `let`, deprecations).
 pub fn fix_source(source: &str) -> (String, usize) {
     let mut lexer = Lexer::new(source);
     let Ok(tokens) = lexer.tokenize() else {
         return (source.to_string(), 0);
     };
-    let mut parser = Parser::new(tokens);
+    let mut parser = Parser::new(tokens.clone());
     let Ok(module) = parser.parse_module() else {
         return (source.to_string(), 0);
     };
@@ -409,7 +450,20 @@ pub fn fix_source(source: &str) -> (String, usize) {
         }
     }
 
-    if unneeded_muts.is_empty() && redundant_export_symbols.is_empty() {
+    let mut has_deprecated_tokens = false;
+    for token in &tokens {
+        if matches!(
+            token.kind,
+            crate::lexer::TokenKind::Go
+                | crate::lexer::TokenKind::Routine
+                | crate::lexer::TokenKind::Trait
+        ) {
+            has_deprecated_tokens = true;
+            break;
+        }
+    }
+
+    if unneeded_muts.is_empty() && redundant_export_symbols.is_empty() && !has_deprecated_tokens {
         return (source.to_string(), 0);
     }
 
@@ -432,6 +486,41 @@ pub fn fix_source(source: &str) -> (String, usize) {
             if fixed.contains(&pattern) {
                 fixed = fixed.replace(&pattern, &replacement);
                 count += 1;
+            }
+        }
+    }
+
+    // Auto-fix deprecated synonyms to canonical keywords
+    if has_deprecated_tokens {
+        // Fix 'routine {' and 'routine '
+        // Replace keyword 'routine' by 'spawn' when followed by whitespace or '{'
+        for token in tokens.iter().rev() {
+            match token.kind {
+                crate::lexer::TokenKind::Routine => {
+                    let start = token.span.start;
+                    let end = token.span.end;
+                    if start < fixed.len() && end <= fixed.len() && &fixed[start..end] == "routine" {
+                        fixed.replace_range(start..end, "spawn");
+                        count += 1;
+                    }
+                }
+                crate::lexer::TokenKind::Go => {
+                    let start = token.span.start;
+                    let end = token.span.end;
+                    if start < fixed.len() && end <= fixed.len() && &fixed[start..end] == "go" {
+                        fixed.replace_range(start..end, "spawn");
+                        count += 1;
+                    }
+                }
+                crate::lexer::TokenKind::Trait => {
+                    let start = token.span.start;
+                    let end = token.span.end;
+                    if start < fixed.len() && end <= fixed.len() && &fixed[start..end] == "trait" {
+                        fixed.replace_range(start..end, "interface");
+                        count += 1;
+                    }
+                }
+                _ => {}
             }
         }
     }

@@ -80,6 +80,11 @@ fi
 
 chmod +x "$BIN_DIR"/* 2>/dev/null || true
 
+# Create convenience alias symlink for aurapkg -> auramod if auramod exists
+if [ -f "$BIN_DIR/auramod" ] && [ ! -e "$BIN_DIR/aurapkg" ]; then
+    ln -sf "auramod" "$BIN_DIR/aurapkg" 2>/dev/null || true
+fi
+
 # 3. Configure Shell PATH
 SHELL_NAME="$(basename "$SHELL")"
 PROFILE=""

@@ -41,7 +41,26 @@ export interface Tx {
 /// Standard Tx alias
 export type SqlTx = Tx;
 
-/// Represents a database connection pool.
+/// Unified database client interface providing common querying and execution capabilities.
+export interface DatabaseClient {
+    query(sql: String, params?: List<Any>): Rows,
+    exec(sql: String, params?: List<Any>): ExecResult,
+    execute(sql: String, params?: List<Any>): ExecResult,
+    ping(): Int,
+    close(): Unit
+}
+
+/// Represents an active SQL database connection pool with transaction support.
+export interface ConnectionPool {
+    query(sql: String, params?: List<Any>): Rows,
+    exec(sql: String, params?: List<Any>): ExecResult,
+    execute(sql: String, params?: List<Any>): ExecResult,
+    begin(): Tx,
+    ping(): Int,
+    close(): Unit
+}
+
+/// Canonical DB interface (backward-compatible alias of ConnectionPool).
 export interface DB {
     query(sql: String, params?: List<Any>): Rows,
     exec(sql: String, params?: List<Any>): ExecResult,

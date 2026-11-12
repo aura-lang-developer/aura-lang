@@ -1,2 +1,5 @@
-// Aura Standard Library: redis
+// Aura Standard Library: std/redis (Legacy Top-level Alias)
+// @deprecated Use 'std/database/redis' or 'database/redis' instead.
+// Canonical implementation located at: std/database/redis/redis.aura
+
 export { open, createClient, connect } from "./database/redis/redis";

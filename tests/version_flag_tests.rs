@@ -1,86 +1,45 @@
 use std::process::Command;
 
 #[test]
-fn test_aurac_version_flag() {
-    let output = Command::new(env!("CARGO_BIN_EXE_aurac"))
+fn test_aura_lang_version_constants() {
+    assert_eq!(aura_lang::VERSION, env!("CARGO_PKG_VERSION"));
+    assert_eq!(aura_lang::version(), env!("CARGO_PKG_VERSION"));
+}
+
+#[test]
+fn test_aura_primary_binary_version() {
+    let output = Command::new(env!("CARGO_BIN_EXE_aura"))
         .arg("--version")
         .output()
-        .expect("Failed to execute aurac --version");
+        .expect("Failed to execute aura --version");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert_eq!(
-        stdout.trim(),
-        format!("aurac {}", env!("CARGO_PKG_VERSION"))
-    );
+    assert_eq!(stdout.trim(), format!("aura {}", env!("CARGO_PKG_VERSION")));
 }
 
 #[test]
-fn test_aurac_short_v_flag() {
-    let output = Command::new(env!("CARGO_BIN_EXE_aurac"))
-        .arg("-v")
-        .output()
-        .expect("Failed to execute aurac -v");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert_eq!(
-        stdout.trim(),
-        format!("aurac {}", env!("CARGO_PKG_VERSION"))
-    );
-}
-
-#[test]
-fn test_aurac_capital_v_flag() {
-    let output = Command::new(env!("CARGO_BIN_EXE_aurac"))
-        .arg("-V")
-        .output()
-        .expect("Failed to execute aurac -V");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert_eq!(
-        stdout.trim(),
-        format!("aurac {}", env!("CARGO_PKG_VERSION"))
-    );
-}
-
-#[test]
-fn test_aurac_version_subcommand() {
-    let output = Command::new(env!("CARGO_BIN_EXE_aurac"))
-        .arg("version")
-        .output()
-        .expect("Failed to execute aurac version");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert_eq!(
-        stdout.trim(),
-        format!("aurac {}", env!("CARGO_PKG_VERSION"))
-    );
-}
-
-#[test]
-fn test_aurac_subcommands_version_flag() {
-    let subcommands = ["build", "run", "check", "lint", "emit-go", "watch"];
-    for subcmd in subcommands {
+fn test_aurac_version_variants() {
+    // Test the aliases and subcommands for version reporting on aurac
+    let variants = ["--version", "-v", "-V", "version"];
+    for arg in variants {
         let output = Command::new(env!("CARGO_BIN_EXE_aurac"))
-            .args([subcmd, "--version"])
+            .arg(arg)
             .output()
-            .unwrap_or_else(|_| panic!("Failed to execute aurac {} --version", subcmd));
+            .unwrap_or_else(|_| panic!("Failed to execute aurac {}", arg));
 
         assert!(
             output.status.success(),
-            "aurac {} --version failed with status: {:?}",
-            subcmd,
+            "aurac {} failed with status: {:?}",
+            arg,
             output.status
         );
         let stdout = String::from_utf8_lossy(&output.stdout);
         assert_eq!(
             stdout.trim(),
             format!("aurac {}", env!("CARGO_PKG_VERSION")),
-            "Unexpected output for aurac {} --version",
-            subcmd
+            "Unexpected output for aurac {}",
+            arg
         );
     }
 }
@@ -118,25 +77,7 @@ fn test_toolchain_binaries_version_flag() {
 }
 
 #[test]
-fn test_aura_lang_version_constants() {
-    assert_eq!(aura_lang::VERSION, env!("CARGO_PKG_VERSION"));
-    assert_eq!(aura_lang::version(), env!("CARGO_PKG_VERSION"));
-}
-
-#[test]
-fn test_aura_primary_binary_version() {
-    let output = Command::new(env!("CARGO_BIN_EXE_aura"))
-        .arg("--version")
-        .output()
-        .expect("Failed to execute aura --version");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert_eq!(stdout.trim(), format!("aura {}", env!("CARGO_PKG_VERSION")));
-}
-
-#[test]
-fn test_aura_subcommands_version_flag() {
+fn test_subcommands_version_flag() {
     let subcommands = ["build", "run", "check", "lint", "emit-go", "watch"];
     for subcmd in subcommands {
         let output = Command::new(env!("CARGO_BIN_EXE_aura"))

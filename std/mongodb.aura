@@ -1,2 +1,5 @@
-// Aura Standard Library: mongodb
+// Aura Standard Library: std/mongodb (Legacy Top-level Alias)
+// @deprecated Use 'std/database/mongodb' or 'database/mongodb' instead.
+// Canonical implementation located at: std/database/mongodb/mongodb.aura
+
 export { open, createClient, connect } from "./database/mongodb/mongodb";

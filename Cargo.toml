@@ -86,9 +86,5 @@ name = "auramod"
 path = "src/bin/auramod.rs"
 
 [[bin]]
-name = "aurapkg"
-path = "src/bin/aurapkg.rs"
-
-[[bin]]
 name = "aurabindgen"
 path = "src/bin/aurabindgen.rs"

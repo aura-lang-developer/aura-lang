@@ -7,11 +7,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::CompilationResult;
+use crate::CompilerPipeline;
 use crate::ast::Module;
 use crate::codegen::CodeGen;
-use crate::lexer::Lexer;
-use crate::parser::Parser;
-use crate::typechecker::TypeChecker;
 
 /// Validates that an AST module satisfies Aura Backend requirements.
 /// Aura is exclusively a Backend and Systems language (Golang model).
@@ -25,36 +23,10 @@ pub fn compile_backend(
     base_path: Option<&Path>,
     dts_inputs: &[(&str, &str)],
 ) -> Result<CompilationResult, String> {
-    // 1. Lexing
-    let mut lexer = Lexer::new(source);
-    let tokens = lexer.tokenize()?;
-
-    // 2. Parsing
-    let mut parser = Parser::new(tokens);
-    let module = parser.parse_module()?;
-
-    // 3. Strict Backend Validation
-    validate_backend_module(&module)?;
-
-    // 4. Type Checking
-    let mut typechecker = TypeChecker::new();
-    for (mod_name, dts_content) in dts_inputs {
-        let mut dts_parser = crate::dts_parser::DtsParser::new(dts_content);
-        let dts_mod = dts_parser.parse_dts(mod_name)?;
-        crate::dts_parser::DtsParser::import_into_env(&dts_mod, typechecker.env_mut());
-    }
-    crate::resolve_local_imports(&module, base_path, &mut typechecker);
-    typechecker.check_module(&module)?;
-
-    // 5. Code Generation
-    let mut codegen = CodeGen::with_base_path(base_path);
-    let (js_code, dts_code) = codegen.generate(&module);
-
-    Ok(CompilationResult {
-        js_code,
-        dts_code,
-        source_map: None,
-    })
+    CompilerPipeline::builder()
+        .with_base_path(base_path)
+        .with_dts_inputs(dts_inputs)
+        .execute(source)
 }
 
 /// Compiles an Aura source file ensuring strict Backend-only compliance and generating Source Maps V3.
@@ -65,37 +37,11 @@ pub fn compile_backend_with_sourcemap(
     base_path: Option<&Path>,
     dts_inputs: &[(&str, &str)],
 ) -> Result<CompilationResult, String> {
-    // 1. Lexing
-    let mut lexer = Lexer::new(source);
-    let tokens = lexer.tokenize()?;
-
-    // 2. Parsing
-    let mut parser = Parser::new(tokens);
-    let module = parser.parse_module()?;
-
-    // 3. Strict Backend Validation
-    validate_backend_module(&module)?;
-
-    // 4. Type Checking
-    let mut typechecker = TypeChecker::new();
-    for (mod_name, dts_content) in dts_inputs {
-        let mut dts_parser = crate::dts_parser::DtsParser::new(dts_content);
-        let dts_mod = dts_parser.parse_dts(mod_name)?;
-        crate::dts_parser::DtsParser::import_into_env(&dts_mod, typechecker.env_mut());
-    }
-    crate::resolve_local_imports(&module, base_path, &mut typechecker);
-    typechecker.check_module(&module)?;
-
-    // 5. Code Generation with Source Maps
-    let mut codegen = CodeGen::with_base_path(base_path);
-    let (js_code, dts_code, source_map) =
-        codegen.generate_with_sourcemap(&module, js_filename, aura_filename, source);
-
-    Ok(CompilationResult {
-        js_code,
-        dts_code,
-        source_map: Some(source_map),
-    })
+    CompilerPipeline::builder()
+        .with_base_path(base_path)
+        .with_sourcemap(js_filename, aura_filename)
+        .with_dts_inputs(dts_inputs)
+        .execute(source)
 }
 
 /// Details about a generated standalone executable binary.

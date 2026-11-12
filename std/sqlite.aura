@@ -1,2 +1,5 @@
-// Aura Standard Library: sqlite
+// Aura Standard Library: std/sqlite (Legacy Top-level Alias)
+// @deprecated Use 'std/database/sqlite' or 'database/sqlite' instead.
+// Canonical implementation located at: std/database/sqlite/sqlite.aura
+
 export { open, connect } from "./database/sqlite/sqlite";

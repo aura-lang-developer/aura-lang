@@ -1,2 +1,19 @@
-// Aura Standard Library: sql
-export { DB, Rows, Tx, ExecResult, SqlDB, SqlRows, SqlTx, SqlExecResult, open } from "./database/sql/sql";
+// Aura Standard Library: std/sql (Legacy Top-level Alias)
+// @deprecated Use 'std/database/sql' or 'database/sql' instead.
+// Canonical implementation located at: std/database/sql/sql.aura
+
+export {
+    DB,
+    Rows,
+    Tx,
+    ExecResult,
+    DatabaseClient,
+    ConnectionPool,
+    SqlDB,
+    SqlRows,
+    SqlTx,
+    SqlExecResult,
+    SqlQuery,
+    sqlQuery,
+    open
+} from "./database/sql/sql";

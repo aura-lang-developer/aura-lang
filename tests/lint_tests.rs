@@ -147,3 +147,39 @@ fn test_linter_detects_redundant_export_and_auto_fixes() {
     assert!(fixed.contains("interface Greeter"), "Should remove redundant export from PascalCase interface Greeter");
     assert!(fixed.contains("export fn helper"), "Should preserve necessary export for camelCase helper");
 }
+
+#[test]
+fn test_linter_detects_deprecated_synonyms_and_auto_fixes() {
+    use aura_lang::linter::fix_source;
+
+    let code = r#"
+        trait Greeter {
+            fn greet(): String;
+        }
+
+        fn run_tasks() {
+            routine {
+                println("worker 1");
+            }
+            go {
+                println("worker 2");
+            }
+        }
+    "#;
+
+    let diags = lint_source(code).expect("should parse");
+    let deprecations: Vec<_> = diags
+        .iter()
+        .filter(|d| d.code == "LINT005" || d.code == "LINT006")
+        .collect();
+    assert_eq!(deprecations.len(), 3, "Expected 3 deprecation diagnostics, got: {:?}", diags);
+
+    let (fixed, count) = fix_source(code);
+    assert_eq!(count, 3, "Expected 3 auto-fixes for deprecated synonyms");
+    assert!(fixed.contains("interface Greeter"), "trait should be replaced with interface");
+    assert!(!fixed.contains("trait Greeter"));
+    assert!(fixed.contains("spawn {\n                println(\"worker 1\");"));
+    assert!(fixed.contains("spawn {\n                println(\"worker 2\");"));
+    assert!(!fixed.contains("routine {"));
+    assert!(!fixed.contains("go {"));
+}

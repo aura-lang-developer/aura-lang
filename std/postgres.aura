@@ -1,2 +1,5 @@
-// Aura Standard Library: std/postgres (Top-level alias)
+// Aura Standard Library: std/postgres (Legacy Top-level Alias)
+// @deprecated Use 'std/database/postgres' or 'database/postgres' instead.
+// Canonical implementation located at: std/database/postgres/postgres.aura
+
 export { open, connect } from "./database/postgres/postgres";

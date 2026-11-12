@@ -3062,6 +3062,10 @@ impl TypeEnv {
         env.types.insert("SqlDB".to_string(), sql_db_type.clone());
         env.types.insert("DB".to_string(), sql_db_type.clone());
         env.types.insert("SqlPool".to_string(), sql_db_type.clone());
+        env.types
+            .insert("ConnectionPool".to_string(), sql_db_type.clone());
+        env.types
+            .insert("DatabaseClient".to_string(), sql_db_type.clone());
 
         let mut sqlite_module_methods = HashMap::new();
         sqlite_module_methods.insert(

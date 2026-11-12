@@ -47,9 +47,9 @@ pub fn print_usage() {
         "  {bin} <file.aura> [-o <binary>] [--target <native|go|<triple>>] [--release] [-O3] [--tags <tags>] [--test]"
     );
     println!(
-        "  {bin} build <file.aura> [-o <binary>] [--target <native|go|<triple>>] [--release] [-O3] [--tags <tags>]"
+        "  {bin} build <file.aura> [-o <binary>] [--target <native|go|js|<triple>>] [--release] [-O3] [--tags <tags>]"
     );
-    println!("  {bin} run <file.aura> [--tags <tags>]");
+    println!("  {bin} run <file.aura> [--target <native|go|js>] [--release] [--tags <tags>] [-- <args...>]");
     println!("  {bin} debug <file.aura> [--step] [--port <port>] [--no-brk] [--tags <tags>]");
     println!("  {bin} step <file.aura> [--port <port>] [--tags <tags>]");
     println!("  {bin} check <file.aura> [--tags <tags>]");
@@ -441,7 +441,122 @@ impl CliCommand for TestCommand {
 
 const DEBUGGER_RUNNER_SCRIPT: &str = include_str!("debugger.js");
 
+/// Global flags shared across build, compile, and run commands.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct CommonFlags {
+    /// Output file path (`-o <binary>`).
+    pub out_file: Option<String>,
+    /// Build tags passed for conditional compilation (`--tags <tags>` or `-tags <tags>`).
+    pub tags: Vec<String>,
+    /// TypeScript declaration inputs (`--dts <path>`).
+    pub dts_inputs: Vec<(String, String)>,
+    /// Release optimization mode (`--release`, `-O`, `-O3`, `--simd`).
+    pub release: bool,
+    /// Target backend identifier (`--target <backend>`, `--go`).
+    pub target_backend: Option<String>,
+    /// Positional arguments that are not flags or options.
+    pub positional_args: Vec<String>,
+}
+
+/// Helper function to parse common global flags (`--tags`, `--dts`, `--release`, `-o`, `--target`)
+/// from a slice of CLI arguments.
+pub fn parse_common_flags(args: &[String]) -> CommonFlags {
+    let mut flags = CommonFlags::default();
+    let mut i = 0;
+
+    while i < args.len() {
+        let arg = &args[i];
+        if arg == "-o" && i + 1 < args.len() {
+            flags.out_file = Some(args[i + 1].clone());
+            i += 2;
+        } else if (arg == "--tags" || arg == "-tags") && i + 1 < args.len() {
+            flags.tags.push(args[i + 1].clone());
+            i += 2;
+        } else if arg == "--dts" && i + 1 < args.len() {
+            let dts_path = &args[i + 1];
+            if let Ok(dts_content) = fs::read_to_string(dts_path) {
+                flags.dts_inputs.push((dts_path.clone(), dts_content));
+            }
+            i += 2;
+        } else if arg == "--release" || arg == "-O" || arg == "-O3" || arg == "--simd" {
+            flags.release = true;
+            i += 1;
+        } else if (arg == "--target" || arg == "-target") && i + 1 < args.len() {
+            flags.target_backend = Some(args[i + 1].to_lowercase());
+            i += 2;
+        } else if arg == "--go" {
+            flags.target_backend = Some("go".to_string());
+            i += 1;
+        } else if arg == "--standalone" {
+            i += 1;
+        } else if !arg.starts_with('-') {
+            flags.positional_args.push(arg.clone());
+            i += 1;
+        } else {
+            i += 1;
+        }
+    }
+
+    flags
+}
+
 pub fn run_cli(args: &[String]) {
+    // Multicall binary detection via argv[0] (symlink or binary rename: aurafmt, auratest, auralsp, auramod, aurapkg, aurabindgen, aurac)
+    if let Some(prog_path) = args.first() {
+        let prog_name = Path::new(prog_path)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("");
+
+        // Strip possible executable extension on Windows (.exe)
+        let prog_base = prog_name.strip_suffix(".exe").unwrap_or(prog_name);
+
+        match prog_base {
+            "aurafmt" => {
+                let fmt_args: Vec<String> = args.iter().skip(1).cloned().collect();
+                aura_lang::formatter::run_cli(&fmt_args);
+                return;
+            }
+            "auratest" => {
+                let test_args: Vec<String> = args.iter().skip(1).cloned().collect();
+                aura_lang::testing::run_cli(&test_args);
+                return;
+            }
+            "auralsp" => {
+                let rest_args: Vec<String> = args.iter().skip(1).cloned().collect();
+                if rest_args.iter().any(|a| a == "--version" || a == "-V" || a == "version") {
+                    println!("auralsp {}", env!("CARGO_PKG_VERSION"));
+                    return;
+                }
+                if rest_args.iter().any(|a| a == "--help" || a == "-h") {
+                    println!(
+                        "Aura Language Server Protocol (auralsp) v{}",
+                        env!("CARGO_PKG_VERSION")
+                    );
+                    println!("Usage: auralsp [--stdio]");
+                    return;
+                }
+                let mut server = aura_lang::lsp::LspServer::new();
+                if let Err(e) = server.run_stdio() {
+                    eprintln!("Aura LSP Server encountered an error: {}", e);
+                    std::process::exit(1);
+                }
+                return;
+            }
+            "auramod" | "aurapkg" => {
+                let mod_args: Vec<String> = args.iter().skip(1).cloned().collect();
+                aura_lang::package::run_cli(&mod_args);
+                return;
+            }
+            "aurabindgen" => {
+                let bindgen_args: Vec<String> = args.iter().skip(1).cloned().collect();
+                aura_lang::bindgen::run_cli(&bindgen_args);
+                return;
+            }
+            _ => {}
+        }
+    }
+
     if args.len() < 2 {
         print_usage();
         return;
@@ -586,66 +701,29 @@ pub fn run_cli(args: &[String]) {
             cmd.execute();
         }
         "build" => {
-            let mut input_file = String::new();
-            let mut out_file = None;
-            let mut target_backend = "native".to_string(); // "native" or "go"
-            let mut tags = Vec::new();
-            let mut dts_inputs: Vec<(String, String)> = Vec::new();
-            let mut release = false;
-
-            let mut i = 2;
-            while i < args.len() {
-                if args[i] == "--version" || args[i] == "-V" {
-                    print_version();
-                    return;
-                } else if args[i] == "-o" && i + 1 < args.len() {
-                    out_file = Some(args[i + 1].clone());
-                    i += 2;
-                } else if (args[i] == "--target" || args[i] == "-target") && i + 1 < args.len() {
-                    target_backend = args[i + 1].to_lowercase();
-                    i += 2;
-                } else if args[i] == "--go" {
-                    target_backend = "go".to_string();
-                    i += 1;
-                } else if args[i] == "--standalone" {
-                    // Always default in backend Golang model
-                    i += 1;
-                } else if args[i] == "--release"
-                    || args[i] == "-O"
-                    || args[i] == "-O3"
-                    || args[i] == "--simd"
-                {
-                    release = true;
-                    i += 1;
-                } else if (args[i] == "--tags" || args[i] == "-tags") && i + 1 < args.len() {
-                    tags.push(args[i + 1].clone());
-                    i += 2;
-                } else if args[i] == "--dts" && i + 1 < args.len() {
-                    let dts_path = &args[i + 1];
-                    if let Ok(dts_content) = fs::read_to_string(dts_path) {
-                        dts_inputs.push((dts_path.clone(), dts_content));
-                    }
-                    i += 2;
-                } else if input_file.is_empty() && !args[i].starts_with('-') {
-                    input_file = args[i].clone();
-                    i += 1;
-                } else {
-                    i += 1;
-                }
-            }
-
-            if input_file.is_empty() {
-                eprintln!("Error: Missing input file for 'build'.");
+            if args.iter().skip(2).any(|a| a == "--version" || a == "-V") {
+                print_version();
                 return;
             }
 
+            let flags = parse_common_flags(&args[2..]);
+            let input_file = match flags.positional_args.first() {
+                Some(f) => f.clone(),
+                None => {
+                    eprintln!("Error: Missing input file for 'build'.");
+                    return;
+                }
+            };
+
+            let target_backend = flags.target_backend.unwrap_or_else(|| "native".to_string());
+
             let cmd = BuildCommand {
                 input_file,
-                out_file,
+                out_file: flags.out_file,
                 target_backend,
-                tags,
-                dts_inputs,
-                release,
+                tags: flags.tags,
+                dts_inputs: flags.dts_inputs,
+                release: flags.release,
             };
             cmd.execute();
         }
@@ -682,6 +760,7 @@ pub fn run_cli(args: &[String]) {
             cmd.execute();
         }
         "fix" => {
+            eprintln!("Warning: 'aura fix' is deprecated and will be removed in a future version. Use 'aura lint --fix' instead.");
             if args.iter().skip(2).any(|a| a == "--version" || a == "-V") {
                 print_version();
                 return;
@@ -701,13 +780,35 @@ pub fn run_cli(args: &[String]) {
         }
         "run" => {
             let mut input_file = String::new();
+            let mut target_backend = "native".to_string();
+            let mut release = false;
             let mut tags = Vec::new();
             let mut trailing_args = Vec::new();
             let mut i = 2;
+            let mut collecting_trailing = false;
+
             while i < args.len() {
-                if args[i] == "--version" || args[i] == "-V" {
+                if collecting_trailing {
+                    trailing_args.push(args[i].clone());
+                    i += 1;
+                    continue;
+                }
+
+                if args[i] == "--" {
+                    collecting_trailing = true;
+                    i += 1;
+                } else if args[i] == "--version" || args[i] == "-V" {
                     print_version();
                     return;
+                } else if (args[i] == "--target" || args[i] == "-t") && i + 1 < args.len() {
+                    target_backend = args[i + 1].to_lowercase();
+                    i += 2;
+                } else if args[i].starts_with("--target=") {
+                    target_backend = args[i]["--target=".len()..].to_lowercase();
+                    i += 1;
+                } else if args[i] == "--release" || args[i] == "-O3" {
+                    release = true;
+                    i += 1;
                 } else if (args[i] == "--tags" || args[i] == "-tags") && i + 1 < args.len() {
                     tags.push(args[i + 1].clone());
                     i += 2;
@@ -722,6 +823,7 @@ pub fn run_cli(args: &[String]) {
 
             if input_file.is_empty() {
                 eprintln!("Error: Missing input file for 'run'.");
+                eprintln!("Usage: aura run <file.aura> [--target <native|go|js>] [--release] [--tags <tags>] [-- <args...>]");
                 return;
             }
 
@@ -743,8 +845,6 @@ pub fn run_cli(args: &[String]) {
                             .map(|d| d.as_micros())
                             .unwrap_or(0)
                     );
-                    let tmp_js = format!("{}.tmp.{}.mjs", filename, run_id);
-                    let tmp_map = format!("{}.map", tmp_js);
 
                     struct CleanupGuard {
                         files: Vec<std::path::PathBuf>,
@@ -757,59 +857,147 @@ pub fn run_cli(args: &[String]) {
                         }
                     }
 
-                    match aura_lang::compile_backend_with_sourcemap(
-                        &content,
-                        &tmp_js,
-                        filename,
-                        base_path,
-                        &[],
-                    ) {
-                        Ok(res) => {
-                            let mut runner_code = res.js_code;
-                            if !runner_code.contains("__aura_invoked_main")
-                                && (runner_code.contains("function main(")
-                                    || runner_code.contains("const main ="))
-                            {
-                                runner_code.push_str("\n\n// Auto-invoke main entrypoint (Golang model)\nconst __aura_invoked_main = true;\nif (typeof main === 'function') {\n  const __r = main();\n  if (__r && typeof __r.then === 'function') {\n    __r.catch(_e => { console.error(_e); if (typeof process !== 'undefined') process.exit(1); });\n  }\n}\n");
-                            }
-                            if let Err(e) = fs::write(&tmp_js, &runner_code) {
-                                eprintln!("Error writing temp file: {}", e);
-                                return;
-                            }
-                            if let Some(ref map_content) = res.source_map {
-                                let _ = fs::write(&tmp_map, map_content);
-                            }
+                    match target_backend.as_str() {
+                        "js" | "node" | "mjs" => {
+                            let tmp_js = format!("{}.tmp.{}.mjs", filename, run_id);
+                            let tmp_map = format!("{}.map", tmp_js);
 
-                            let compiled_deps = aura_lang::compile_local_deps_to_mjs_from_source(
-                                &content, base_path,
-                            );
+                            match aura_lang::compile_backend_with_sourcemap(
+                                &content,
+                                &tmp_js,
+                                filename,
+                                base_path,
+                                &[],
+                            ) {
+                                Ok(res) => {
+                                    let mut runner_code = res.js_code;
+                                    if !runner_code.contains("__aura_invoked_main")
+                                        && (runner_code.contains("function main(")
+                                            || runner_code.contains("const main ="))
+                                    {
+                                        runner_code.push_str("\n\n// Auto-invoke main entrypoint (Golang model)\nconst __aura_invoked_main = true;\nif (typeof main === 'function') {\n  const __r = main();\n  if (__r && typeof __r.then === 'function') {\n    __r.catch(_e => { console.error(_e); if (typeof process !== 'undefined') process.exit(1); });\n  }\n}\n");
+                                    }
+                                    if let Err(e) = fs::write(&tmp_js, &runner_code) {
+                                        eprintln!("Error writing temp file: {}", e);
+                                        return;
+                                    }
+                                    if let Some(ref map_content) = res.source_map {
+                                        let _ = fs::write(&tmp_map, map_content);
+                                    }
 
-                            let mut cleanup = CleanupGuard {
-                                files: vec![
-                                    std::path::PathBuf::from(&tmp_js),
-                                    std::path::PathBuf::from(&tmp_map),
-                                ],
-                            };
-                            for dep in &compiled_deps {
-                                cleanup.files.push(dep.clone());
-                            }
+                                    let compiled_deps = aura_lang::compile_local_deps_to_mjs_from_source(
+                                        &content, base_path,
+                                    );
 
-                            let mut cmd = Command::new("node");
-                            cmd.arg("--enable-source-maps")
-                                .arg(&tmp_js)
-                                .args(&trailing_args);
-                            let status = cmd.status();
+                                    let mut cleanup = CleanupGuard {
+                                        files: vec![
+                                            std::path::PathBuf::from(&tmp_js),
+                                            std::path::PathBuf::from(&tmp_map),
+                                        ],
+                                    };
+                                    for dep in &compiled_deps {
+                                        cleanup.files.push(dep.clone());
+                                    }
 
-                            // Explicitly trigger cleanup before reporting error
-                            drop(cleanup);
+                                    let mut cmd = Command::new("node");
+                                    cmd.arg("--enable-source-maps")
+                                        .arg(&tmp_js)
+                                        .args(&trailing_args);
+                                    let status = cmd.status();
 
-                            if let Err(e) = status {
-                                eprintln!("Failed to execute node: {}", e);
+                                    drop(cleanup);
+
+                                    if let Ok(exit_status) = status {
+                                        if !exit_status.success() {
+                                            std::process::exit(exit_status.code().unwrap_or(1));
+                                        }
+                                    } else if let Err(e) = status {
+                                        eprintln!("Failed to execute node: {}", e);
+                                        std::process::exit(1);
+                                    }
+                                }
+                                Err(e) => {
+                                    eprintln!("✕ Compilation error:\n{}", e);
+                                    std::process::exit(1);
+                                }
                             }
                         }
-                        Err(e) => {
-                            eprintln!("✕ Compilation error:\n{}", e);
-                            std::process::exit(1);
+                        "go" | "golang" => {
+                            let tmp_bin = std::env::temp_dir().join(format!("aura_run_go_{}", run_id));
+                            let cleanup = CleanupGuard {
+                                files: vec![tmp_bin.clone()],
+                            };
+
+                            match aura_lang::build_backend_executable_with_options(
+                                &content,
+                                &tmp_bin,
+                                base_path,
+                                None,
+                                release,
+                            ) {
+                                Ok(_) => {
+                                    let mut cmd = Command::new(&tmp_bin);
+                                    cmd.args(&trailing_args);
+                                    let status = cmd.status();
+                                    drop(cleanup);
+
+                                    if let Ok(exit_status) = status {
+                                        if !exit_status.success() {
+                                            std::process::exit(exit_status.code().unwrap_or(1));
+                                        }
+                                    } else if let Err(e) = status {
+                                        eprintln!("Failed to execute temporary Go binary: {}", e);
+                                        std::process::exit(1);
+                                    }
+                                }
+                                Err(e) => {
+                                    eprintln!("✕ Go compilation error:\n{}", e);
+                                    drop(cleanup);
+                                    std::process::exit(1);
+                                }
+                            }
+                        }
+                        _ => {
+                            // Default: Cranelift Native Machine Code
+                            let tmp_bin = std::env::temp_dir().join(format!("aura_run_native_{}", run_id));
+                            let cleanup = CleanupGuard {
+                                files: vec![tmp_bin.clone()],
+                            };
+
+                            let explicit_target = if target_backend != "native" && target_backend != "cranelift" {
+                                Some(target_backend.as_str())
+                            } else {
+                                None
+                            };
+
+                            match aura_lang::build_native_binary_with_options(
+                                &content,
+                                &tmp_bin,
+                                base_path,
+                                explicit_target,
+                                release,
+                            ) {
+                                Ok(_) => {
+                                    let mut cmd = Command::new(&tmp_bin);
+                                    cmd.args(&trailing_args);
+                                    let status = cmd.status();
+                                    drop(cleanup);
+
+                                    if let Ok(exit_status) = status {
+                                        if !exit_status.success() {
+                                            std::process::exit(exit_status.code().unwrap_or(1));
+                                        }
+                                    } else if let Err(e) = status {
+                                        eprintln!("Failed to execute temporary native binary: {}", e);
+                                        std::process::exit(1);
+                                    }
+                                }
+                                Err(e) => {
+                                    eprintln!("✕ Cranelift native compilation error:\n{}", e);
+                                    drop(cleanup);
+                                    std::process::exit(1);
+                                }
+                            }
                         }
                     }
                 }
@@ -818,6 +1006,9 @@ pub fn run_cli(args: &[String]) {
         }
         "debug" | "step" => {
             let is_step_cmd = command_or_file == "step";
+            if is_step_cmd {
+                eprintln!("Warning: 'aura step' is deprecated and will be removed in a future version. Use 'aura debug --step' instead.");
+            }
             let mut input_file = String::new();
             let mut port = 9229u16;
             let mut stop_on_entry = true;
@@ -855,7 +1046,6 @@ pub fn run_cli(args: &[String]) {
                 eprintln!(
                     "Usage: aurac debug <file.aura> [--step] [--port <port>] [--no-brk] [--tags <tags>]"
                 );
-                eprintln!("       aurac step <file.aura> [--port <port>] [--tags <tags>]");
                 return;
             }
 
@@ -980,7 +1170,12 @@ pub fn run_cli(args: &[String]) {
             let vuln_args: Vec<String> = args.iter().skip(2).cloned().collect();
             aura_lang::vuln::run_vuln_cli(&vuln_args);
         }
-        "mod" | "pkg" => {
+        "mod" => {
+            let mod_args: Vec<String> = args.iter().skip(2).cloned().collect();
+            aura_lang::package::run_cli(&mod_args);
+        }
+        "pkg" => {
+            eprintln!("Warning: 'aura pkg' is deprecated and will be removed in a future version. Use 'aura mod' instead.");
             let mod_args: Vec<String> = args.iter().skip(2).cloned().collect();
             aura_lang::package::run_cli(&mod_args);
         }
@@ -1022,70 +1217,35 @@ pub fn run_cli(args: &[String]) {
 
         _ => {
             // Default action: Build standalone native binary (Golang model: 'aurac file.aura' or 'aurac compile file.aura')
-            let mut input_file = command_or_file.clone();
-            let mut out_file = None;
-            let mut target_backend = "native".to_string();
-            let mut tags = Vec::new();
-            let mut dts_inputs: Vec<(String, String)> = Vec::new();
-            let mut release = false;
-
-            let mut i = 1;
-            if (args[1] == "compile" || args[1] == "build") && args.len() > 2 {
-                input_file = args[2].clone();
-                i = 3;
-            }
-
-            while i < args.len() {
-                if args[i] == "--version" || args[i] == "-V" {
-                    print_version();
-                    return;
-                } else if args[i] == "-o" && i + 1 < args.len() {
-                    out_file = Some(args[i + 1].clone());
-                    i += 2;
-                } else if (args[i] == "--target" || args[i] == "-target") && i + 1 < args.len() {
-                    target_backend = args[i + 1].to_lowercase();
-                    i += 2;
-                } else if args[i] == "--go" {
-                    target_backend = "go".to_string();
-                    i += 1;
-                } else if args[i] == "--standalone" {
-                    i += 1;
-                } else if args[i] == "--release"
-                    || args[i] == "-O"
-                    || args[i] == "-O3"
-                    || args[i] == "--simd"
-                {
-                    release = true;
-                    i += 1;
-                } else if (args[i] == "--tags" || args[i] == "-tags") && i + 1 < args.len() {
-                    tags.push(args[i + 1].clone());
-                    i += 2;
-                } else if args[i] == "--dts" && i + 1 < args.len() {
-                    let dts_path = &args[i + 1];
-                    if let Ok(dts_content) = fs::read_to_string(dts_path) {
-                        dts_inputs.push((dts_path.clone(), dts_content));
-                    }
-                    i += 2;
-                } else if input_file.is_empty() && !args[i].starts_with('-') {
-                    input_file = args[i].clone();
-                    i += 1;
-                } else {
-                    i += 1;
-                }
-            }
-
-            if input_file.is_empty() {
-                eprintln!("Error: Missing input file to compile.");
+            if args.iter().skip(1).any(|a| a == "--version" || a == "-V") {
+                print_version();
                 return;
             }
 
+            let slice = if (args[1] == "compile" || args[1] == "build") && args.len() > 2 {
+                &args[2..]
+            } else {
+                &args[1..]
+            };
+
+            let flags = parse_common_flags(slice);
+            let input_file = match flags.positional_args.first() {
+                Some(f) => f.clone(),
+                None => {
+                    eprintln!("Error: Missing input file to compile.");
+                    return;
+                }
+            };
+
+            let target_backend = flags.target_backend.unwrap_or_else(|| "native".to_string());
+
             execute_build(
                 &input_file,
-                out_file,
+                flags.out_file,
                 &target_backend,
-                &tags,
-                &dts_inputs,
-                release,
+                &flags.tags,
+                &flags.dts_inputs,
+                flags.release,
             );
         }
     }
@@ -1111,5 +1271,28 @@ mod tests {
             args: vec!["--help".to_string()],
         };
         assert_eq!(cmd.args.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_common_flags() {
+        let args = vec![
+            "-o".to_string(),
+            "out_bin".to_string(),
+            "--release".to_string(),
+            "--tags".to_string(),
+            "prod,fast".to_string(),
+            "--target".to_string(),
+            "x86_64-unknown-linux-gnu".to_string(),
+            "main.aura".to_string(),
+        ];
+        let flags = parse_common_flags(&args);
+        assert_eq!(flags.out_file, Some("out_bin".to_string()));
+        assert!(flags.release);
+        assert_eq!(flags.tags, vec!["prod,fast".to_string()]);
+        assert_eq!(
+            flags.target_backend,
+            Some("x86_64-unknown-linux-gnu".to_string())
+        );
+        assert_eq!(flags.positional_args, vec!["main.aura".to_string()]);
     }
 }

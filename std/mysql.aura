@@ -1,2 +1,5 @@
-// Aura Standard Library: std/mysql (Top-level alias)
+// Aura Standard Library: std/mysql (Legacy Top-level Alias)
+// @deprecated Use 'std/database/mysql' or 'database/mysql' instead.
+// Canonical implementation located at: std/database/mysql/mysql.aura
+
 export { open, connect } from "./database/mysql/mysql";

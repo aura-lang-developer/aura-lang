@@ -7,6 +7,7 @@
 pub mod c_api;
 pub mod channel;
 pub mod context;
+pub mod crypto;
 pub mod db;
 pub mod fiber;
 pub mod gc;
@@ -26,6 +27,10 @@ pub mod variant;
 
 pub use c_api::*;
 pub use channel::{AuraChannel, channel_metrics};
+pub use crypto::{
+    Sha256, base64_decode, base64_encode, hmac_sha256, pbkdf2_hmac_sha256, sha256_hash,
+    sha256_hex,
+};
 pub use db::{
     AuraDbConn, AuraDbPool, AuraDbRows, AuraDbTx, AuraExecResult, aura_db_begin, aura_db_close_any,
     aura_db_exec, aura_db_exec_free, aura_db_exec_last_insert_id, aura_db_exec_rows_affected,
@@ -807,7 +812,7 @@ mod tests {
 
     #[test]
     fn test_postgres_scram_sha256_cryptography() {
-        use crate::postgres_client::{
+        use crate::crypto::{
             base64_decode, base64_encode, hmac_sha256, pbkdf2_hmac_sha256, sha256_hash,
         };
 
